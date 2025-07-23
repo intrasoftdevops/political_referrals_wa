@@ -1,0 +1,6 @@
+spring.application.name=political_referrals_wa
+server.port=8081
+
+# Configuración para 360dialog
+360dialog.api.url=YOURKEY
+360dialog.api.key=YOURKEY
