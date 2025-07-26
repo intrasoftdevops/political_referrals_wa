@@ -316,10 +316,8 @@ public class ChatbotService {
                         // 1. Prepara el texto sin codificar los espacios con %20.
                         // Usa espacios normales y luego el formato %s para el código.
                         String whatsappRawReferralText = String.format("Hola, vengo referido por:%s", referralCode);
-                        
-                        // 2. Ahora, codifica *toda* la cadena para que sea segura en la URL.
-                        String encodedWhatsappMessage = URLEncoder.encode(whatsappRawReferralText, StandardCharsets.UTF_8.toString());
-
+System.out.println("Texto crudo antes de codificar: '" + whatsappRawReferralText + "'"); // Añade esta línea
+String encodedWhatsappMessage = URLEncoder.encode(whatsappRawReferralText, StandardCharsets.UTF_8.toString()).replace("+", "%20");
                         // 3. Construye el enlace de WhatsApp usando el texto codificado.
                         whatsappInviteLink = "https://wa.me/573150841309?text=" + encodedWhatsappMessage;
 
