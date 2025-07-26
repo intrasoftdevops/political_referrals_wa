@@ -32,5 +32,5 @@ build/
 ### VS Code ###
 .vscode/
 
-!**/application.properties
+src/main/resources/application.properties
 political-referrals-wa-key.json
