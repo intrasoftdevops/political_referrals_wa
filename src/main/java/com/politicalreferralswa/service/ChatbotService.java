@@ -185,6 +185,8 @@ public class ChatbotService {
                             Ahora, para seguir adelante y unirnos en esta gran tarea de transformación nacional, te invito a que revises nuestra politica de tratamiento de datos, plasmadas aqui https://danielquinterocalle.com/privacidad. Si continuas está conversación estás de acuerdo y aceptas los principios con los que manejamos la información.
 
                             Acompáñame hacia una Colombia más justa, equitativa y próspera para todos. ¿Aceptas el reto de resetear la política?
+
+                            Responde: Si o No.
                             """;
                     nextChatbotState = "WAITING_TERMS_ACCEPTANCE"; // Directamente a aceptar términos
                 } else {
@@ -206,6 +208,7 @@ public class ChatbotService {
                                 Para seguir adelante y unirnos en esta gran tarea de transformación nacional, te invito a que revises nuestra politica de tratamiento de datos, plasmadas aqui https://danielquinterocalle.com/privacidad. Si continuas está conversación estás de acuerdo y aceptas los principios con los que manejamos la información.
 
                                 Acompáñame hacia una Colombia más justa, equitativa y próspera para todos. ¿Aceptas el reto de resetear la política?
+                                Responde: Si o No.
                                 """;
                         nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
                     } else {
@@ -241,7 +244,8 @@ public class ChatbotService {
                                 ¡Excelente! Veo que vienes referido por un amigo. ¡Qué emoción que te unas a esta ola de cambio para Colombia!
                                 Para seguir adelante y unirnos en esta gran tarea de transformación nacional, te invito a que revises nuestra politica de tratamiento de datos, plasmadas aqui https://danielquinterocalle.com/privacidad. Si continuas está conversación estás de acuerdo y aceptas los principios con los que manejamos la información.
 
-                                Acompáñame hacia una Colombia más justa, equitativa y próspera para todos. ¿Aceptas el reto de resetear la política?
+                                Acompáñame hacia una Colombia más justa, equitativa y próspera para todos. 
+                                Responde: Si o No.
                                 """;
                         nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
                     } else {
@@ -260,6 +264,7 @@ public class ChatbotService {
                             Para seguir adelante y unirnos en esta gran tarea de transformación nacional, te invito a que revises nuestra politica de tratamiento de datos, plasmadas aqui https://danielquinterocalle.com/privacidad. Si continuas está conversación estás de acuerdo y aceptas los principios con los que manejamos la información.
 
                             Acompáñame hacia una Colombia más justa, equitativa y próspera para todos. ¿Aceptas el reto de resetear la política?
+                            Responde: Si o No.
                             """;
                     nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
                 } else {
