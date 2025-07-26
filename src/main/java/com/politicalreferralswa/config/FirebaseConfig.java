@@ -22,7 +22,7 @@ public class FirebaseConfig {
     private static final String SERVICE_ACCOUNT_KEY_FILE_NAME = "political-referrals-wa-key.json"; // Asegúrate que este sea el nombre de tu archivo JSON en src/main/resources
 
     // --- 2. CONFIGURA EL ID DE TU PROYECTO DE GOOGLE CLOUD ---
-    private static final String PROJECT_ID = "essential-vim-465015-h8"; // <--- ¡¡¡ACTUALIZA ESTO!!!
+    private static final String PROJECT_ID = "intreasoft-daniel"; // <--- ¡¡¡ACTUALIZA ESTO!!!
 
     @Bean
     public Firestore firestore() throws IOException {
