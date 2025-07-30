@@ -21,6 +21,7 @@ public class User {
     private String referral_code;
     private Timestamp updated_at;
     private String referred_by_phone;
+    private String referred_by_code;
     private String telegram_chat_id;
 
     // Si no usas Lombok, tendrías que tener los getters y setters escritos manualmente:
