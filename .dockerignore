@@ -1,0 +1,30 @@
+# Archivos de desarrollo
+.git
+.gitignore
+README.md
+HELP.md
+
+# Archivos de IDE
+.idea/
+.vscode/
+*.iml
+
+# Archivos de Maven (pero NO target/)
+.mvn/
+mvnw
+mvnw.cmd
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+
+# Credenciales locales
+src/main/resources/application.properties
+src/main/resources/political-referrals-wa-key.json
+
+# Logs
+*.log
+
+# Archivos temporales
+.DS_Store
+Thumbs.db 
