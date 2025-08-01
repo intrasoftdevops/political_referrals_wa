@@ -536,23 +536,30 @@ public class ChatbotService {
                 boolean hasCompleteName = user.getName() != null && !user.getName().isEmpty();
                 boolean hasCompleteCity = user.getCity() != null && !user.getCity().isEmpty();
                 
+                System.out.println("DEBUG NAME: hasCompleteName = " + hasCompleteName + " (nombre: '" + user.getName() + "')");
+                System.out.println("DEBUG NAME: hasCompleteCity = " + hasCompleteCity + " (ciudad: '" + user.getCity() + "')");
+                System.out.println("DEBUG NAME: aceptaTerminos = " + user.isAceptaTerminos());
+                System.out.println("DEBUG NAME: Condición completa: " + (hasCompleteName && hasCompleteCity && !user.isAceptaTerminos()));
+                
                 if (hasCompleteName && hasCompleteCity && !user.isAceptaTerminos()) {
+                    System.out.println("DEBUG NAME: ✅ ENTRANDO A RAMA DE ACEPTACIÓN DE TÉRMINOS");
                     System.out.println("DEBUG NAME: Usuario ya tiene datos completos, verificando si acepta términos...");
                     if (messageText.equalsIgnoreCase("Sí") || messageText.equalsIgnoreCase("Si")) {
                         // El usuario está aceptando términos
-                        System.out.println("DEBUG NAME: Usuario acepta términos desde WAITING_NAME");
+                        System.out.println("DEBUG NAME: ✅ Usuario acepta términos desde WAITING_NAME - TERMINANDO AQUÍ");
                         user.setAceptaTerminos(true);
                         saveUser(user);
                         return completeRegistration(user);
                     } else {
                         // El usuario no aceptó términos, preguntarle explícitamente
-                        System.out.println("DEBUG NAME: Usuario no acepta términos, preguntando explícitamente");
+                        System.out.println("DEBUG NAME: ❌ Usuario no acepta términos, preguntando explícitamente");
                         responseMessage = "¡Perfecto " + user.getName() + " de " + user.getCity() + 
                             "! Para completar tu registro, confirma que aceptas nuestra política de privacidad: " +
                             "https://danielquinterocalle.com/privacidad. ¿Aceptas? (Sí/No)";
                         nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
                     }
                 } else {
+                    System.out.println("DEBUG NAME: ❌ ENTRANDO A RAMA DE EXTRACCIÓN (datos incompletos)");
                     // Si no tiene datos completos, usar extracción inteligente normal
                     System.out.println("DEBUG NAME: Usuario no tiene datos completos, usando extracción inteligente");
                     

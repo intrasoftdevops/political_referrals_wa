@@ -3,6 +3,8 @@ package com.politicalreferralswa.service;
 import com.politicalreferralswa.model.User;
 import org.springframework.stereotype.Service;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -24,10 +26,25 @@ public class UserDataExtractor {
      * @return ExtractionResult con el resultado de la extracción
      */
     public ExtractionResult extractAndUpdateUser(User user, String userMessage, String previousContext) {
-        System.out.println("DEBUG EXTRACTOR: ===== LLAMADA A extractAndUpdateUser =====");
+        System.out.println("DEBUG EXTRACTOR: ========== INICIO extractAndUpdateUser ==========");
+        System.out.println("DEBUG EXTRACTOR: Thread: " + Thread.currentThread().getName());
         System.out.println("DEBUG EXTRACTOR: Estado actual: " + user.getChatbot_state());
         System.out.println("DEBUG EXTRACTOR: Mensaje: '" + userMessage + "'");
-        System.out.println("DEBUG EXTRACTOR: Usuario actual - Nombre: '" + user.getName() + "', Ciudad: '" + user.getCity() + "', AceptaTerminos: " + user.isAceptaTerminos());
+        System.out.println("DEBUG EXTRACTOR: Usuario ANTES - Nombre: '" + user.getName() + "', Ciudad: '" + user.getCity() + "', AceptaTerminos: " + user.isAceptaTerminos());
+        
+        // VERIFICACIÓN PREVENTIVA: Si el usuario ya tiene datos completos y dice "Sí"/"No", 
+        // probablemente está respondiendo a términos, NO dando datos nuevos
+        boolean hasCompleteName = user.getName() != null && !user.getName().isEmpty();
+        boolean hasCompleteCity = user.getCity() != null && !user.getCity().isEmpty();
+        boolean isAcceptanceMessage = userMessage.equalsIgnoreCase("Sí") || userMessage.equalsIgnoreCase("Si") || 
+                                    userMessage.equalsIgnoreCase("No") || userMessage.equalsIgnoreCase("yes") || userMessage.equalsIgnoreCase("no");
+        
+        if (hasCompleteName && hasCompleteCity && isAcceptanceMessage) {
+            System.out.println("DEBUG EXTRACTOR: 🛑 PROTECCIÓN ACTIVADA - Usuario con datos completos + mensaje de aceptación");
+            System.out.println("DEBUG EXTRACTOR: NO procesando '" + userMessage + "' para evitar sobrescribir datos existentes");
+            System.out.println("DEBUG EXTRACTOR: Datos protegidos - Nombre: '" + user.getName() + "', Ciudad: '" + user.getCity() + "'");
+            return ExtractionResult.incomplete("Procesando tu respuesta...");
+        }
         
         try {
             // Construir contexto de conversación previa si no se proporcionó
@@ -104,20 +121,27 @@ public class UserDataExtractor {
                              ", Valor anterior: " + extraction.getPreviousValue());
         }
         
+        System.out.println("DEBUG EXTRACTOR: ===== ACTUALIZANDO DATOS DEL USUARIO =====");
+        System.out.println("DEBUG EXTRACTOR: Extracción de Gemini - Nombre: '" + extraction.getName() + "', Ciudad: '" + extraction.getCity() + "', Apellido: '" + extraction.getLastname() + "'");
+        System.out.println("DEBUG EXTRACTOR: Usuario ANTES update - Nombre: '" + user.getName() + "', Ciudad: '" + user.getCity() + "', Apellido: '" + user.getLastname() + "'");
+        
         // Actualizar nombre si se extrajo (siempre actualizar si hay datos nuevos)
         if (extraction.getName() != null) {
+            System.out.println("DEBUG EXTRACTOR: 🚨 SOBRESCRIBIENDO NOMBRE: '" + user.getName() + "' → '" + extraction.getName() + "'");
             user.setName(extraction.getName());
             updated = true;
         }
         
         // Actualizar apellido si se extrajo
         if (extraction.getLastname() != null) {
+            System.out.println("DEBUG EXTRACTOR: 🚨 SOBRESCRIBIENDO APELLIDO: '" + user.getLastname() + "' → '" + extraction.getLastname() + "'");
             user.setLastname(extraction.getLastname());
             updated = true;
         }
         
         // Actualizar ciudad si se extrajo (siempre actualizar si hay datos nuevos)
         if (extraction.getCity() != null) {
+            System.out.println("DEBUG EXTRACTOR: 🚨 SOBRESCRIBIENDO CIUDAD: '" + user.getCity() + "' → '" + extraction.getCity() + "'");
             user.setCity(extraction.getCity());
             updated = true;
         }
@@ -210,6 +234,16 @@ public class UserDataExtractor {
             user.setChatbot_state("WAITING_TERMS_ACCEPTANCE");
             String displayName = fullName.isEmpty() ? user.getName() : fullName;
             String displayLocation = location.isEmpty() ? user.getCity() : location;
+            
+            System.out.println("DEBUG EXTRACTOR: 🚨 GENERANDO MENSAJE PROBLEMÁTICO");
+            System.out.println("DEBUG EXTRACTOR: fullName = '" + fullName + "'");
+            System.out.println("DEBUG EXTRACTOR: user.getName() = '" + user.getName() + "'");
+            System.out.println("DEBUG EXTRACTOR: displayName = '" + displayName + "'");
+            System.out.println("DEBUG EXTRACTOR: location = '" + location + "'");
+            System.out.println("DEBUG EXTRACTOR: user.getCity() = '" + user.getCity() + "'");
+            System.out.println("DEBUG EXTRACTOR: displayLocation = '" + displayLocation + "'");
+            System.out.println("DEBUG EXTRACTOR: hasName=" + hasName + ", hasCity=" + hasCity + ", hasAcceptedTerms=" + hasAcceptedTerms);
+            
             return ExtractionResult.incomplete(emotionalPrefix + "¡Perfecto " + displayName + " de " + displayLocation + 
                 "! Para completar tu registro, confirma que aceptas nuestra política de privacidad: " +
                 "https://danielquinterocalle.com/privacidad. ¿Aceptas? (Sí/No)");
