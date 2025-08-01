@@ -152,6 +152,9 @@ public class UserDataExtractor {
         boolean hasState = user.getState() != null && !user.getState().isEmpty();
         boolean hasAcceptedTerms = user.isAceptaTerminos();
         
+        // Crear mensaje base con contexto emocional si está disponible
+        String emotionalPrefix = buildEmotionalMessage(extraction.getEmotionalContext());
+        
         // Manejar correcciones con mensajes específicos
         if (extraction.getCorrection() != null && extraction.getCorrection()) {
             String correctionMessage = "";
@@ -202,7 +205,7 @@ public class UserDataExtractor {
             user.setChatbot_state("WAITING_TERMS_ACCEPTANCE");
             String displayName = fullName.isEmpty() ? user.getName() : fullName;
             String displayLocation = location.isEmpty() ? user.getCity() : location;
-            return ExtractionResult.incomplete("¡Perfecto " + displayName + " de " + displayLocation + 
+            return ExtractionResult.incomplete(emotionalPrefix + "¡Perfecto " + displayName + " de " + displayLocation + 
                 "! Para completar tu registro, confirma que aceptas nuestra política de privacidad: " +
                 "https://danielquinterocalle.com/privacidad. ¿Aceptas? (Sí/No)");
         }
@@ -211,7 +214,7 @@ public class UserDataExtractor {
             // Tiene nombre y aceptó términos, falta ciudad
             user.setChatbot_state("WAITING_CITY");
             String displayName = fullName.isEmpty() ? user.getName() : fullName;
-            return ExtractionResult.incomplete("¡Perfecto " + displayName + "! Ya aceptaste los términos. " +
+            return ExtractionResult.incomplete(emotionalPrefix + "¡Perfecto " + displayName + "! Ya aceptaste los términos. " +
                 "¿En qué ciudad vives?");
         }
         
@@ -227,14 +230,14 @@ public class UserDataExtractor {
             // Solo tiene nombre
             user.setChatbot_state("WAITING_CITY");
             String displayName = fullName.isEmpty() ? user.getName() : fullName;
-            return ExtractionResult.incomplete("¡Hola " + displayName + "! ¿En qué ciudad vives?");
+            return ExtractionResult.incomplete(emotionalPrefix + "¡Hola " + displayName + "! ¿En qué ciudad vives?");
         }
         
         if (!hasName && hasCity && !hasAcceptedTerms) {
             // Solo tiene ciudad
             user.setChatbot_state("WAITING_NAME");
             String displayLocation = location.isEmpty() ? user.getCity() : location;
-            return ExtractionResult.incomplete("¡Hola! Veo que eres de " + displayLocation + ". ¿Cuál es tu nombre?");
+            return ExtractionResult.incomplete(emotionalPrefix + "¡Hola! Veo que eres de " + displayLocation + ". ¿Cuál es tu nombre?");
         }
         
         if (!hasName && !hasCity && hasAcceptedTerms) {
@@ -243,9 +246,19 @@ public class UserDataExtractor {
             return ExtractionResult.incomplete("¡Perfecto! Ya aceptaste los términos. ¿Cuál es tu nombre?");
         }
         
-        // Caso por defecto - no tiene datos
-        user.setChatbot_state("WAITING_TERMS_ACCEPTANCE");
-        return ExtractionResult.incomplete("Para continuar, necesito que aceptes los términos. ¿Aceptas? (Sí/No)");
+        // Caso por defecto - no tiene datos, empezar por nombre
+        user.setChatbot_state("WAITING_NAME");
+        return ExtractionResult.incomplete(emotionalPrefix + "Para continuar con tu registro, necesito algunos datos. ¿Cuál es tu nombre?");
+    }
+
+    /**
+     * Construye un mensaje empático basado en el contexto emocional detectado
+     */
+    private String buildEmotionalMessage(String emotionalContext) {
+        if (emotionalContext != null && !emotionalContext.trim().isEmpty()) {
+            return emotionalContext + " ";
+        }
+        return "";
     }
 
     /**

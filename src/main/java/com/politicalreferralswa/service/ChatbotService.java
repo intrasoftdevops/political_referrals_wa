@@ -509,69 +509,12 @@ public class ChatbotService {
                     boolean hasName = user.getName() != null && !user.getName().isEmpty();
                     boolean hasCity = user.getCity() != null && !user.getCity().isEmpty();
                     
-                    if (hasName && hasCity) {
-                        // Si ya tiene nombre y ciudad, completar el registro
-                        String referralCode = generateUniqueReferralCode();
-                        user.setReferral_code(referralCode);
-
-                        String whatsappInviteLink;
-                        String telegramInviteLink;
-                        List<String> additionalMessages = new ArrayList<>();
-
-                        try {
-                            String whatsappRawReferralText = String.format("Hola, vengo referido por:%s", referralCode);
-                            String encodedWhatsappMessage = URLEncoder
-                                    .encode(whatsappRawReferralText, StandardCharsets.UTF_8.toString()).replace("+", "%20");
-                            whatsappInviteLink = "https://wa.me/573224029924?text=" + encodedWhatsappMessage;
-
-                            String encodedTelegramPayload = URLEncoder.encode(referralCode,
-                                    StandardCharsets.UTF_8.toString());
-                            telegramInviteLink = "https://t.me/" + TELEGRAM_BOT_USERNAME + "?start="
-                                    + encodedTelegramPayload;
-
-                            String friendsInviteMessage = String.format(
-                                    "Amigos, los invito a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/573224029924?text=%s",
-                                    URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
-                                            StandardCharsets.UTF_8.toString()).replace("+", "%20"));
-                            additionalMessages.add(friendsInviteMessage);
-
-                            String aiBotIntroMessage = """
-                                    ¡Atención! Ahora entrarás en conversación con una inteligencia artificial.
-                                    Soy Daniel Quintero Bot, en mi versión de IA de prueba para este proyecto.
-                                    Mi objetivo es simular mis respuestas basadas en información clave y mi visión política.
-                                    Ten en cuenta que aún estoy en etapa de prueba y mejora continua.
-                                    ¡Hazme tu pregunta!
-                                    """;
-                            additionalMessages.add(aiBotIntroMessage);
-
-                        } catch (UnsupportedEncodingException e) {
-                            System.err.println("ERROR: No se pudo codificar los códigos de referido. Causa: " + e.getMessage());
-                            e.printStackTrace();
-                            whatsappInviteLink = "https://wa.me/573224029924?text=Error%20al%20generar%20referido";
-                            telegramInviteLink = "https://t.me/" + TELEGRAM_BOT_USERNAME + "?start=Error";
-                            additionalMessages.clear();
-                            additionalMessages.add("Error al generar los mensajes de invitación.");
-                        }
-
-                        responseMessage = String.format(
-                                """
-                                        %s, gracias por unirte a la ola de cambio que estamos construyendo para Colombia. Hasta ahora tienes 0 personas referidas. Ayudanos a crecer y gana puestos dentro de la campaña.
-
-                                        Sabemos que muchos comparten la misma visión de un futuro mejor, y por eso quiero invitarte a que compartas este proyecto con tus amigos, familiares y conocidos. Juntos podemos lograr una transformación real y profunda.
-
-                                        Envíales el siguiente enlace de referido:
-                                        """,
-                                user.getName()
-                        );
-
-                        Optional<String> termsSecondaryMessage = Optional.of(String.join("###SPLIT###", additionalMessages));
-                        nextChatbotState = "COMPLETED";
-                        return new ChatResponse(responseMessage, nextChatbotState, termsSecondaryMessage);
-                    } else {
-                        // Si no tiene todos los datos, continuar con el flujo normal
-                        responseMessage = "¿Cuál es tu nombre?";
-                        nextChatbotState = "WAITING_NAME";
+                    // Si aceptó términos, SIEMPRE completar el registro
+                    // (Si llegó aquí, debería tener todos los datos)
+                    if (!hasName || !hasCity) {
+                        System.err.println("WARN: Usuario aceptó términos sin datos completos. Nombre: " + hasName + ", Ciudad: " + hasCity);
                     }
+                    return completeRegistration(user);
                 } else {
                     responseMessage = "Para continuar, debes aceptar los términos. ¿Aceptas? (Sí/No)";
                     nextChatbotState = "WAITING_TERMS_ACCEPTANCE";

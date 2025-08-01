@@ -104,7 +104,7 @@ public class GeminiService {
 
     private String buildExtractionPrompt(String userMessage, String previousContext) {
         return String.format("""
-            Eres un extractor especializado en formularios políticos colombianos.
+            Eres un extractor especializado CON INTELIGENCIA EMOCIONAL para formularios políticos colombianos.
 
             CONTEXTO: Sistema de registro para campaña política en Colombia.
             MENSAJE: "%s"
@@ -118,6 +118,26 @@ public class GeminiService {
             - acceptsTerms: Si acepta términos explícitamente
             - referredByPhone: Número +57XXXXXXXXX
             - referralCode: Código alfanumérico de 8 dígitos
+            
+            ANÁLISIS SEMÁNTICO DE NOMBRES:
+            - Detecta NOMBRES vs APELLIDOS inteligentemente
+            - "Juan Carlos" = name: "Juan Carlos" (nombre compuesto)
+            - "María José Rodríguez" = name: "María José", lastname: "Rodríguez"
+            - "Carlos Alberto Pérez González" = name: "Carlos Alberto", lastname: "Pérez González"
+            - "Pablo" = name: "Pablo" (nombre simple)
+            - "Dr. Juan" = name: "Juan" (ignora títulos)
+            - "José María" = name: "José María" (ambos son nombres)
+            
+            DETECCIÓN DE CONTEXTO EMOCIONAL:
+            - Si el usuario dice "ya me lo preguntaste", "otra vez?", "ya te dije"
+            - Si expresa frustración o impaciencia
+            - Si indica que ya proporcionó información
+            - GENERA respuesta empática en "emotionalContext"
+            
+            EJEMPLOS DE CONTEXTO EMOCIONAL:
+            - "Soy Pablo, ya me lo habías preguntado" → emotionalContext: "Disculpa Pablo, tienes razón. Continuemos..."
+            - "Ya te dije, en Medellín" → emotionalContext: "Perdón por preguntar de nuevo. Gracias por tu paciencia..."
+            - "Otra vez el nombre?" → emotionalContext: "Mis disculpas, no quería repetir la pregunta..."
 
             CONOCIMIENTO COLOMBIANO:
             - Armenia: Quindío (principal), Antioquia
@@ -193,11 +213,20 @@ public class GeminiService {
                 "city": "mensaje específico|null",
                 "other": "otra aclaración|null"
               },
+              "emotionalContext": "mensaje empático|null",
               "confidence": 0.0-1.0
             }
             
             EJEMPLOS DE RAZONAMIENTO INTELIGENTE:
+            
+            NOMBRES Y CONTEXTO EMOCIONAL:
+            - Para "Soy Pablo, ya me lo habías preguntado": {"name": "Pablo", "emotionalContext": "Disculpa Pablo, tienes razón. Continuemos...", "confidence": 0.95}
+            - Para "Ya te dije, mi nombre es Carlos": {"name": "Carlos", "emotionalContext": "Perdón por preguntar de nuevo. Gracias por tu paciencia...", "confidence": 0.9}
+            - Para "María José Rodríguez": {"name": "María José", "lastname": "Rodríguez", "confidence": 0.95}
+            
+            CIUDADES Y JERGA:
             - Para "Soy rolo": {"city": "Bogotá", "state": "Cundinamarca", "confidence": 0.9}
+            - Para "Ya te dije, en Medellín": {"city": "Medellín", "state": "Antioquia", "emotionalContext": "Perdón por preguntar de nuevo...", "confidence": 0.9}
             - Para "Soy de la nevera": {"city": "Bogotá", "state": "Cundinamarca", "confidence": 0.85}
             - Para "Soy cachaco": {"city": "Bogotá", "state": "Cundinamarca", "confidence": 0.85}
             - Para "Soy paisa": {"city": "Medellín", "state": "Antioquia", "confidence": 0.9}
