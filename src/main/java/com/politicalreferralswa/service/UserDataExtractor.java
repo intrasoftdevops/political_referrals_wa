@@ -165,13 +165,13 @@ public class UserDataExtractor {
             
             // Continuar con el flujo normal después de la corrección
             if (hasName && hasCity && hasAcceptedTerms) {
-                user.setChatbot_state("CONFIRM_DATA");
+                user.setChatbot_state("COMPLETED_REGISTRATION");
                 String displayName = hasName ? user.getName() : "";
                 if (hasLastname) displayName += " " + user.getLastname();
                 String displayLocation = hasCity ? user.getCity() : "";
                 if (hasState) displayLocation += ", " + user.getState();
-                return ExtractionResult.completed(correctionMessage + "¡Perfecto! Confirmamos tus datos: " + 
-                    displayName + ", de " + displayLocation + ". ¿Es correcto? (Sí/No)");
+                return ExtractionResult.completed(correctionMessage + "¡Perfecto " + displayName + " de " + displayLocation + 
+                    "! Tu registro está completo. Te enviaré los enlaces para compartir con tus amigos.");
             }
         }
         
@@ -187,23 +187,24 @@ public class UserDataExtractor {
             location += (hasCity ? ", " : "") + user.getState();
         }
         
-        // Si tenemos todos los datos, completar el registro
+        // Si tenemos todos los datos, completar el registro directamente
         if (hasName && hasCity && hasAcceptedTerms) {
-            user.setChatbot_state("CONFIRM_DATA");
+            user.setChatbot_state("COMPLETED_REGISTRATION");
             String displayName = fullName.isEmpty() ? user.getName() : fullName;
             String displayLocation = location.isEmpty() ? user.getCity() : location;
-            return ExtractionResult.completed("¡Perfecto! Confirmamos tus datos: " + displayName + 
-                ", de " + displayLocation + ". ¿Es correcto? (Sí/No)");
+            return ExtractionResult.completed("¡Perfecto " + displayName + " de " + displayLocation + 
+                "! Tu registro está completo. Te enviaré los enlaces para compartir con tus amigos.");
         }
         
         // Casos parciales - usar datos ya extraídos de forma inteligente
         if (hasName && hasCity && !hasAcceptedTerms) {
-            // Tiene nombre y ciudad, confirmar datos primero, luego términos
-            user.setChatbot_state("CONFIRM_DATA");
+            // Tiene nombre y ciudad, ir directo a términos
+            user.setChatbot_state("WAITING_TERMS_ACCEPTANCE");
             String displayName = fullName.isEmpty() ? user.getName() : fullName;
             String displayLocation = location.isEmpty() ? user.getCity() : location;
-            return ExtractionResult.incomplete("¡Perfecto! Confirmamos tus datos: " + displayName + 
-                ", de " + displayLocation + ". ¿Es correcto? (Sí/No)");
+            return ExtractionResult.incomplete("¡Perfecto " + displayName + " de " + displayLocation + 
+                "! Para completar tu registro, confirma que aceptas nuestra política de privacidad: " +
+                "https://danielquinterocalle.com/privacidad. ¿Aceptas? (Sí/No)");
         }
         
         if (hasName && !hasCity && hasAcceptedTerms) {
@@ -211,7 +212,7 @@ public class UserDataExtractor {
             user.setChatbot_state("WAITING_CITY");
             String displayName = fullName.isEmpty() ? user.getName() : fullName;
             return ExtractionResult.incomplete("¡Perfecto " + displayName + "! Ya aceptaste los términos. " +
-                "¿De qué ciudad eres?");
+                "¿En qué ciudad vives?");
         }
         
         if (!hasName && hasCity && hasAcceptedTerms) {
@@ -226,7 +227,7 @@ public class UserDataExtractor {
             // Solo tiene nombre
             user.setChatbot_state("WAITING_CITY");
             String displayName = fullName.isEmpty() ? user.getName() : fullName;
-            return ExtractionResult.incomplete("¡Hola " + displayName + "! ¿De qué ciudad eres?");
+            return ExtractionResult.incomplete("¡Hola " + displayName + "! ¿En qué ciudad vives?");
         }
         
         if (!hasName && hasCity && !hasAcceptedTerms) {
@@ -267,7 +268,7 @@ public class UserDataExtractor {
         }
 
         public static ExtractionResult completed(String message) {
-            return new ExtractionResult(true, message, "CONFIRM_DATA", false, true);
+            return new ExtractionResult(true, message, "COMPLETED_REGISTRATION", false, true);
         }
 
         public static ExtractionResult incomplete(String message) {

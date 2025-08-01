@@ -138,7 +138,7 @@ public class ChatbotService {
                 user.setChatbot_state("TELEGRAM_WAITING_PHONE_NUMBER");
                 saveUser(user);
                 chatResponse = new ChatResponse(
-                        "¡Hola! 👋 Soy el bot de *Reset a la Política*. Para identificarte y continuar, por favor, envíame tu número de teléfono.",
+                        "¡Hola! 👋 Soy el bot de Reset a la Política. Para identificarte y continuar, por favor, envíame tu número de teléfono.",
                         "TELEGRAM_WAITING_PHONE_NUMBER");
             } else {
                 System.err.println("ChatbotService: Nuevo usuario de canal desconocido ('" + channelType
@@ -255,7 +255,7 @@ public class ChatbotService {
                 System.out.println("DEBUG handleNewUserIntro: Usando extracción inteligente - Parcial, sin política de privacidad");
                 
                 String welcomeMessage = """
-                    ¡Hola! 👋 Soy el bot de **Reset a la Política**.
+                    ¡Hola! 👋 Soy el bot de Reset a la Política.
                     Te doy la bienvenida a este espacio de conversación, donde construimos juntos el futuro de Colombia.
                     
                     """ + extractionResult.getMessage();
@@ -295,7 +295,7 @@ public class ChatbotService {
                 
                 return new ChatResponse(
                         personalizedGreeting + """
-                                ¡Hola! 👋 Soy el bot de **Reset a la Política**.
+                                ¡Hola! 👋 Soy el bot de Reset a la Política.
                                 Te doy la bienvenida a este espacio de conversación, donde construimos juntos el futuro de Colombia.
                                 ¡Qué emoción que te unas a esta ola de cambio para Colombia! Veo que vienes referido por un amigo.
 
@@ -308,7 +308,7 @@ public class ChatbotService {
                                 + incomingReferralCode);
                 return new ChatResponse(
                         """
-                                ¡Hola! 👋 Soy el bot de **Reset a la Política**.
+                                ¡Hola! 👋 Soy el bot de Reset a la Política.
                                 Te doy la bienvenida a este espacio de conversación, donde construimos juntos el futuro de Colombia.
                                 Parece que el código de referido que me enviaste no es válido, pero no te preocupes, ¡podemos continuar!
 
@@ -323,7 +323,7 @@ public class ChatbotService {
                     .println("ChatbotService: Primer mensaje no contiene código de referido. Iniciando flujo general.");
             return new ChatResponse(
                     """
-                            ¡Hola! 👋 Soy el bot de **Reset a la Política**.
+                            ¡Hola! 👋 Soy el bot de Reset a la Política.
                             Te doy la bienvenida a este espacio de conversación, donde construimos juntos el futuro de Colombia.
 
                             Para continuar con tu registro, necesito algunos datos. ¿Cuál es tu nombre?
@@ -384,21 +384,35 @@ public class ChatbotService {
                             user.setCity(potentialCity);
                             saveUser(user);
                             
-                            // Confirmar datos con la ciudad proporcionada
-                            responseMessage = "Confirmamos tus datos: " + user.getName() + 
-                                (user.getLastname() != null ? " " + user.getLastname() : "") + 
-                                ", de " + user.getCity() + ". ¿Es correcto? (Sí/No)";
-                            nextChatbotState = "CONFIRM_DATA";
+                            // Ir directo al siguiente paso según si tiene términos
+                            if (!user.isAceptaTerminos()) {
+                                responseMessage = "¡Perfecto " + user.getName() + 
+                                    (user.getLastname() != null ? " " + user.getLastname() : "") + 
+                                    " de " + user.getCity() + "! Para completar tu registro, confirma que aceptas nuestra política de privacidad: " +
+                                    "https://danielquinterocalle.com/privacidad. ¿Aceptas? (Sí/No)";
+                                nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
+                            } else {
+                                // Ya aceptó términos, completar registro
+                                nextChatbotState = "COMPLETED_REGISTRATION";
+                                return completeRegistration(user);
+                            }
                         } else {
                             responseMessage = "¿En qué ciudad vives?";
                             nextChatbotState = "WAITING_CITY";
                         }
                     } else if (hasName && hasCity) {
-                        // Si ya tiene nombre y ciudad, confirmar datos
-                        responseMessage = "Confirmamos tus datos: " + user.getName() + 
-                            (user.getLastname() != null ? " " + user.getLastname() : "") + 
-                            ", de " + user.getCity() + ". ¿Es correcto? (Sí/No)";
-                        nextChatbotState = "CONFIRM_DATA";
+                        // Si ya tiene nombre y ciudad, ir al siguiente paso
+                        if (!user.isAceptaTerminos()) {
+                            responseMessage = "¡Perfecto " + user.getName() + 
+                                (user.getLastname() != null ? " " + user.getLastname() : "") + 
+                                " de " + user.getCity() + "! Para completar tu registro, confirma que aceptas nuestra política de privacidad: " +
+                                "https://danielquinterocalle.com/privacidad. ¿Aceptas? (Sí/No)";
+                            nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
+                        } else {
+                            // Ya aceptó términos, completar registro
+                            nextChatbotState = "COMPLETED_REGISTRATION";
+                            return completeRegistration(user);
+                        }
                     } else {
                         // Si no tiene datos, volver al inicio
                         responseMessage = "Entiendo. Vamos paso a paso. ¿Cuál es tu nombre?";
@@ -620,9 +634,18 @@ public class ChatbotService {
                     // Si falló la extracción, usar método tradicional
                     if (messageText != null && !messageText.trim().isEmpty()) {
                         user.setCity(messageText.trim());
-                        responseMessage = "Confirmamos tus datos: " + user.getName() + ", de " + user.getCity()
-                                + ". ¿Es correcto? (Sí/No)";
-                        nextChatbotState = "CONFIRM_DATA";
+                        
+                        // Verificar si ya aceptó términos
+                        if (!user.isAceptaTerminos()) {
+                            responseMessage = "¡Perfecto " + user.getName() + " de " + user.getCity() + 
+                                "! Para completar tu registro, confirma que aceptas nuestra política de privacidad: " +
+                                "https://danielquinterocalle.com/privacidad. ¿Aceptas? (Sí/No)";
+                            nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
+                        } else {
+                            // Ya aceptó términos, completar registro
+                            nextChatbotState = "COMPLETED_REGISTRATION";
+                            return completeRegistration(user);
+                        }
                     } else {
                         responseMessage = "Por favor, ingresa una ciudad válida.";
                     }
@@ -639,66 +662,8 @@ public class ChatbotService {
                         return new ChatResponse(responseMessage, nextChatbotState);
                     }
                     
-                    // Si ya aceptó términos, completar el registro
-                    String referralCode = generateUniqueReferralCode();
-                    user.setReferral_code(referralCode);
-
-                    String whatsappInviteLink;
-                    String telegramInviteLink;
-
-                    List<String> additionalMessages = new ArrayList<>();
-
-                    try {
-                        String whatsappRawReferralText = String.format("Hola, vengo referido por:%s", referralCode);
-                        System.out.println("Texto crudo antes de codificar: '" + whatsappRawReferralText + "'");
-                        String encodedWhatsappMessage = URLEncoder
-                                .encode(whatsappRawReferralText, StandardCharsets.UTF_8.toString()).replace("+", "%20");
-                        whatsappInviteLink = "https://wa.me/573224029924?text=" + encodedWhatsappMessage;
-
-                        String encodedTelegramPayload = URLEncoder.encode(referralCode,
-                                StandardCharsets.UTF_8.toString());
-                        telegramInviteLink = "https://t.me/" + TELEGRAM_BOT_USERNAME + "?start="
-                                + encodedTelegramPayload;
-
-                        String friendsInviteMessage = String.format(
-                                "Amigos, los invito a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/573224029924?text=%s",
-                                URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
-                                        StandardCharsets.UTF_8.toString()).replace("+", "%20"));
-                        additionalMessages.add(friendsInviteMessage);
-
-                        String aiBotIntroMessage = """
-                                ¡Atención! Ahora entrarás en conversación con una inteligencia artificial.
-                                Soy Daniel Quintero Bot, en mi versión de IA de prueba para este proyecto.
-                                Mi objetivo es simular mis respuestas basadas en información clave y mi visión política.
-                                Ten en cuenta que aún estoy en etapa de prueba y mejora continua.
-                                ¡Hazme tu pregunta!
-                                """;
-                        additionalMessages.add(aiBotIntroMessage);
-
-                    } catch (UnsupportedEncodingException e) {
-                        System.err.println(
-                                "ERROR: No se pudo codificar los códigos de referido. Causa: " + e.getMessage());
-                        e.printStackTrace();
-                        whatsappInviteLink = "https://wa.me/573224029924?text=Error%20al%20generar%20referido";
-                        telegramInviteLink = "https://t.me/" + TELEGRAM_BOT_USERNAME + "?start=Error";
-                        additionalMessages.clear();
-                        additionalMessages.add("Error al generar los mensajes de invitación.");
-                    }
-
-                    responseMessage = String.format(
-                            """
-                                    %s, gracias por unirte a la ola de cambio que estamos construyendo para Colombia. Hasta ahora tienes 0 personas referidas. Ayudanos a crecer y gana puestos dentro de la campaña.
-
-                                    Sabemos que muchos comparten la misma visión de un futuro mejor, y por eso quiero invitarte a que compartas este proyecto con tus amigos, familiares y conocidos. Juntos podemos lograr una transformación real y profunda.
-
-                                    Envíales el siguiente enlace de referido:
-                                    """,
-                            user.getName()
-                    );
-
-                    secondaryMessage = Optional.of(String.join("###SPLIT###", additionalMessages));
-
-                    nextChatbotState = "COMPLETED";
+                    // Si ya aceptó términos, completar el registro usando el método dedicado
+                    return completeRegistration(user);
                 } else {
                     responseMessage = "Por favor, vuelve a escribir tu nombre completo para corregir tus datos.";
                     nextChatbotState = "WAITING_NAME";
@@ -727,6 +692,9 @@ public class ChatbotService {
                     nextChatbotState = "COMPLETED";
                 }
                 break;
+            case "COMPLETED_REGISTRATION":
+                // Completar registro automáticamente
+                return completeRegistration(user);
             default:
                 System.out.println("ChatbotService: Usuario en estado desconocido ('" + currentChatbotState
                         + "'). Redirigiendo al flujo de inicio.");
@@ -968,5 +936,70 @@ public class ChatbotService {
 
     private String generateUniqueReferralCode() {
         return UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+    }
+
+    /**
+     * Completa el registro del usuario generando código de referido y enlaces
+     */
+    private ChatResponse completeRegistration(User user) {
+        String referralCode = generateUniqueReferralCode();
+        user.setReferral_code(referralCode);
+        user.setChatbot_state("COMPLETED");
+        saveUser(user);
+
+        String whatsappInviteLink;
+        String telegramInviteLink;
+        List<String> additionalMessages = new ArrayList<>();
+
+        try {
+            String whatsappRawReferralText = String.format("Hola, vengo referido por:%s", referralCode);
+            System.out.println("Texto crudo antes de codificar: '" + whatsappRawReferralText + "'");
+            String encodedWhatsappMessage = URLEncoder
+                    .encode(whatsappRawReferralText, StandardCharsets.UTF_8.toString()).replace("+", "%20");
+            whatsappInviteLink = "https://wa.me/573224029924?text=" + encodedWhatsappMessage;
+
+            String encodedTelegramPayload = URLEncoder.encode(referralCode,
+                    StandardCharsets.UTF_8.toString());
+            telegramInviteLink = "https://t.me/" + TELEGRAM_BOT_USERNAME + "?start="
+                    + encodedTelegramPayload;
+
+            String friendsInviteMessage = String.format(
+                    "Amigos, los invito a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/573224029924?text=%s",
+                    URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
+                            StandardCharsets.UTF_8.toString()).replace("+", "%20"));
+            additionalMessages.add(friendsInviteMessage);
+
+            String aiBotIntroMessage = """
+                    ¡Atención! Ahora entrarás en conversación con una inteligencia artificial.
+                    Soy Daniel Quintero Bot, en mi versión de IA de prueba para este proyecto.
+                    Mi objetivo es simular mis respuestas basadas en información clave y mi visión política.
+                    Ten en cuenta que aún estoy en etapa de prueba y mejora continua.
+                    ¡Hazme tu pregunta!
+                    """;
+            additionalMessages.add(aiBotIntroMessage);
+
+        } catch (UnsupportedEncodingException e) {
+            System.err.println("ERROR: No se pudo codificar los códigos de referido. Causa: " + e.getMessage());
+            e.printStackTrace();
+            whatsappInviteLink = "https://wa.me/573224029924?text=Error%20al%20generar%20referido";
+            telegramInviteLink = "https://t.me/" + TELEGRAM_BOT_USERNAME + "?start=Error";
+            additionalMessages.clear();
+            additionalMessages.add("Error al generar los mensajes de invitación.");
+        }
+
+        String responseMessage = String.format(
+                """
+                        %s, gracias por unirte a la ola de cambio que estamos construyendo para Colombia. Hasta ahora tienes 0 personas referidas. Ayudanos a crecer y gana puestos dentro de la campaña.
+
+                        Sabemos que muchos comparten la misma visión de un futuro mejor, y por eso quiero invitarte a que compartas este proyecto con tus amigos, familiares y conocidos. Juntos podemos lograr una transformación real y profunda.
+
+                        Envíales el siguiente enlace de referido:
+                        """,
+                user.getName()
+        );
+
+        Optional<String> secondaryMessage = Optional.of(String.join("###SPLIT###", additionalMessages));
+
+        return new ChatResponse(responseMessage, "COMPLETED", secondaryMessage);
     }
 }

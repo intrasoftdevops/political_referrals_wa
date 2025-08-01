@@ -70,7 +70,7 @@ public class GeminiService {
                 .bodyValue(requestBody)
                 .retrieve()
                 .bodyToMono(String.class)
-                .block(Duration.ofSeconds(30));
+                .block();
 
             System.out.println("GeminiService: Respuesta recibida de Gemini: " + response);
             UserDataExtractionResult result = parseGeminiResponse(response);
@@ -113,8 +113,8 @@ public class GeminiService {
             CAMPOS A EXTRAER:
             - name: Nombre (sin apellido, sin títulos)
             - lastname: Apellido(s) completo(s)
-            - city: Ciudad colombiana específica  
-            - state: Departamento/Estado colombiano
+            - city: Ciudad donde vive actualmente (residencia, no origen)
+            - state: Departamento/Estado colombiano donde reside
             - acceptsTerms: Si acepta términos explícitamente
             - referredByPhone: Número +57XXXXXXXXX
             - referralCode: Código alfanumérico de 8 dígitos
@@ -124,6 +124,24 @@ public class GeminiService {
             - La Dorada: Caldas, Putumayo  
             - Sabaneta: Antioquia
             - Barbosa: Antioquia, Santander
+            
+            CAPACIDAD DE INFERENCIA DE JERGA COLOMBIANA:
+            Usa tu conocimiento general de Colombia para interpretar jerga, apodos y expresiones locales.
+            
+            EJEMPLOS COMUNES (pero NO te limites a estos):
+            - "rolo/rolos" = Bogotá (también "cachaco", "de la nevera", "capitalino")
+            - "paisa/paisas" = Medellín/Antioquia 
+            - "costeño/costeños" = Costa Caribe (Barranquilla, Cartagena, etc.)
+            - "caleño/caleños" = Cali, Valle del Cauca
+            - "opita/opitas" = Tolima (especialmente Ibagué)
+            - "santandereano" = Santander (Bucaramanga)
+            
+            INSTRUCCIONES DE RAZONAMIENTO:
+            1. Si encuentras jerga NO listada arriba, USA TU CONOCIMIENTO GENERAL de Colombia
+            2. Considera apodos de ciudades, gentilicios informales, expresiones regionales
+            3. Si es jerga que claramente identifica una ciudad/región, extráela con confianza alta
+            4. Solo pide aclaración si genuinamente no puedes inferir la ubicación
+            5. Recuerda que Colombia tiene mucha diversidad de expresiones regionales
             
             REGLAS DE AMBIGÜEDAD GEOGRÁFICA:
             - Si detectas una ciudad con múltiples ubicaciones (ej: Armenia, Barbosa), SIEMPRE marca ambigüedad en "city"
@@ -177,6 +195,18 @@ public class GeminiService {
               },
               "confidence": 0.0-1.0
             }
+            
+            EJEMPLOS DE RAZONAMIENTO INTELIGENTE:
+            - Para "Soy rolo": {"city": "Bogotá", "state": "Cundinamarca", "confidence": 0.9}
+            - Para "Soy de la nevera": {"city": "Bogotá", "state": "Cundinamarca", "confidence": 0.85}
+            - Para "Soy cachaco": {"city": "Bogotá", "state": "Cundinamarca", "confidence": 0.85}
+            - Para "Soy paisa": {"city": "Medellín", "state": "Antioquia", "confidence": 0.9}
+            - Para "Soy de la ciudad de la eterna primavera": {"city": "Medellín", "state": "Antioquia", "confidence": 0.8}
+            - Para "Soy costeño": {"city": "Barranquilla", "state": "Atlántico", "confidence": 0.8}
+            - Para "Soy caleño": {"city": "Cali", "state": "Valle del Cauca", "confidence": 0.9}
+            - Para "Soy de la sucursal del cielo": {"city": "Cali", "state": "Valle del Cauca", "confidence": 0.8}
+            - Para "Soy opita": {"city": "Ibagué", "state": "Tolima", "confidence": 0.85}
+            - Para "Soy capitalino": {"city": "Bogotá", "state": "Cundinamarca", "confidence": 0.85}
             
             EJEMPLOS DE AMBIGÜEDAD:
             - Para "Soy de Armenia": {"city": "Armenia", "needsClarification": {"city": "Hay varias Armenia en Colombia: Quindío, Antioquia, Bello. ¿Cuál es la tuya?"}}
