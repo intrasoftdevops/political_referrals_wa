@@ -15,6 +15,12 @@ buildNumber.properties
 
 # Archivos de registro
 *.log
+app.log
+ngrok.log
+
+# Directorios temporales
+target/
+target 2/
 
 # Archivos de IDE
 .idea/

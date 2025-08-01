@@ -70,16 +70,21 @@ public class WatiWebhookController {
                 }
 
                 if (fromPhoneNumber != null && !fromPhoneNumber.isEmpty() && messageText != null && !messageText.isEmpty()) {
-                    System.out.println("WatiWebhookController: Mensaje de Wati. De: " + fromPhoneNumber + ", Contenido: '" + messageText + "'");
+                    // Extraer el nombre del remitente si está disponible
+                    String senderName = rootNode.path("senderName").asText(null);
+                    System.out.println("WatiWebhookController: Mensaje de Wati. De: " + fromPhoneNumber + 
+                                     (senderName != null ? " (Nombre: " + senderName + ")" : "") + 
+                                     ", Contenido: '" + messageText + "'");
                     
                     // ****** CAMBIO CLAVE AQUÍ: Procesar de forma asíncrona ******
                     final String finalFromPhoneNumber = fromPhoneNumber; // Necesario para usar en la lambda
                     final String finalMessageText = messageText;         // Necesario para usar en la lambda
+                    final String finalSenderName = senderName;           // Nombre del remitente
                     
                     CompletableFuture.runAsync(() -> {
                         try {
                             // La lógica pesada se ejecuta en un hilo separado
-                            String primaryResponse = chatbotService.processIncomingMessage(finalFromPhoneNumber, finalMessageText, "WHATSAPP");
+                            String primaryResponse = chatbotService.processIncomingMessage(finalFromPhoneNumber, finalMessageText, "WHATSAPP", finalSenderName);
                             System.out.println("WatiWebhookController: Mensaje procesado por ChatbotService (Async). Respuesta principal: " + primaryResponse);
                         } catch (Exception e) {
                             System.err.println("WatiWebhookController: ERROR al procesar el mensaje de Wati de forma asíncrona: " + e.getMessage());
