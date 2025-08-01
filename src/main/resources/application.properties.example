@@ -4,3 +4,10 @@ server.port=8081
 # Configuración para 360dialog
 360dialog.api.url=YOURKEY
 360dialog.api.key=YOURKEY
+
+# Configuración para Gemini AI
+gemini.api.key=YOUR_GEMINI_API_KEY
+gemini.api.url=https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent
+
+# Configuración para AI Bot (FastAPI)
+ai.bot.endpoint=https://chatbotia-331919709696.us-east1.run.app

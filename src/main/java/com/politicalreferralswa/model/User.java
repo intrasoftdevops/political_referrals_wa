@@ -17,7 +17,9 @@ public class User {
     private String chatbot_state;
     private boolean aceptaTerminos;
     private String name;
+    private String lastname;
     private String city;
+    private String state;
     private String referral_code;
     private Timestamp updated_at;
     private String referred_by_phone;
