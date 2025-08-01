@@ -502,53 +502,89 @@ public class ChatbotService {
                 break;
 
             case "WAITING_TERMS_ACCEPTANCE":
+                System.out.println("DEBUG TERMS: Usuario en WAITING_TERMS_ACCEPTANCE, mensaje: '" + messageText + "'");
+                System.out.println("DEBUG TERMS: hasName=" + (user.getName() != null) + ", hasCity=" + (user.getCity() != null));
+                
                 if (messageText.equalsIgnoreCase("Sí") || messageText.equalsIgnoreCase("Si")) {
                     user.setAceptaTerminos(true);
+                    System.out.println("DEBUG TERMS: Usuario aceptó términos, estableciendo aceptaTerminos=true");
                     
                     // Verificar si ya tiene todos los datos necesarios
                     boolean hasName = user.getName() != null && !user.getName().isEmpty();
                     boolean hasCity = user.getCity() != null && !user.getCity().isEmpty();
+                    System.out.println("DEBUG TERMS: Verificando datos - hasName: " + hasName + ", hasCity: " + hasCity);
                     
                     // Si aceptó términos, SIEMPRE completar el registro
                     // (Si llegó aquí, debería tener todos los datos)
                     if (!hasName || !hasCity) {
-                        System.err.println("WARN: Usuario aceptó términos sin datos completos. Nombre: " + hasName + ", Ciudad: " + hasCity);
+                        System.err.println("WARN TERMS: Usuario aceptó términos sin datos completos. Nombre: " + hasName + ", Ciudad: " + hasCity);
+                        System.err.println("WARN TERMS: Nombre actual: '" + user.getName() + "', Ciudad actual: '" + user.getCity() + "'");
                     }
+                    System.out.println("DEBUG TERMS: Llamando completeRegistration()...");
                     return completeRegistration(user);
                 } else {
+                    System.out.println("DEBUG TERMS: Usuario no aceptó términos, mensaje: '" + messageText + "'");
                     responseMessage = "Para continuar, debes aceptar los términos. ¿Aceptas? (Sí/No)";
                     nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
                 }
                 break;
             case "WAITING_NAME":
-                // Intentar extracción inteligente primero
-                UserDataExtractor.ExtractionResult nameExtractionResult = userDataExtractor.extractAndUpdateUser(user, messageText, null);
+                System.out.println("DEBUG NAME: Usuario en WAITING_NAME, mensaje: '" + messageText + "'");
+                System.out.println("DEBUG NAME: Estado actual - Nombre: '" + user.getName() + "', Ciudad: '" + user.getCity() + "', AceptaTerminos: " + user.isAceptaTerminos());
                 
-                if (nameExtractionResult.isSuccess()) {
-                    // Guardar usuario actualizado después de la extracción
-                    saveUser(user);
-                    
-                    if (nameExtractionResult.needsClarification()) {
-                        // Si necesita aclaración
-                        responseMessage = nameExtractionResult.getMessage();
-                        nextChatbotState = "WAITING_CLARIFICATION";
-                    } else if (nameExtractionResult.isCompleted()) {
-                        // Si se completó la extracción
-                        responseMessage = nameExtractionResult.getMessage();
-                        nextChatbotState = "CONFIRM_DATA";
+                // VERIFICACIÓN CLAVE: Si ya tiene nombre y ciudad, probablemente está aceptando términos
+                boolean hasCompleteName = user.getName() != null && !user.getName().isEmpty();
+                boolean hasCompleteCity = user.getCity() != null && !user.getCity().isEmpty();
+                
+                if (hasCompleteName && hasCompleteCity && !user.isAceptaTerminos()) {
+                    System.out.println("DEBUG NAME: Usuario ya tiene datos completos, verificando si acepta términos...");
+                    if (messageText.equalsIgnoreCase("Sí") || messageText.equalsIgnoreCase("Si")) {
+                        // El usuario está aceptando términos
+                        System.out.println("DEBUG NAME: Usuario acepta términos desde WAITING_NAME");
+                        user.setAceptaTerminos(true);
+                        saveUser(user);
+                        return completeRegistration(user);
                     } else {
-                        // Si se extrajo parcialmente
-                        responseMessage = nameExtractionResult.getMessage();
-                        nextChatbotState = nameExtractionResult.getNextState();
+                        // El usuario no aceptó términos, preguntarle explícitamente
+                        System.out.println("DEBUG NAME: Usuario no acepta términos, preguntando explícitamente");
+                        responseMessage = "¡Perfecto " + user.getName() + " de " + user.getCity() + 
+                            "! Para completar tu registro, confirma que aceptas nuestra política de privacidad: " +
+                            "https://danielquinterocalle.com/privacidad. ¿Aceptas? (Sí/No)";
+                        nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
                     }
                 } else {
-                    // Si falló la extracción, usar método tradicional
-                    if (messageText != null && !messageText.trim().isEmpty()) {
-                        user.setName(messageText.trim());
-                        responseMessage = "¿En qué ciudad vives?";
-                        nextChatbotState = "WAITING_CITY";
+                    // Si no tiene datos completos, usar extracción inteligente normal
+                    System.out.println("DEBUG NAME: Usuario no tiene datos completos, usando extracción inteligente");
+                    
+                    // Intentar extracción inteligente primero
+                    UserDataExtractor.ExtractionResult nameExtractionResult = userDataExtractor.extractAndUpdateUser(user, messageText, null);
+                    
+                    if (nameExtractionResult.isSuccess()) {
+                        // Guardar usuario actualizado después de la extracción
+                        saveUser(user);
+                        
+                        if (nameExtractionResult.needsClarification()) {
+                            // Si necesita aclaración
+                            responseMessage = nameExtractionResult.getMessage();
+                            nextChatbotState = "WAITING_CLARIFICATION";
+                        } else if (nameExtractionResult.isCompleted()) {
+                            // Si se completó la extracción
+                            responseMessage = nameExtractionResult.getMessage();
+                            nextChatbotState = "CONFIRM_DATA";
+                        } else {
+                            // Si se extrajo parcialmente
+                            responseMessage = nameExtractionResult.getMessage();
+                            nextChatbotState = nameExtractionResult.getNextState();
+                        }
                     } else {
-                        responseMessage = "Por favor, ingresa un nombre válido.";
+                        // Si falló la extracción, usar método tradicional
+                        if (messageText != null && !messageText.trim().isEmpty()) {
+                            user.setName(messageText.trim());
+                            responseMessage = "¿En qué ciudad vives?";
+                            nextChatbotState = "WAITING_CITY";
+                        } else {
+                            responseMessage = "Por favor, ingresa un nombre válido.";
+                        }
                     }
                 }
                 break;

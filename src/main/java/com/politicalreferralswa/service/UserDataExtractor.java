@@ -23,13 +23,18 @@ public class UserDataExtractor {
      * @param conversationHistory Historial de conversación (opcional)
      * @return ExtractionResult con el resultado de la extracción
      */
-    public ExtractionResult extractAndUpdateUser(User user, String messageText, List<String> conversationHistory) {
+    public ExtractionResult extractAndUpdateUser(User user, String userMessage, String previousContext) {
+        System.out.println("DEBUG EXTRACTOR: ===== LLAMADA A extractAndUpdateUser =====");
+        System.out.println("DEBUG EXTRACTOR: Estado actual: " + user.getChatbot_state());
+        System.out.println("DEBUG EXTRACTOR: Mensaje: '" + userMessage + "'");
+        System.out.println("DEBUG EXTRACTOR: Usuario actual - Nombre: '" + user.getName() + "', Ciudad: '" + user.getCity() + "', AceptaTerminos: " + user.isAceptaTerminos());
+        
         try {
-            // Construir contexto de conversación previa
-            String previousContext = buildConversationContext(conversationHistory);
+            // Construir contexto de conversación previa si no se proporcionó
+            String contextToUse = previousContext != null ? previousContext : "";
             
             // Extraer datos usando Gemini
-            UserDataExtractionResult extraction = geminiService.extractUserData(messageText, previousContext);
+            UserDataExtractionResult extraction = geminiService.extractUserData(userMessage, contextToUse);
             
             if (!extraction.isSuccessful()) {
                 return ExtractionResult.failed("No se pudieron extraer datos del mensaje");
@@ -242,11 +247,17 @@ public class UserDataExtractor {
         
         if (!hasName && !hasCity && hasAcceptedTerms) {
             // Solo aceptó términos
+            System.err.println("DEBUG EXTRACTOR: PROBLEMA DETECTADO - Usuario solo tiene términos aceptados");
+            System.err.println("DEBUG EXTRACTOR: hasName=" + hasName + ", hasCity=" + hasCity + ", hasAcceptedTerms=" + hasAcceptedTerms);
+            System.err.println("DEBUG EXTRACTOR: Nombre: '" + user.getName() + "', Ciudad: '" + user.getCity() + "'");
+            System.err.println("DEBUG EXTRACTOR: ENVIANDO DE VUELTA A WAITING_NAME - POSIBLE CAUSA DEL CICLO");
             user.setChatbot_state("WAITING_NAME");
             return ExtractionResult.incomplete("¡Perfecto! Ya aceptaste los términos. ¿Cuál es tu nombre?");
         }
         
         // Caso por defecto - no tiene datos, empezar por nombre
+        System.out.println("DEBUG EXTRACTOR: Caso por defecto - enviando a WAITING_NAME");
+        System.out.println("DEBUG EXTRACTOR: hasName=" + hasName + ", hasCity=" + hasCity + ", hasAcceptedTerms=" + hasAcceptedTerms);
         user.setChatbot_state("WAITING_NAME");
         return ExtractionResult.incomplete(emotionalPrefix + "Para continuar con tu registro, necesito algunos datos. ¿Cuál es tu nombre?");
     }
