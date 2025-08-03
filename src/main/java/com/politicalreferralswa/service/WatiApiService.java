@@ -51,4 +51,48 @@ public class WatiApiService {
                 .doOnError(error -> System.err.println("WatiApiService: Error al enviar mensaje a Wati: " + error.getMessage()))
                 .subscribe(); // Ejecuta la llamada reactiva
     }
+
+    /**
+     * Envía un mensaje de WhatsApp de forma síncrona para garantizar el orden de los mensajes.
+     * Este método bloquea hasta que el mensaje se envía completamente.
+     *
+     * @param toPhoneNumber El número de teléfono del destinatario
+     * @param messageText El texto del mensaje a enviar
+     */
+    public void sendWhatsAppMessageSync(String toPhoneNumber, String messageText) {
+        System.out.println("WatiApiService: Preparando para enviar mensaje síncrono a " + toPhoneNumber + " a través de Wati.");
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(watiApiToken);
+
+        // Construir la URL COMPLETA Y ABSOLUTA como un objeto java.net.URI
+        URI fullApiUri = UriComponentsBuilder.fromUriString(watiApiBaseEndpoint)
+                                            .pathSegment(watiApiTenantId)
+                                            .path("/api/v1/sendSessionMessage/{whatsappNumber}")
+                                            .queryParam("messageText", messageText)
+                                            .buildAndExpand(toPhoneNumber)
+                                            .encode()
+                                            .toUri();
+
+        System.out.println("WatiApiService: URL de Wati construida: " + fullApiUri.toString());
+
+        try {
+            // Usar block() para hacer la llamada síncrona
+            String response = webClient.post()
+                    .uri(fullApiUri)
+                    .headers(h -> h.addAll(headers))
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .doOnSuccess(resp -> System.out.println("WatiApiService: Mensaje síncrono enviado exitosamente. Respuesta de Wati: " + resp))
+                    .doOnError(error -> System.err.println("WatiApiService: Error al enviar mensaje síncrono a Wati: " + error.getMessage()))
+                    .block(); // Bloquea hasta que se complete la llamada
+
+            if (response != null) {
+                System.out.println("WatiApiService: Mensaje síncrono completado exitosamente");
+            }
+        } catch (Exception e) {
+            System.err.println("WatiApiService: Error en envío síncrono: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
 }

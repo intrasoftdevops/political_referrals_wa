@@ -110,6 +110,10 @@ public class GeminiService {
     }
 
     private String buildExtractionPrompt(String userMessage, String previousContext, String currentState) {
+        String safeUserMessage = userMessage != null ? userMessage : "";
+        String safePreviousContext = previousContext != null ? previousContext : "";
+        String safeCurrentState = currentState != null ? currentState : "";
+        
         return String.format("""
             Eres un asistente de extracción de información muy inteligente, amigable y con profundo conocimiento de Colombia.
             CONTEXTO: Sistema de registro para campaña política en Colombia.
@@ -260,8 +264,9 @@ public class GeminiService {
             - "Perdón, mi nombre es Carlos no Juan": {"name": "Carlos", "correction": true, "previousValue": "Juan"}
             - "Es Barbosa no Armenia": {"city": "Barbosa", "correction": true, "previousValue": "Armenia"}
             """,
-            userMessage,
-            previousContext != null ? previousContext : ""
+            safeUserMessage,
+            safePreviousContext,
+            safeCurrentState
         );
     }
 

@@ -270,8 +270,10 @@ public class ChatbotService {
                 System.out.println("   Message: " + primaryMessage.substring(0, Math.min(100, primaryMessage.length())) + "...");
             }
 
+            // Enviar mensaje principal de forma síncrona para garantizar el orden
             if ("WHATSAPP".equalsIgnoreCase(channelType)) {
-                watiApiService.sendWhatsAppMessage(fromId, chatResponse.getPrimaryMessage());
+                System.out.println("ChatbotService: Enviando mensaje principal a " + fromId + " (Canal: " + channelType + ")");
+                sendWhatsAppMessageSync(fromId, chatResponse.getPrimaryMessage());
             } else if ("TELEGRAM".equalsIgnoreCase(channelType)) {
                 telegramApiService.sendTelegramMessage(fromId, chatResponse.getPrimaryMessage());
             } else {
@@ -279,15 +281,17 @@ public class ChatbotService {
                         + "'). No se pudo enviar el mensaje principal.");
             }
 
+            // Enviar mensajes secundarios de forma secuencial para garantizar el orden
             chatResponse.getSecondaryMessage().ifPresent(secondaryMsg -> {
                 String[] messagesToSend = secondaryMsg.split("###SPLIT###");
-                for (String msg : messagesToSend) {
-                    msg = msg.trim();
+                for (int i = 0; i < messagesToSend.length; i++) {
+                    String msg = messagesToSend[i].trim();
                     if (!msg.isEmpty()) {
-                        System.out.println("ChatbotService: Enviando mensaje secundario a " + fromId + " (Canal: "
+                        System.out.println("ChatbotService: Enviando mensaje secundario " + (i + 1) + "/" + messagesToSend.length + " a " + fromId + " (Canal: "
                                 + channelType + "): '" + msg + "'");
                         if ("WHATSAPP".equalsIgnoreCase(channelType)) {
-                            watiApiService.sendWhatsAppMessage(fromId, msg);
+                            // Enviar de forma síncrona para garantizar el orden
+                            sendWhatsAppMessageSync(fromId, msg);
                         } else if ("TELEGRAM".equalsIgnoreCase(channelType)) {
                             telegramApiService.sendTelegramMessage(fromId, msg);
                         } else {
@@ -630,86 +634,96 @@ public class ChatbotService {
                 break;
 
             case "WAITING_TERMS_ACCEPTANCE":
-                if (messageText.equalsIgnoreCase("Sí") || messageText.equalsIgnoreCase("Si")) {
-                    user.setAceptaTerminos(true);
+                // Usar extracción inteligente para detectar respuestas afirmativas
+                System.out.println("DEBUG: Analizando respuesta de términos con IA: '" + messageText + "'");
+                UserDataExtractor.ExtractionResult termsExtractionResult = userDataExtractor.extractAndUpdateUser(user, messageText, "WAITING_TERMS_ACCEPTANCE");
+                
+                // Verificar si la extracción fue exitosa y detectó aceptación de términos
+                if (termsExtractionResult.isSuccess()) {
+                    // Si la extracción fue exitosa, verificar si aceptó términos
+                    // El UserDataExtractor ya actualiza el usuario si detecta aceptación
+                    if (user.isAceptaTerminos()) {
+                        System.out.println("DEBUG: Usuario aceptó términos de privacidad (detectado por IA). Validando datos completos...");
                     
-                    // SIEMPRE validar que el usuario haya aceptado los términos antes de completar
-                    System.out.println("DEBUG: Usuario aceptó términos de privacidad. Validando datos completos...");
-                    
-                    // Verificar si ya tiene todos los datos necesarios
-                    boolean hasName = user.getName() != null && !user.getName().isEmpty();
-                    boolean hasCity = user.getCity() != null && !user.getCity().isEmpty();
-                    
-                    System.out.println("DEBUG: Usuario tiene nombre: " + hasName + " (nombre: " + user.getName() + ")");
-                    System.out.println("DEBUG: Usuario tiene ciudad: " + hasCity + " (ciudad: " + user.getCity() + ")");
-                    
-                    if (hasName && hasCity) {
-                        System.out.println("DEBUG: Usuario tiene todos los datos. Completando registro...");
-                        // Si ya tiene nombre y ciudad, completar el registro
-                        String referralCode = generateUniqueReferralCode();
-                        user.setReferral_code(referralCode);
+                        // Verificar si ya tiene todos los datos necesarios
+                        boolean hasName = user.getName() != null && !user.getName().isEmpty();
+                        boolean hasCity = user.getCity() != null && !user.getCity().isEmpty();
+                        
+                        System.out.println("DEBUG: Usuario tiene nombre: " + hasName + " (nombre: " + user.getName() + ")");
+                        System.out.println("DEBUG: Usuario tiene ciudad: " + hasCity + " (ciudad: " + user.getCity() + ")");
+                        
+                        if (hasName && hasCity) {
+                            System.out.println("DEBUG: Usuario tiene todos los datos. Completando registro...");
+                            // Si ya tiene nombre y ciudad, completar el registro
+                            String referralCode = generateUniqueReferralCode();
+                            user.setReferral_code(referralCode);
 
-                        String whatsappInviteLink;
-                        String telegramInviteLink;
-                        List<String> additionalMessages = new ArrayList<>();
+                            String whatsappInviteLink;
+                            String telegramInviteLink;
+                            List<String> additionalMessages = new ArrayList<>();
 
-                        try {
-                            String whatsappRawReferralText = String.format("Hola, vengo referido por:%s", referralCode);
-                            String encodedWhatsappMessage = URLEncoder
-                                    .encode(whatsappRawReferralText, StandardCharsets.UTF_8.toString()).replace("+", "%20");
-                            whatsappInviteLink = "https://wa.me/573224029924?text=" + encodedWhatsappMessage;
+                            try {
+                                String whatsappRawReferralText = String.format("Hola, vengo referido por:%s", referralCode);
+                                String encodedWhatsappMessage = URLEncoder
+                                        .encode(whatsappRawReferralText, StandardCharsets.UTF_8.toString()).replace("+", "%20");
+                                whatsappInviteLink = "https://wa.me/573224029924?text=" + encodedWhatsappMessage;
 
-                            String encodedTelegramPayload = URLEncoder.encode(referralCode,
-                                    StandardCharsets.UTF_8.toString());
-                            telegramInviteLink = "https://t.me/" + TELEGRAM_BOT_USERNAME + "?start="
-                                    + encodedTelegramPayload;
+                                String encodedTelegramPayload = URLEncoder.encode(referralCode,
+                                        StandardCharsets.UTF_8.toString());
+                                telegramInviteLink = "https://t.me/" + TELEGRAM_BOT_USERNAME + "?start="
+                                        + encodedTelegramPayload;
 
-                            String friendsInviteMessage = String.format(
-                                    "Amigos, los invito a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/573224029924?text=%s",
-                                    URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
-                                            StandardCharsets.UTF_8.toString()).replace("+", "%20"));
-                            additionalMessages.add(friendsInviteMessage);
+                                String friendsInviteMessage = String.format(
+                                        "Amigos, los invito a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/573224029924?text=%s",
+                                        URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
+                                                StandardCharsets.UTF_8.toString()).replace("+", "%20"));
+                                additionalMessages.add(friendsInviteMessage);
 
-                            String aiBotIntroMessage = """
-                                    ¡Atención! Ahora entrarás en conversación con una inteligencia artificial.
-                                    Soy Daniel Quintero Bot, en mi versión de IA de prueba para este proyecto.
-                                    Mi objetivo es simular mis respuestas basadas en información clave y mi visión política.
-                                    Ten en cuenta que aún estoy en etapa de prueba y mejora continua.
-                                    ¡Hazme tu pregunta!
-                                    """;
-                            additionalMessages.add(aiBotIntroMessage);
+                                String aiBotIntroMessage = """
+                                        ¡Atención! Ahora entrarás en conversación con una inteligencia artificial.
+                                        Soy Daniel Quintero Bot, en mi versión de IA de prueba para este proyecto.
+                                        Mi objetivo es simular mis respuestas basadas en información clave y mi visión política.
+                                        Ten en cuenta que aún estoy en etapa de prueba y mejora continua.
+                                        ¡Hazme tu pregunta!
+                                        """;
+                                additionalMessages.add(aiBotIntroMessage);
 
-                        } catch (UnsupportedEncodingException e) {
-                            System.err.println("ERROR: No se pudo codificar los códigos de referido. Causa: " + e.getMessage());
-                            e.printStackTrace();
-                            whatsappInviteLink = "https://wa.me/573224029924?text=Error%20al%20generar%20referido";
-                            telegramInviteLink = "https://t.me/" + TELEGRAM_BOT_USERNAME + "?start=Error";
-                            additionalMessages.clear();
-                            additionalMessages.add("Error al generar los mensajes de invitación.");
+                            } catch (UnsupportedEncodingException e) {
+                                System.err.println("ERROR: No se pudo codificar los códigos de referido. Causa: " + e.getMessage());
+                                e.printStackTrace();
+                                whatsappInviteLink = "https://wa.me/573224029924?text=Error%20al%20generar%20referido";
+                                telegramInviteLink = "https://t.me/" + TELEGRAM_BOT_USERNAME + "?start=Error";
+                                additionalMessages.clear();
+                                additionalMessages.add("Error al generar los mensajes de invitación.");
+                            }
+
+                            responseMessage = String.format(
+                                    """
+                                            %s, gracias por unirte a la ola de cambio que estamos construyendo para Colombia. Hasta ahora tienes 0 personas referidas. Ayudanos a crecer y gana puestos dentro de la campaña.
+
+                                            Sabemos que muchos comparten la misma visión de un futuro mejor, y por eso quiero invitarte a que compartas este proyecto con tus amigos, familiares y conocidos. Juntos podemos lograr una transformación real y profunda.
+
+                                            Envíales el siguiente enlace de referido:
+                                            """,
+                                    user.getName()
+                            );
+
+                            Optional<String> termsSecondaryMessage = Optional.of(String.join("###SPLIT###", additionalMessages));
+                            nextChatbotState = "COMPLETED";
+                            return new ChatResponse(responseMessage, nextChatbotState, termsSecondaryMessage);
+                        } else {
+                            // Si no tiene todos los datos, continuar con el flujo normal
+                            System.out.println("DEBUG: Usuario no tiene todos los datos. Continuando flujo...");
+                            responseMessage = "¿Cuál es tu nombre?";
+                            nextChatbotState = "WAITING_NAME";
                         }
-
-                        responseMessage = String.format(
-                                """
-                                        %s, gracias por unirte a la ola de cambio que estamos construyendo para Colombia. Hasta ahora tienes 0 personas referidas. Ayudanos a crecer y gana puestos dentro de la campaña.
-
-                                        Sabemos que muchos comparten la misma visión de un futuro mejor, y por eso quiero invitarte a que compartas este proyecto con tus amigos, familiares y conocidos. Juntos podemos lograr una transformación real y profunda.
-
-                                        Envíales el siguiente enlace de referido:
-                                        """,
-                                user.getName()
-                        );
-
-                        Optional<String> termsSecondaryMessage = Optional.of(String.join("###SPLIT###", additionalMessages));
-                        nextChatbotState = "COMPLETED";
-                        return new ChatResponse(responseMessage, nextChatbotState, termsSecondaryMessage);
                     } else {
-                        // Si no tiene todos los datos, continuar con el flujo normal
-                        System.out.println("DEBUG: Usuario no tiene todos los datos. Continuando flujo...");
-                        responseMessage = "¿Cuál es tu nombre?";
-                        nextChatbotState = "WAITING_NAME";
+                        System.out.println("DEBUG: Usuario no aceptó términos (detectado por IA). Pidiendo confirmación...");
+                        responseMessage = "Para seguir adelante y unirnos en esta gran tarea de transformación nacional, te invito a que revises nuestra política de tratamiento de datos, plasmadas aquí https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo y aceptas los principios con los que manejamos la información.\n\nAcompáñame hacia una Colombia más justa, equitativa y próspera para todos. ¿Aceptas el reto de resetear la política?";
+                        nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
                     }
                 } else {
-                    System.out.println("DEBUG: Usuario no aceptó términos. Pidiendo confirmación...");
+                    System.out.println("DEBUG: Extracción de términos falló. Pidiendo confirmación...");
                     responseMessage = "Para seguir adelante y unirnos en esta gran tarea de transformación nacional, te invito a que revises nuestra política de tratamiento de datos, plasmadas aquí https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo y aceptas los principios con los que manejamos la información.\n\nAcompáñame hacia una Colombia más justa, equitativa y próspera para todos. ¿Aceptas el reto de resetear la política?";
                     nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
                 }
@@ -846,6 +860,12 @@ public class ChatbotService {
                         telegramInviteLink = "https://t.me/" + TELEGRAM_BOT_USERNAME + "?start="
                                 + encodedTelegramPayload;
 
+                        String friendsInviteMessage = String.format(
+                                "Amigos, los invito a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/573224029924?text=%s",
+                                URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
+                                        StandardCharsets.UTF_8.toString()).replace("+", "%20"));
+                        additionalMessages.add(friendsInviteMessage);
+
                         String aiBotIntroMessage = """
                                 ¡Atención! Ahora entrarás en conversación con una inteligencia artificial.
                                 Soy Daniel Quintero Bot, en mi versión de IA de prueba para este proyecto.
@@ -854,12 +874,6 @@ public class ChatbotService {
                                 ¡Hazme tu pregunta!
                                 """;
                         additionalMessages.add(aiBotIntroMessage);
-
-                        String friendsInviteMessage = String.format(
-                                "Amigos, los invito a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/573224029924?text=%s",
-                                URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
-                                        StandardCharsets.UTF_8.toString()).replace("+", "%20"));
-                        additionalMessages.add(friendsInviteMessage);
 
                     } catch (UnsupportedEncodingException e) {
                         System.err.println(
@@ -1299,5 +1313,29 @@ public class ChatbotService {
         
         // Si no coincide con ningún patrón, devolver el mensaje original
         return trimmedMessage;
+    }
+
+    /**
+     * Envía un mensaje de WhatsApp de forma síncrona para garantizar el orden de los mensajes.
+     * Este método bloquea hasta que el mensaje se envía completamente.
+     *
+     * @param toPhoneNumber El número de teléfono del destinatario
+     * @param messageText El texto del mensaje a enviar
+     */
+    private void sendWhatsAppMessageSync(String toPhoneNumber, String messageText) {
+        try {
+            // Usar el método síncrono del WatiApiService
+            watiApiService.sendWhatsAppMessageSync(toPhoneNumber, messageText);
+            
+            // Agregar un pequeño delay para asegurar que los mensajes se procesen en orden
+            // Esto es necesario porque Wati puede procesar mensajes muy rápidamente
+            Thread.sleep(500); // 500ms de delay entre mensajes
+            
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            System.err.println("ERROR: Interrupción durante el envío síncrono de mensaje WhatsApp: " + e.getMessage());
+        } catch (Exception e) {
+            System.err.println("ERROR: Error al enviar mensaje WhatsApp de forma síncrona: " + e.getMessage());
+        }
     }
 }
