@@ -16,21 +16,25 @@ import java.io.IOException;
 @Configuration
 public class FirebaseConfig {
 
-    @Value("${spring.cloud.gcp.credentials.location}")
+    @Value("${spring.cloud.gcp.credentials.location:}")
     private String credentialsLocation;
 
     @Bean
     public Firestore firestore() throws IOException {
-        // Cargar credenciales desde la ubicación configurada en application.properties
+        // Cargar credenciales
         GoogleCredentials credentials;
         
-        if (credentialsLocation.startsWith("classpath:")) {
+        if (credentialsLocation == null || credentialsLocation.trim().isEmpty()) {
+            // En Cloud Run o entornos sin archivo de credenciales, usar credenciales por defecto
+            credentials = GoogleCredentials.getApplicationDefault();
+            System.out.println("INFO: Usando credenciales por defecto de Google Cloud");
+        } else if (credentialsLocation.startsWith("classpath:")) {
             // Si es un classpath, cargar desde resources
             String resourcePath = credentialsLocation.substring("classpath:".length());
             var inputStream = getClass().getResourceAsStream("/" + resourcePath);
             if (inputStream != null) {
                 credentials = GoogleCredentials.fromStream(inputStream);
-                System.out.println("INFO: Credenciales cargadas ");
+                System.out.println("INFO: Credenciales cargadas desde classpath");
             } else {
                 throw new RuntimeException("No se pudo encontrar el archivo de credenciales: " + credentialsLocation);
             }
