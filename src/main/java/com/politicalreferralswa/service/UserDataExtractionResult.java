@@ -20,6 +20,7 @@ public class UserDataExtractionResult {
     private String previousValue;
     private ClarificationNeeded needsClarification;
     private Double confidence;
+    private String emotionalContext;
 
     @Data
     @NoArgsConstructor
@@ -33,7 +34,7 @@ public class UserDataExtractionResult {
      * Crea un resultado vacío
      */
     public static UserDataExtractionResult empty() {
-        return new UserDataExtractionResult(null, null, null, null, null, null, null, null, null, null, 0.0);
+        return new UserDataExtractionResult(null, null, null, null, null, null, null, null, null, null, 0.0, null);
     }
 
     /**
@@ -51,6 +52,7 @@ public class UserDataExtractionResult {
         result.setReferralCode(getStringOrNull(json, "referralCode"));
         result.setCorrection(getBooleanOrNull(json, "correction"));
         result.setPreviousValue(getStringOrNull(json, "previousValue"));
+        result.setEmotionalContext(getStringOrNull(json, "emotionalContext"));
         result.setConfidence(getDoubleOrNull(json, "confidence"));
         
         JsonNode clarificationNode = json.path("needsClarification");

@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -119,6 +120,8 @@ public class GeminiService {
             - lastname: Apellido(s) completo(s)
             - city: Ciudad donde vive actualmente (residencia, no origen)
             - state: Departamento/Estado colombiano donde reside
+            - city: Ciudad donde vive actualmente (residencia, no origen)
+            - state: Departamento/Estado colombiano donde reside
             - acceptsTerms: Si acepta términos explícitamente
             - referredByPhone: Número +57XXXXXXXXX
             - referralCode: Código alfanumérico de 8 dígitos
@@ -215,6 +218,7 @@ public class GeminiService {
                 "city": "mensaje específico|null",
                 "other": "otra aclaración|null"
               },
+              "emotionalContext": "mensaje empático|null",
               "emotionalContext": "mensaje empático|null",
               "confidence": 0.0-1.0
             }

@@ -1,0 +1,31 @@
+# .gcloudignore para Google Cloud Build
+# Solo excluir lo esencial para optimizar el upload
+
+# Control de versiones
+.git/
+.gitignore
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+
+# Logs y temporales
+*.log
+.DS_Store
+Thumbs.db
+
+# Credenciales sensibles
+src/main/resources/political-referrals-wa-key.json
+src/main/resources/application.properties
+
+# Documentación
+README.md
+HELP.md
+
+# Maven wrapper (no es necesario en Cloud Build)
+.mvn/
+mvnw
+mvnw.cmd
+
+# NO excluir target/ - lo necesitamos para el JAR 

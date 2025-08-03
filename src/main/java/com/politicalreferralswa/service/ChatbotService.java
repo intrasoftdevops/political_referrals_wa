@@ -155,6 +155,7 @@ public class ChatbotService {
                 saveUser(user);
                 chatResponse = new ChatResponse(
                         "¡Hola! 👋 Soy el bot de Reset a la Política. Para identificarte y continuar, por favor, envíame tu número de teléfono.",
+                        "¡Hola! 👋 Soy el bot de Reset a la Política. Para identificarte y continuar, por favor, envíame tu número de teléfono.",
                         "TELEGRAM_WAITING_PHONE_NUMBER");
             } else {
                 System.err.println("ChatbotService: Nuevo usuario de canal desconocido ('" + channelType
