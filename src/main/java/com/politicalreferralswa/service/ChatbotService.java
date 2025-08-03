@@ -100,6 +100,20 @@ public class ChatbotService {
         boolean isNewUser = (user == null);
         ChatResponse chatResponse = null;
 
+        // LOGGING DETALLADO PARA DEBUG
+        System.out.println("=== DEBUG WHATSAPP WELCOME MESSAGE ===");
+        System.out.println("FromId: " + fromId);
+        System.out.println("ChannelType: " + channelType);
+        System.out.println("IsNewUser: " + isNewUser);
+        if (user != null) {
+            System.out.println("User ID: " + user.getId());
+            System.out.println("User Phone: " + user.getPhone());
+            System.out.println("User State: " + user.getChatbot_state());
+            System.out.println("User Name: " + user.getName());
+            System.out.println("User City: " + user.getCity());
+        }
+        System.out.println("=====================================");
+
         String normalizedPhoneForWhatsapp = "";
         if ("WHATSAPP".equalsIgnoreCase(channelType)) {
             String cleanedId = fromId.replaceAll("[^\\d+]", "");
@@ -108,6 +122,7 @@ public class ChatbotService {
             } else if (cleanedId.matches("^\\d{10,15}$")) {
                 normalizedPhoneForWhatsapp = "+" + cleanedId;
             }
+            System.out.println("DEBUG: Phone normalized to: " + normalizedPhoneForWhatsapp);
         }
 
         if (isNewUser) {
@@ -129,6 +144,7 @@ public class ChatbotService {
                 user.setPhone_code("+57");
                 user.setPhone(normalizedPhoneForWhatsapp);
 
+                System.out.println("DEBUG: Llamando handleNewUserIntro para nuevo usuario WhatsApp");
                 chatResponse = handleNewUserIntro(user, messageText, senderName);
                 user.setChatbot_state(chatResponse.getNextChatbotState());
                 saveUser(user);
@@ -138,7 +154,7 @@ public class ChatbotService {
                 user.setChatbot_state("TELEGRAM_WAITING_PHONE_NUMBER");
                 saveUser(user);
                 chatResponse = new ChatResponse(
-                        "¡Hola! 👋 Soy el bot de *Reset a la Política*. Para identificarte y continuar, por favor, envíame tu número de teléfono.",
+                        "¡Hola! 👋 Soy el bot de Reset a la Política. Para identificarte y continuar, por favor, envíame tu número de teléfono.",
                         "TELEGRAM_WAITING_PHONE_NUMBER");
             } else {
                 System.err.println("ChatbotService: Nuevo usuario de canal desconocido ('" + channelType
@@ -149,31 +165,84 @@ public class ChatbotService {
             System.out.println("ChatbotService: Usuario existente. Estado actual: " + user.getChatbot_state()
                     + ". ID del documento: " + (user.getPhone() != null ? user.getPhone().substring(1) : user.getId()));
 
-            boolean userUpdated = false;
-            if ("WHATSAPP".equalsIgnoreCase(channelType)) {
-                if (user.getPhone() == null || !user.getPhone().equals(normalizedPhoneForWhatsapp)) {
-                    user.setPhone(normalizedPhoneForWhatsapp);
-                    user.setPhone_code("+57");
-                    userUpdated = true;
-                    System.out.println("DEBUG: Actualizando número de teléfono de usuario existente: "
-                            + normalizedPhoneForWhatsapp);
+            // VALIDACIÓN ADICIONAL: Verificar si el usuario ya está completado
+            if ("COMPLETED".equals(user.getChatbot_state())) {
+                System.out.println("DEBUG: Usuario ya completado, procesando con AI Bot");
+                chatResponse = handleExistingUserMessage(user, messageText);
+            } else {
+                // Verificar si el usuario tiene datos básicos pero estado inconsistente
+                boolean hasBasicData = (user.getName() != null && !user.getName().isEmpty()) ||
+                                     (user.getCity() != null && !user.getCity().isEmpty()) ||
+                                     (user.getReferral_code() != null && !user.getReferral_code().isEmpty());
+                
+                if (hasBasicData && (user.getChatbot_state() == null || "NEW_USER".equals(user.getChatbot_state()))) {
+                    System.out.println("⚠️  WARNING: Usuario existente con datos pero estado inconsistente. Recuperando estado...");
+                    
+                    // Intentar recuperar el estado basado en los datos disponibles
+                    if (user.getName() != null && user.getCity() != null && user.isAceptaTerminos()) {
+                        // Usuario parece estar completo, verificar si tiene código de referido
+                        if (user.getReferral_code() == null || user.getReferral_code().isEmpty()) {
+                            String referralCode = generateUniqueReferralCode();
+                            user.setReferral_code(referralCode);
+                            System.out.println("DEBUG: Generando código de referido faltante: " + referralCode);
+                        }
+                        user.setChatbot_state("COMPLETED");
+                        saveUser(user);
+                        System.out.println("DEBUG: Usuario recuperado como COMPLETED");
+                    } else if (user.getName() != null && user.getCity() != null && !user.isAceptaTerminos()) {
+                        // SIEMPRE validar política de privacidad antes de completar
+                        user.setChatbot_state("WAITING_TERMS_ACCEPTANCE");
+                        saveUser(user);
+                        System.out.println("DEBUG: Usuario recuperado como WAITING_TERMS_ACCEPTANCE (validando política)");
+                    } else if (user.getName() != null && (user.getCity() == null || user.getCity().isEmpty())) {
+                        user.setChatbot_state("WAITING_CITY");
+                        saveUser(user);
+                        System.out.println("DEBUG: Usuario recuperado como WAITING_CITY");
+                    } else {
+                        user.setChatbot_state("WAITING_NAME");
+                        saveUser(user);
+                        System.out.println("DEBUG: Usuario recuperado como WAITING_NAME");
+                    }
                 }
-            } else if ("TELEGRAM".equalsIgnoreCase(channelType)) {
-                if (user.getTelegram_chat_id() == null || !user.getTelegram_chat_id().equals(fromId)) {
-                    user.setTelegram_chat_id(fromId);
-                    userUpdated = true;
-                    System.out.println("DEBUG: Actualizando Telegram Chat ID de usuario existente: " + fromId);
+
+                boolean userUpdated = false;
+                if ("WHATSAPP".equalsIgnoreCase(channelType)) {
+                    if (user.getPhone() == null || !user.getPhone().equals(normalizedPhoneForWhatsapp)) {
+                        user.setPhone(normalizedPhoneForWhatsapp);
+                        user.setPhone_code("+57");
+                        userUpdated = true;
+                        System.out.println("DEBUG: Actualizando número de teléfono de usuario existente: "
+                                + normalizedPhoneForWhatsapp);
+                    }
+                } else if ("TELEGRAM".equalsIgnoreCase(channelType)) {
+                    if (user.getTelegram_chat_id() == null || !user.getTelegram_chat_id().equals(fromId)) {
+                        user.setTelegram_chat_id(fromId);
+                        userUpdated = true;
+                        System.out.println("DEBUG: Actualizando Telegram Chat ID de usuario existente: " + fromId);
+                    }
                 }
-            }
 
-            if (userUpdated) {
-                saveUser(user);
-            }
+                if (userUpdated) {
+                    saveUser(user);
+                }
 
-            chatResponse = handleExistingUserMessage(user, messageText);
+                System.out.println("DEBUG: Llamando handleExistingUserMessage para usuario existente");
+                chatResponse = handleExistingUserMessage(user, messageText);
+            }
         }
 
         if (chatResponse != null) {
+            // LOGGING PARA IDENTIFICAR CUÁNDO SE ENVÍA EL MENSAJE DE BIENVENIDA
+            String primaryMessage = chatResponse.getPrimaryMessage();
+            if (primaryMessage != null && primaryMessage.contains("Soy el bot de **Reset a la Política**")) {
+                System.out.println("⚠️  WARNING: Se está enviando mensaje de bienvenida!");
+                System.out.println("   FromId: " + fromId);
+                System.out.println("   IsNewUser: " + isNewUser);
+                System.out.println("   UserState: " + (user != null ? user.getChatbot_state() : "null"));
+                System.out.println("   NextState: " + chatResponse.getNextChatbotState());
+                System.out.println("   Message: " + primaryMessage.substring(0, Math.min(100, primaryMessage.length())) + "...");
+            }
+
             if ("WHATSAPP".equalsIgnoreCase(channelType)) {
                 watiApiService.sendWhatsAppMessage(fromId, chatResponse.getPrimaryMessage());
             } else if ("TELEGRAM".equalsIgnoreCase(channelType)) {
@@ -225,6 +294,8 @@ public class ChatbotService {
 
     private ChatResponse handleNewUserIntro(User user, String messageText, String senderName) {
         System.out.println("DEBUG handleNewUserIntro: Mensaje entrante recibido: '" + messageText + "'");
+        System.out.println("DEBUG handleNewUserIntro: Usuario ID: " + user.getId());
+        System.out.println("DEBUG handleNewUserIntro: Usuario Phone: " + user.getPhone());
 
         // Intentar extracción inteligente de datos primero
         UserDataExtractor.ExtractionResult extractionResult = userDataExtractor.extractAndUpdateUser(user, messageText, null);
@@ -260,6 +331,7 @@ public class ChatbotService {
                     
                     """ + extractionResult.getMessage();
                 
+                System.out.println("⚠️  WARNING: Generando mensaje de bienvenida en extracción inteligente parcial");
                 return new ChatResponse(welcomeMessage, extractionResult.getNextState());
             }
         }
@@ -293,6 +365,7 @@ public class ChatbotService {
                     personalizedGreeting = "¡Hola " + senderName.trim() + "! 👋 ¿Te llamas " + senderName.trim() + " cierto?\n\n";
                 }
                 
+                System.out.println("⚠️  WARNING: Generando mensaje de bienvenida con código de referido válido");
                 return new ChatResponse(
                         personalizedGreeting + """
                                 ¡Hola! 👋 Soy el bot de **Reset a la Política**.
@@ -306,6 +379,7 @@ public class ChatbotService {
                 System.out.println(
                         "ChatbotService: Código de referido válido en formato, pero NO ENCONTRADO en el primer mensaje: "
                                 + incomingReferralCode);
+                System.out.println("⚠️  WARNING: Generando mensaje de bienvenida con código de referido inválido");
                 return new ChatResponse(
                         """
                                 ¡Hola! 👋 Soy el bot de **Reset a la Política**.
@@ -321,6 +395,7 @@ public class ChatbotService {
 
             System.out
                     .println("ChatbotService: Primer mensaje no contiene código de referido. Iniciando flujo general.");
+            System.out.println("⚠️  WARNING: Generando mensaje de bienvenida general (sin código de referido)");
             return new ChatResponse(
                     """
                             ¡Hola! 👋 Soy el bot de **Reset a la Política**.
@@ -338,10 +413,15 @@ public class ChatbotService {
 
         String currentChatbotState = user.getChatbot_state();
         
+        System.out.println("DEBUG handleExistingUserMessage: Estado actual: " + currentChatbotState);
+        System.out.println("DEBUG handleExistingUserMessage: Usuario ID: " + user.getId());
+        System.out.println("DEBUG handleExistingUserMessage: Usuario Phone: " + user.getPhone());
+        
         // Si el estado es null, inicializar como nuevo usuario
         if (currentChatbotState == null) {
             currentChatbotState = "NEW_USER";
             user.setChatbot_state(currentChatbotState);
+            System.out.println("⚠️  WARNING: Usuario existente con estado null, estableciendo como NEW_USER");
         }
         
         String responseMessage = "";
@@ -409,6 +489,7 @@ public class ChatbotService {
                 
             case "NEW_USER":
                 // Si el usuario tiene estado NEW_USER, tratarlo como nuevo usuario
+                System.out.println("⚠️  WARNING: Usuario existente con estado NEW_USER, llamando handleNewUserIntro");
                 return handleNewUserIntro(user, messageText);
                 
             case "TELEGRAM_WAITING_PHONE_NUMBER":
@@ -491,11 +572,18 @@ public class ChatbotService {
                 if (messageText.equalsIgnoreCase("Sí") || messageText.equalsIgnoreCase("Si")) {
                     user.setAceptaTerminos(true);
                     
+                    // SIEMPRE validar que el usuario haya aceptado los términos antes de completar
+                    System.out.println("DEBUG: Usuario aceptó términos de privacidad. Validando datos completos...");
+                    
                     // Verificar si ya tiene todos los datos necesarios
                     boolean hasName = user.getName() != null && !user.getName().isEmpty();
                     boolean hasCity = user.getCity() != null && !user.getCity().isEmpty();
                     
+                    System.out.println("DEBUG: Usuario tiene nombre: " + hasName + " (nombre: " + user.getName() + ")");
+                    System.out.println("DEBUG: Usuario tiene ciudad: " + hasCity + " (ciudad: " + user.getCity() + ")");
+                    
                     if (hasName && hasCity) {
+                        System.out.println("DEBUG: Usuario tiene todos los datos. Completando registro...");
                         // Si ya tiene nombre y ciudad, completar el registro
                         String referralCode = generateUniqueReferralCode();
                         user.setReferral_code(referralCode);
@@ -555,11 +643,13 @@ public class ChatbotService {
                         return new ChatResponse(responseMessage, nextChatbotState, termsSecondaryMessage);
                     } else {
                         // Si no tiene todos los datos, continuar con el flujo normal
+                        System.out.println("DEBUG: Usuario no tiene todos los datos. Continuando flujo...");
                         responseMessage = "¿Cuál es tu nombre?";
                         nextChatbotState = "WAITING_NAME";
                     }
                 } else {
-                    responseMessage = "Para continuar, debes aceptar los términos. ¿Aceptas? (Sí/No)";
+                    System.out.println("DEBUG: Usuario no aceptó términos. Pidiendo confirmación...");
+                    responseMessage = "Para seguir adelante y unirnos en esta gran tarea de transformación nacional, te invito a que revises nuestra política de tratamiento de datos, plasmadas aquí https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo y aceptas los principios con los que manejamos la información.\n\nAcompáñame hacia una Colombia más justa, equitativa y próspera para todos. ¿Aceptas el reto de resetear la política?";
                     nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
                 }
                 break;
@@ -633,8 +723,7 @@ public class ChatbotService {
                     // Verificar si ya aceptó los términos
                     if (!user.isAceptaTerminos()) {
                         // Si no aceptó términos, pedirle que los acepte
-                        responseMessage = "Para completar tu registro, necesito que confirmes que has leído y aceptas nuestra política de privacidad: " +
-                            "https://danielquinterocalle.com/privacidad. ¿Aceptas? (Sí/No)";
+                        responseMessage = "Para seguir adelante y unirnos en esta gran tarea de transformación nacional, te invito a que revises nuestra política de tratamiento de datos, plasmadas aquí https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo y aceptas los principios con los que manejamos la información.\n\nAcompáñame hacia una Colombia más justa, equitativa y próspera para todos. ¿Aceptas el reto de resetear la política?";
                         nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
                         return new ChatResponse(responseMessage, nextChatbotState);
                     }
@@ -700,8 +789,76 @@ public class ChatbotService {
 
                     nextChatbotState = "COMPLETED";
                 } else {
-                    responseMessage = "Por favor, vuelve a escribir tu nombre completo para corregir tus datos.";
+                    // Usuario dijo "No" - necesita corregir datos
+                    System.out.println("DEBUG: Usuario necesita corregir datos. Mensaje: '" + messageText + "'");
+                    
+                    // Intentar extraer información del mensaje para identificar qué corregir
+                    String lowerMessage = messageText.toLowerCase();
+                    
+                    if (lowerMessage.contains("ciudad") || lowerMessage.contains("vivo") || lowerMessage.contains("soy de") || 
+                        lowerMessage.contains("bogota") || lowerMessage.contains("medellin") || lowerMessage.contains("cali") ||
+                        lowerMessage.contains("barranquilla") || lowerMessage.contains("cartagena") || lowerMessage.contains("pereira") ||
+                        lowerMessage.contains("manizales") || lowerMessage.contains("bucaramanga") || lowerMessage.contains("villavicencio") ||
+                        lowerMessage.contains("ibague") || lowerMessage.contains("past") || lowerMessage.contains("neiva") ||
+                        lowerMessage.contains("monteria") || lowerMessage.contains("valledupar") || lowerMessage.contains("popayan") ||
+                        lowerMessage.contains("tunja") || lowerMessage.contains("florencia") || lowerMessage.contains("yopal") ||
+                        lowerMessage.contains("mocoa") || lowerMessage.contains("leticia") || lowerMessage.contains("mit") ||
+                        lowerMessage.contains("quibdo") || lowerMessage.contains("arauca") || lowerMessage.contains("inirida") ||
+                        lowerMessage.contains("puerto carreno") || lowerMessage.contains("san andres") || lowerMessage.contains("providencia")) {
+                        
+                        System.out.println("DEBUG: Usuario quiere corregir la ciudad");
+                        
+                        // Intentar extraer la nueva ciudad del mensaje
+                        String newCity = extractCityFromCorrectionMessage(messageText);
+                        if (newCity != null && !newCity.isEmpty()) {
+                            System.out.println("DEBUG: Ciudad extraída automáticamente: '" + newCity + "'");
+                            user.setCity(newCity);
+                            responseMessage = "Confirmamos tus datos: " + user.getName() + ", de " + user.getCity()
+                                    + ". ¿Es correcto? (Sí/No)";
+                            nextChatbotState = "CONFIRM_DATA";
+                        } else {
+                            responseMessage = "¿En qué ciudad vives?";
+                            nextChatbotState = "WAITING_CITY";
+                        }
+                    } else if (lowerMessage.contains("nombre") || lowerMessage.contains("me llamo") || lowerMessage.contains("soy")) {
+                        System.out.println("DEBUG: Usuario quiere corregir el nombre");
+                        
+                        // Intentar extraer el nuevo nombre del mensaje
+                        String newName = extractNameFromCorrectionMessage(messageText);
+                        if (newName != null && !newName.isEmpty()) {
+                            System.out.println("DEBUG: Nombre extraído automáticamente: '" + newName + "'");
+                            user.setName(newName);
+                            responseMessage = "Confirmamos tus datos: " + user.getName() + ", de " + user.getCity()
+                                    + ". ¿Es correcto? (Sí/No)";
+                            nextChatbotState = "CONFIRM_DATA";
+                        } else {
+                            responseMessage = "¿Cuál es tu nombre?";
+                            nextChatbotState = "WAITING_NAME";
+                        }
+                    } else {
+                        // Si no se puede identificar específicamente, preguntar qué quiere corregir
+                        System.out.println("DEBUG: No se pudo identificar qué corregir, preguntando al usuario");
+                        responseMessage = "¿Qué dato quieres corregir? Escribe 'nombre' o 'ciudad'.";
+                        nextChatbotState = "WAITING_CORRECTION_TYPE";
+                    }
+                }
+                break;
+            case "WAITING_CORRECTION_TYPE":
+                String correctionType = messageText.toLowerCase().trim();
+                System.out.println("DEBUG: Usuario especificó tipo de corrección: '" + correctionType + "'");
+                
+                if (correctionType.contains("nombre") || correctionType.equals("n")) {
+                    System.out.println("DEBUG: Usuario quiere corregir el nombre");
+                    responseMessage = "¿Cuál es tu nombre?";
                     nextChatbotState = "WAITING_NAME";
+                } else if (correctionType.contains("ciudad") || correctionType.equals("c")) {
+                    System.out.println("DEBUG: Usuario quiere corregir la ciudad");
+                    responseMessage = "¿En qué ciudad vives?";
+                    nextChatbotState = "WAITING_CITY";
+                } else {
+                    System.out.println("DEBUG: Tipo de corrección no reconocido: '" + correctionType + "'");
+                    responseMessage = "Por favor, escribe 'nombre' o 'ciudad' para especificar qué quieres corregir.";
+                    nextChatbotState = "WAITING_CORRECTION_TYPE";
                 }
                 break;
             case "COMPLETED":
@@ -728,8 +885,9 @@ public class ChatbotService {
                 }
                 break;
             default:
-                System.out.println("ChatbotService: Usuario en estado desconocido ('" + currentChatbotState
+                System.out.println("⚠️  WARNING: Usuario en estado desconocido ('" + currentChatbotState
                         + "'). Redirigiendo al flujo de inicio.");
+                System.out.println("⚠️  WARNING: Llamando handleNewUserIntro desde estado desconocido para usuario existente");
                 return handleNewUserIntro(user, messageText);
         }
 
@@ -827,11 +985,15 @@ public class ChatbotService {
             phoneNumberToSearch = "+" + cleanedFromId;
         }
 
+        System.out.println("DEBUG findUserByAnyIdentifier: fromId='" + fromId + "', cleanedFromId='" + cleanedFromId + "', phoneNumberToSearch='" + phoneNumberToSearch + "'");
+
         if (!phoneNumberToSearch.isEmpty() && STRICT_PHONE_NUMBER_PATTERN.matcher(phoneNumberToSearch).matches()) {
             user = findUserByPhoneNumberField(phoneNumberToSearch);
             if (user.isPresent()) {
                 System.out.println("DEBUG: Usuario encontrado por campo 'phone': " + phoneNumberToSearch);
                 return user;
+            } else {
+                System.out.println("DEBUG: Usuario NO encontrado por campo 'phone': " + phoneNumberToSearch);
             }
         } else {
             System.out.println("DEBUG: FromId '" + fromId + "' normalizado a '" + phoneNumberToSearch
@@ -844,6 +1006,8 @@ public class ChatbotService {
             if (user.isPresent()) {
                 System.out.println("DEBUG: Usuario encontrado por ID de documento: " + fromId);
                 return user;
+            } else {
+                System.out.println("DEBUG: Usuario NO encontrado por ID de documento: " + fromId);
             }
         }
 
@@ -853,6 +1017,8 @@ public class ChatbotService {
             if (user.isPresent()) {
                 System.out.println("DEBUG: Usuario encontrado por campo 'telegram_chat_id': " + fromId);
                 return user;
+            } else {
+                System.out.println("DEBUG: Usuario NO encontrado por campo 'telegram_chat_id': " + fromId);
             }
         }
 
@@ -968,5 +1134,73 @@ public class ChatbotService {
 
     private String generateUniqueReferralCode() {
         return UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+    }
+
+    /**
+     * Extrae el nombre de un usuario de un mensaje que puede contener texto adicional.
+     * Maneja casos como "Perdon, es Juan", "Es Juan", "Juan", etc.
+     */
+    private String extractNameFromCorrectionMessage(String message) {
+        if (message == null || message.trim().isEmpty()) {
+            return "";
+        }
+        
+        String trimmedMessage = message.trim();
+        
+        // Patrones comunes para extraer el nombre
+        String[] patterns = {
+            ".*\\b(?:es|soy|me llamo)\\s+([A-Za-zÁáÉéÍíÓóÚúÑñ\\s]+)$",  // "es Juan", "soy Juan", "me llamo Juan"
+            ".*\\b(?:perdón|perdon|disculpa)\\s*,?\\s*(?:es|soy|me llamo)\\s+([A-Za-zÁáÉéÍíÓóÚúÑñ\\s]+)$",  // "perdón, es Juan"
+            "^([A-Za-zÁáÉéÍíÓóÚúÑñ\\s]+)$"  // Solo el nombre
+        };
+        
+        for (String pattern : patterns) {
+            java.util.regex.Pattern regex = java.util.regex.Pattern.compile(pattern, java.util.regex.Pattern.CASE_INSENSITIVE);
+            java.util.regex.Matcher matcher = regex.matcher(trimmedMessage);
+            
+            if (matcher.find()) {
+                String extractedName = matcher.group(1).trim();
+                if (!extractedName.isEmpty()) {
+                    return extractedName;
+                }
+            }
+        }
+        
+        // Si no coincide con ningún patrón, devolver el mensaje original
+        return trimmedMessage;
+    }
+
+    /**
+     * Extrae la ciudad de un usuario de un mensaje que puede contener texto adicional.
+     * Maneja casos como "Perdon, es Medellín", "Es Medellín", "Medellín", etc.
+     */
+    private String extractCityFromCorrectionMessage(String message) {
+        if (message == null || message.trim().isEmpty()) {
+            return "";
+        }
+        
+        String trimmedMessage = message.trim();
+        
+        // Patrones comunes para extraer la ciudad
+        String[] patterns = {
+            ".*\\b(?:es|soy de|vivo en|estoy en)\\s+([A-Za-zÁáÉéÍíÓóÚúÑñ\\s]+)$",  // "es Medellín", "soy de Bogotá"
+            ".*\\b(?:perdón|perdon|disculpa)\\s*,?\\s*(?:es|soy de|vivo en)\\s+([A-Za-zÁáÉéÍíÓóÚúÑñ\\s]+)$",  // "perdón, es Medellín"
+            "^([A-Za-zÁáÉéÍíÓóÚúÑñ\\s]+)$"  // Solo el nombre de la ciudad
+        };
+        
+        for (String pattern : patterns) {
+            java.util.regex.Pattern regex = java.util.regex.Pattern.compile(pattern, java.util.regex.Pattern.CASE_INSENSITIVE);
+            java.util.regex.Matcher matcher = regex.matcher(trimmedMessage);
+            
+            if (matcher.find()) {
+                String extractedCity = matcher.group(1).trim();
+                if (!extractedCity.isEmpty()) {
+                    return extractedCity;
+                }
+            }
+        }
+        
+        // Si no coincide con ningún patrón, devolver el mensaje original
+        return trimmedMessage;
     }
 }

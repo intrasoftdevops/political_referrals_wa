@@ -198,12 +198,9 @@ public class UserDataExtractor {
         
         // Casos parciales - usar datos ya extraídos de forma inteligente
         if (hasName && hasCity && !hasAcceptedTerms) {
-            // Tiene nombre y ciudad, confirmar datos primero, luego términos
-            user.setChatbot_state("CONFIRM_DATA");
-            String displayName = fullName.isEmpty() ? user.getName() : fullName;
-            String displayLocation = location.isEmpty() ? user.getCity() : location;
-            return ExtractionResult.incomplete("¡Perfecto! Confirmamos tus datos: " + displayName + 
-                ", de " + displayLocation + ". ¿Es correcto? (Sí/No)");
+            // Tiene nombre y ciudad, proceder directamente a política de privacidad
+            user.setChatbot_state("WAITING_TERMS_ACCEPTANCE");
+            return ExtractionResult.incomplete("Para seguir adelante y unirnos en esta gran tarea de transformación nacional, te invito a que revises nuestra política de tratamiento de datos, plasmadas aquí https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo y aceptas los principios con los que manejamos la información.\n\nAcompáñame hacia una Colombia más justa, equitativa y próspera para todos. ¿Aceptas el reto de resetear la política?");
         }
         
         if (hasName && !hasCity && hasAcceptedTerms) {
