@@ -6,6 +6,7 @@ import com.google.cloud.firestore.FirestoreOptions;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
 import com.google.firebase.cloud.FirestoreClient;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.threeten.bp.Duration;
@@ -15,12 +16,29 @@ import java.io.IOException;
 @Configuration
 public class FirebaseConfig {
 
+    @Value("${spring.cloud.gcp.credentials.location}")
+    private String credentialsLocation;
+
     @Bean
     public Firestore firestore() throws IOException {
-        // En un entorno de Google Cloud (como Cloud Run) o con gcloud configurado localmente,
-        // applicationDefault() automáticamente encuentra las credenciales necesarias.
-        // Esto elimina la necesidad de manejar manualmente los archivos de claves JSON.
-        GoogleCredentials credentials = GoogleCredentials.getApplicationDefault();
+        // Cargar credenciales desde la ubicación configurada en application.properties
+        GoogleCredentials credentials;
+        
+        if (credentialsLocation.startsWith("classpath:")) {
+            // Si es un classpath, cargar desde resources
+            String resourcePath = credentialsLocation.substring("classpath:".length());
+            var inputStream = getClass().getResourceAsStream("/" + resourcePath);
+            if (inputStream != null) {
+                credentials = GoogleCredentials.fromStream(inputStream);
+                System.out.println("INFO: Credenciales cargadas ");
+            } else {
+                throw new RuntimeException("No se pudo encontrar el archivo de credenciales: " + credentialsLocation);
+            }
+        } else {
+            // Si es una ruta de archivo, cargar directamente
+            credentials = GoogleCredentials.fromStream(new java.io.FileInputStream(credentialsLocation));
+            System.out.println("INFO: Credenciales cargadas desde archivo: " + credentialsLocation);
+        }
 
         try {
             // Configurar Firestore directamente con timeouts aumentados

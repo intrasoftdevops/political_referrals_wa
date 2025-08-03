@@ -26,6 +26,7 @@ public class ChatbotService {
     private final TelegramApiService telegramApiService;
     private final AIBotService aiBotService;
     private final UserDataExtractor userDataExtractor;
+    private final NameValidationService nameValidationService;
 
     private static final Pattern REFERRAL_MESSAGE_PATTERN = Pattern
             .compile("Hola, vengo referido por:\\s*([A-Za-z0-9]{8})");
@@ -34,12 +35,13 @@ public class ChatbotService {
 
     public ChatbotService(Firestore firestore, WatiApiService watiApiService,
                           TelegramApiService telegramApiService, AIBotService aiBotService,
-                          UserDataExtractor userDataExtractor) {
+                          UserDataExtractor userDataExtractor, NameValidationService nameValidationService) {
         this.firestore = firestore;
         this.watiApiService = watiApiService;
         this.telegramApiService = telegramApiService;
         this.aiBotService = aiBotService;
         this.userDataExtractor = userDataExtractor;
+        this.nameValidationService = nameValidationService;
     }
 
     /**
@@ -134,10 +136,26 @@ public class ChatbotService {
             user.setReferred_by_phone(null); // Asegúrate de inicializarlo
             user.setReferred_by_code(null); // Asegúrate de inicializarlo
 
-            // Guardar el nombre del remitente si está disponible
+            // Validar y guardar el nombre del remitente si está disponible
             if (senderName != null && !senderName.trim().isEmpty()) {
-                user.setName(senderName.trim());
-                System.out.println("ChatbotService: Nombre de WhatsApp capturado: " + senderName);
+                System.out.println("ChatbotService: Validando nombre de WhatsApp: " + senderName);
+                
+                try {
+                    // Validar el nombre con IA de forma síncrona
+                    NameValidationService.NameValidationResult validationResult = 
+                        nameValidationService.validateName(senderName.trim()).get();
+                    
+                    if (validationResult.isValid()) {
+                        user.setName(senderName.trim());
+                        System.out.println("ChatbotService: ✅ Nombre de WhatsApp validado y guardado: " + senderName);
+                    } else {
+                        System.out.println("ChatbotService: ❌ Nombre de WhatsApp inválido: " + senderName + " - Razón: " + validationResult.getReason());
+                        // No guardar el nombre si es inválido
+                    }
+                } catch (Exception e) {
+                    System.err.println("ChatbotService: Error al validar nombre: " + e.getMessage());
+                    // En caso de error, no guardar el nombre por seguridad
+                }
             }
 
             if ("WHATSAPP".equalsIgnoreCase(channelType)) {
@@ -155,8 +173,7 @@ public class ChatbotService {
                 saveUser(user);
                 chatResponse = new ChatResponse(
                         "¡Hola! 👋 Soy el bot de Reset a la Política. Para identificarte y continuar, por favor, envíame tu número de teléfono.",
-                        "¡Hola! 👋 Soy el bot de Reset a la Política. Para identificarte y continuar, por favor, envíame tu número de teléfono.",
-                        "TELEGRAM_WAITING_PHONE_NUMBER");
+                        "¡Hola! 👋 Soy el bot de Reset a la Política. Para identificarte y continuar, por favor, envíame tu número de teléfono.");
             } else {
                 System.err.println("ChatbotService: Nuevo usuario de canal desconocido ('" + channelType
                         + "'). No se pudo inicializar.");
@@ -235,7 +252,7 @@ public class ChatbotService {
         if (chatResponse != null) {
             // LOGGING PARA IDENTIFICAR CUÁNDO SE ENVÍA EL MENSAJE DE BIENVENIDA
             String primaryMessage = chatResponse.getPrimaryMessage();
-            if (primaryMessage != null && primaryMessage.contains("Soy el bot de **Reset a la Política**")) {
+            if (primaryMessage != null && primaryMessage.contains("Soy el bot de Reset a la Política")) {
                 System.out.println("⚠️  WARNING: Se está enviando mensaje de bienvenida!");
                 System.out.println("   FromId: " + fromId);
                 System.out.println("   IsNewUser: " + isNewUser);
@@ -327,7 +344,7 @@ public class ChatbotService {
                 System.out.println("DEBUG handleNewUserIntro: Usando extracción inteligente - Parcial, sin política de privacidad");
                 
                 String welcomeMessage = """
-                    ¡Hola! 👋 Soy el bot de **Reset a la Política**.
+                    ¡Hola! 👋 Soy el bot de Reset a la Política.
                     Te doy la bienvenida a este espacio de conversación, donde construimos juntos el futuro de Colombia.
                     
                     """ + extractionResult.getMessage();
@@ -360,16 +377,16 @@ public class ChatbotService {
                 System.out.println("DEBUG handleNewUserIntro: Estableciendo referred_by_phone: '" + user.getReferred_by_phone() + "' y referred_by_code: '" + user.getReferred_by_code() + "'");
 
 
-                // Personalizar saludo si tenemos el nombre de WhatsApp
+                // Personalizar saludo si tenemos el nombre de WhatsApp validado
                 String personalizedGreeting = "";
-                if (senderName != null && !senderName.trim().isEmpty()) {
-                    personalizedGreeting = "¡Hola " + senderName.trim() + "! 👋 ¿Te llamas " + senderName.trim() + " cierto?\n\n";
+                if (user.getName() != null && !user.getName().trim().isEmpty()) {
+                    personalizedGreeting = "¡Hola " + user.getName().trim() + "! 👋 ¿Te llamas " + user.getName().trim() + " cierto?\n\n";
                 }
                 
                 System.out.println("⚠️  WARNING: Generando mensaje de bienvenida con código de referido válido");
                 return new ChatResponse(
                         personalizedGreeting + """
-                                ¡Hola! 👋 Soy el bot de **Reset a la Política**.
+                                ¡Hola! 👋 Soy el bot de Reset a la Política.
                                 Te doy la bienvenida a este espacio de conversación, donde construimos juntos el futuro de Colombia.
                                 ¡Qué emoción que te unas a esta ola de cambio para Colombia! Veo que vienes referido por un amigo.
 
@@ -383,7 +400,7 @@ public class ChatbotService {
                 System.out.println("⚠️  WARNING: Generando mensaje de bienvenida con código de referido inválido");
                 return new ChatResponse(
                         """
-                                ¡Hola! 👋 Soy el bot de **Reset a la Política**.
+                                ¡Hola! 👋 Soy el bot de Reset a la Política.
                                 Te doy la bienvenida a este espacio de conversación, donde construimos juntos el futuro de Colombia.
                                 Parece que el código de referido que me enviaste no es válido, pero no te preocupes, ¡podemos continuar!
 
@@ -396,15 +413,29 @@ public class ChatbotService {
 
             System.out
                     .println("ChatbotService: Primer mensaje no contiene código de referido. Iniciando flujo general.");
-            System.out.println("⚠️  WARNING: Generando mensaje de bienvenida general (sin código de referido)");
-            return new ChatResponse(
-                    """
-                            ¡Hola! 👋 Soy el bot de **Reset a la Política**.
-                            Te doy la bienvenida a este espacio de conversación, donde construimos juntos el futuro de Colombia.
+            
+            // Verificar si ya tenemos un nombre validado
+            if (user.getName() != null && !user.getName().trim().isEmpty()) {
+                System.out.println("⚠️  WARNING: Generando mensaje con nombre ya validado: " + user.getName());
+                return new ChatResponse(
+                        String.format("""
+                                ¡Hola! 👋 Soy el bot de Reset a la Política.
+                                Te doy la bienvenida a este espacio de conversación, donde construimos juntos el futuro de Colombia.
 
-                            Para continuar con tu registro, necesito algunos datos. ¿Cuál es tu nombre?
-                            """,
-                    "WAITING_NAME");
+                                Veo que te llamas %s. ¿En qué ciudad vives?
+                                """, user.getName()),
+                        "WAITING_CITY");
+            } else {
+                System.out.println("⚠️  WARNING: Generando mensaje de bienvenida general (sin código de referido)");
+                return new ChatResponse(
+                        """
+                                ¡Hola! 👋 Soy el bot de Reset a la Política.
+                                Te doy la bienvenida a este espacio de conversación, donde construimos juntos el futuro de Colombia.
+
+                                Para continuar con tu registro, necesito algunos datos. ¿Cuál es tu nombre?
+                                """,
+                        "WAITING_NAME");
+            }
         }
     }
 
