@@ -51,7 +51,7 @@ public class UserDataExtractor {
             String contextToUse = previousContext != null ? previousContext : "";
             
             // Extraer datos usando Gemini
-            UserDataExtractionResult extraction = geminiService.extractUserData(userMessage, contextToUse);
+            UserDataExtractionResult extraction = geminiService.extractUserData(userMessage, contextToUse, user.getChatbot_state());
             
             if (!extraction.isSuccessful()) {
                 return ExtractionResult.failed("No se pudieron extraer datos del mensaje");
@@ -220,25 +220,38 @@ public class UserDataExtractor {
         }
         
         // Si tenemos todos los datos, completar el registro directamente
-        if (hasName && hasCity && hasAcceptedTerms) {
+        if (hasName && hasLastname && hasCity && hasAcceptedTerms) {
             user.setChatbot_state("COMPLETED_REGISTRATION");
-            String displayName = fullName.isEmpty() ? user.getName() : fullName;
+            String displayName = user.getName() + " " + user.getLastname();
             String displayLocation = location.isEmpty() ? user.getCity() : location;
             return ExtractionResult.completed("¡Perfecto " + displayName + " de " + displayLocation + 
                 "! Tu registro está completo. Te enviaré los enlaces para compartir con tus amigos.");
         }
         
         // Casos parciales - usar datos ya extraídos de forma inteligente
-        if (hasName && hasCity && !hasAcceptedTerms) {
-            // Tiene nombre y ciudad, proceder directamente a política de privacidad
+        if (hasName && hasLastname && hasCity && !hasAcceptedTerms) {
+            // Tiene nombre, apellido y ciudad, proceder directamente a política de privacidad
             user.setChatbot_state("WAITING_TERMS_ACCEPTANCE");
             return ExtractionResult.incomplete("Para seguir adelante y unirnos en esta gran tarea de transformación nacional, te invito a que revises nuestra política de tratamiento de datos, plasmadas aquí https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo y aceptas los principios con los que manejamos la información.\n\nAcompáñame hacia una Colombia más justa, equitativa y próspera para todos. ¿Aceptas el reto de resetear la política?");
         }
         
-        if (hasName && !hasCity && hasAcceptedTerms) {
-            // Tiene nombre y aceptó términos, falta ciudad
+        if (hasName && !hasLastname && hasCity && !hasAcceptedTerms) {
+            // Tiene nombre y ciudad pero no apellido, pedir apellido primero
+            user.setChatbot_state("WAITING_LASTNAME");
+            return ExtractionResult.incomplete("¡Hola " + user.getName() + "! Veo que eres de " + user.getCity() + ". ¿Cuál es tu apellido?");
+        }
+        
+        if (hasName && !hasLastname && !hasCity && hasAcceptedTerms) {
+            // Tiene nombre y aceptó términos, falta apellido
+            user.setChatbot_state("WAITING_LASTNAME");
+            return ExtractionResult.incomplete(emotionalPrefix + "¡Perfecto " + user.getName() + "! Ya aceptaste los términos. " +
+                "¿Cuál es tu apellido?");
+        }
+        
+        if (hasName && hasLastname && !hasCity && hasAcceptedTerms) {
+            // Tiene nombre, apellido y aceptó términos, falta ciudad
             user.setChatbot_state("WAITING_CITY");
-            String displayName = fullName.isEmpty() ? user.getName() : fullName;
+            String displayName = user.getName() + " " + user.getLastname();
             return ExtractionResult.incomplete(emotionalPrefix + "¡Perfecto " + displayName + "! Ya aceptaste los términos. " +
                 "¿En qué ciudad vives?");
         }
@@ -251,10 +264,16 @@ public class UserDataExtractor {
                 ". ¿Cuál es tu nombre?");
         }
         
-        if (hasName && !hasCity && !hasAcceptedTerms) {
-            // Solo tiene nombre
+        if (hasName && !hasLastname && !hasCity && !hasAcceptedTerms) {
+            // Tiene nombre pero no apellido
+            user.setChatbot_state("WAITING_LASTNAME");
+            return ExtractionResult.incomplete(emotionalPrefix + "¡Hola " + user.getName() + "! ¿Cuál es tu apellido?");
+        }
+        
+        if (hasName && hasLastname && !hasCity && !hasAcceptedTerms) {
+            // Tiene nombre y apellido, falta ciudad
             user.setChatbot_state("WAITING_CITY");
-            String displayName = fullName.isEmpty() ? user.getName() : fullName;
+            String displayName = user.getName() + " " + user.getLastname();
             return ExtractionResult.incomplete(emotionalPrefix + "¡Hola " + displayName + "! ¿En qué ciudad vives?");
         }
         

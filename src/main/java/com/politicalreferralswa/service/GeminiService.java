@@ -37,13 +37,14 @@ public class GeminiService {
      * 
      * @param userMessage     El mensaje del usuario
      * @param previousContext Contexto de conversación previa (opcional)
+     * @param currentState    Estado actual del chatbot (opcional)
      * @return UserDataExtractionResult con los datos extraídos
      */
-    public UserDataExtractionResult extractUserData(String userMessage, String previousContext) {
+    public UserDataExtractionResult extractUserData(String userMessage, String previousContext, String currentState) {
         long startTime = System.currentTimeMillis();
         try {
             System.out.println("GeminiService: Iniciando extracción de datos para mensaje: '" + userMessage + "'");
-            String prompt = buildExtractionPrompt(userMessage, previousContext);
+            String prompt = buildExtractionPrompt(userMessage, previousContext, currentState);
 
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("contents", Map.of(
@@ -108,12 +109,13 @@ public class GeminiService {
         }
     }
 
-    private String buildExtractionPrompt(String userMessage, String previousContext) {
+    private String buildExtractionPrompt(String userMessage, String previousContext, String currentState) {
         return String.format("""
             Eres un asistente de extracción de información muy inteligente, amigable y con profundo conocimiento de Colombia.
             CONTEXTO: Sistema de registro para campaña política en Colombia.
             MENSAJE: "%s"
             CONVERSACIÓN PREVIA: "%s"
+            ESTADO ACTUAL: "%s"
 
             CAMPOS A EXTRAER:
             - name: Nombre (sin apellido, sin títulos)
@@ -135,6 +137,12 @@ public class GeminiService {
               - "Pablo" = name: "Pablo" (nombre simple)
               - "Dr. Juan" = name: "Juan" (ignora títulos)
               - "José María" = name: "José María" (ambos son nombres)
+
+            INTERPRETACIÓN POR ESTADO ACTUAL:
+            - Si el estado es "WAITING_LASTNAME": Cualquier texto se interpreta como APELLIDO
+            - Si el estado es "WAITING_NAME": Cualquier texto se interpreta como NOMBRE
+            - Si el estado es "WAITING_CITY": Cualquier texto se interpreta como CIUDAD
+            - Si el estado es null o vacío: Usar análisis semántico normal
 
             DETECCIÓN DE CONTEXTO EMOCIONAL:
             - Si el usuario expresa que ya respondió, frustración o impaciencia, genera una respuesta empática en "emotionalContext".

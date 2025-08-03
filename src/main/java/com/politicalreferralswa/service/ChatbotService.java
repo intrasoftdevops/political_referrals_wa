@@ -141,13 +141,22 @@ public class ChatbotService {
                 System.out.println("ChatbotService: Validando nombre de WhatsApp: " + senderName);
                 
                 try {
-                    // Validar el nombre con IA de forma síncrona
+                    // Validar y extraer nombre/apellido con IA de forma síncrona
                     NameValidationService.NameValidationResult validationResult = 
                         nameValidationService.validateName(senderName.trim()).get();
                     
                     if (validationResult.isValid()) {
-                        user.setName(senderName.trim());
-                        System.out.println("ChatbotService: ✅ Nombre de WhatsApp validado y guardado: " + senderName);
+                        // Guardar nombre y apellido extraídos
+                        if (validationResult.getExtractedName() != null) {
+                            user.setName(validationResult.getExtractedName());
+                        }
+                        if (validationResult.getExtractedLastname() != null) {
+                            user.setLastname(validationResult.getExtractedLastname());
+                        }
+                        
+                        System.out.println("ChatbotService: ✅ Nombre de WhatsApp validado y guardado: " + 
+                            validationResult.getExtractedName() + 
+                            (validationResult.getExtractedLastname() != null ? " " + validationResult.getExtractedLastname() : ""));
                     } else {
                         System.out.println("ChatbotService: ❌ Nombre de WhatsApp inválido: " + senderName + " - Razón: " + validationResult.getReason());
                         // No guardar el nombre si es inválido
@@ -417,14 +426,34 @@ public class ChatbotService {
             // Verificar si ya tenemos un nombre validado
             if (user.getName() != null && !user.getName().trim().isEmpty()) {
                 System.out.println("⚠️  WARNING: Generando mensaje con nombre ya validado: " + user.getName());
-                return new ChatResponse(
-                        String.format("""
-                                ¡Hola! 👋 Soy el bot de Reset a la Política.
-                                Te doy la bienvenida a este espacio de conversación, donde construimos juntos el futuro de Colombia.
+                
+                // Construir nombre completo para mostrar
+                String fullName = user.getName();
+                if (user.getLastname() != null && !user.getLastname().trim().isEmpty()) {
+                    fullName += " " + user.getLastname();
+                }
+                
+                // Si no tiene apellido, preguntarlo
+                if (user.getLastname() == null || user.getLastname().trim().isEmpty()) {
+                    return new ChatResponse(
+                            String.format("""
+                                    ¡Hola! 👋 Soy el bot de Reset a la Política.
+                                    Te doy la bienvenida a este espacio de conversación, donde construimos juntos el futuro de Colombia.
 
-                                Veo que te llamas %s. ¿En qué ciudad vives?
-                                """, user.getName()),
-                        "WAITING_CITY");
+                                    Veo que te llamas %s. ¿Cuál es tu apellido?
+                                    """, user.getName()),
+                            "WAITING_LASTNAME");
+                } else {
+                    // Si ya tiene nombre y apellido, preguntar ciudad
+                    return new ChatResponse(
+                            String.format("""
+                                    ¡Hola! 👋 Soy el bot de Reset a la Política.
+                                    Te doy la bienvenida a este espacio de conversación, donde construimos juntos el futuro de Colombia.
+
+                                    Veo que te llamas %s. ¿En qué ciudad vives?
+                                    """, fullName),
+                            "WAITING_CITY");
+                }
             } else {
                 System.out.println("⚠️  WARNING: Generando mensaje de bienvenida general (sin código de referido)");
                 return new ChatResponse(
@@ -710,10 +739,42 @@ public class ChatbotService {
                     // Si falló la extracción, usar método tradicional
                     if (messageText != null && !messageText.trim().isEmpty()) {
                         user.setName(messageText.trim());
+                        responseMessage = "¿Cuál es tu apellido?";
+                        nextChatbotState = "WAITING_LASTNAME";
+                    } else {
+                        responseMessage = "Por favor, ingresa un nombre válido.";
+                    }
+                }
+                break;
+            case "WAITING_LASTNAME":
+                // Intentar extracción inteligente primero
+                UserDataExtractor.ExtractionResult lastnameExtractionResult = userDataExtractor.extractAndUpdateUser(user, messageText, null);
+                
+                if (lastnameExtractionResult.isSuccess()) {
+                    // Guardar usuario actualizado después de la extracción
+                    saveUser(user);
+                    
+                    if (lastnameExtractionResult.needsClarification()) {
+                        // Si necesita aclaración
+                        responseMessage = lastnameExtractionResult.getMessage();
+                        nextChatbotState = "WAITING_CLARIFICATION";
+                    } else if (lastnameExtractionResult.isCompleted()) {
+                        // Si se completó la extracción
+                        responseMessage = lastnameExtractionResult.getMessage();
+                        nextChatbotState = "CONFIRM_DATA";
+                    } else {
+                        // Si se extrajo parcialmente
+                        responseMessage = lastnameExtractionResult.getMessage();
+                        nextChatbotState = lastnameExtractionResult.getNextState();
+                    }
+                } else {
+                    // Si falló la extracción, usar método tradicional
+                    if (messageText != null && !messageText.trim().isEmpty()) {
+                        user.setLastname(messageText.trim());
                         responseMessage = "¿En qué ciudad vives?";
                         nextChatbotState = "WAITING_CITY";
                     } else {
-                        responseMessage = "Por favor, ingresa un nombre válido.";
+                        responseMessage = "Por favor, ingresa un apellido válido.";
                     }
                 }
                 break;
@@ -742,7 +803,11 @@ public class ChatbotService {
                     // Si falló la extracción, usar método tradicional
                     if (messageText != null && !messageText.trim().isEmpty()) {
                         user.setCity(messageText.trim());
-                        responseMessage = "Confirmamos tus datos: " + user.getName() + ", de " + user.getCity()
+                        String fullName = user.getName();
+                        if (user.getLastname() != null && !user.getLastname().trim().isEmpty()) {
+                            fullName += " " + user.getLastname();
+                        }
+                        responseMessage = "Confirmamos tus datos: " + fullName + ", de " + user.getCity()
                                 + ". ¿Es correcto? (Sí/No)";
                         nextChatbotState = "CONFIRM_DATA";
                     } else {
@@ -781,12 +846,6 @@ public class ChatbotService {
                         telegramInviteLink = "https://t.me/" + TELEGRAM_BOT_USERNAME + "?start="
                                 + encodedTelegramPayload;
 
-                        String friendsInviteMessage = String.format(
-                                "Amigos, los invito a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/573224029924?text=%s",
-                                URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
-                                        StandardCharsets.UTF_8.toString()).replace("+", "%20"));
-                        additionalMessages.add(friendsInviteMessage);
-
                         String aiBotIntroMessage = """
                                 ¡Atención! Ahora entrarás en conversación con una inteligencia artificial.
                                 Soy Daniel Quintero Bot, en mi versión de IA de prueba para este proyecto.
@@ -795,6 +854,12 @@ public class ChatbotService {
                                 ¡Hazme tu pregunta!
                                 """;
                         additionalMessages.add(aiBotIntroMessage);
+
+                        String friendsInviteMessage = String.format(
+                                "Amigos, los invito a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/573224029924?text=%s",
+                                URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
+                                        StandardCharsets.UTF_8.toString()).replace("+", "%20"));
+                        additionalMessages.add(friendsInviteMessage);
 
                     } catch (UnsupportedEncodingException e) {
                         System.err.println(

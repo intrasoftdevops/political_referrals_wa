@@ -60,7 +60,7 @@ class GeminiServiceTest {
             """;
 
         // Act
-        UserDataExtractionResult result = geminiService.extractUserData(userMessage, null);
+        UserDataExtractionResult result = geminiService.extractUserData(userMessage, null, null);
 
         // Assert
         assertNotNull(result);
@@ -90,7 +90,7 @@ class GeminiServiceTest {
             """;
 
         // Act
-        UserDataExtractionResult result = geminiService.extractUserData(userMessage, null);
+        UserDataExtractionResult result = geminiService.extractUserData(userMessage, null, null);
 
         // Assert
         assertNotNull(result);
@@ -117,7 +117,7 @@ class GeminiServiceTest {
             """;
 
         // Act
-        UserDataExtractionResult result = geminiService.extractUserData(userMessage, null);
+        UserDataExtractionResult result = geminiService.extractUserData(userMessage, null, null);
 
         // Assert
         assertNotNull(result);
@@ -147,7 +147,7 @@ class GeminiServiceTest {
             """;
 
         // Act
-        UserDataExtractionResult result = geminiService.extractUserData(userMessage, previousContext);
+        UserDataExtractionResult result = geminiService.extractUserData(userMessage, previousContext, null);
 
         // Assert
         assertNotNull(result);
@@ -164,7 +164,7 @@ class GeminiServiceTest {
         String expectedResponse = "{}";
 
         // Act
-        UserDataExtractionResult result = geminiService.extractUserData(userMessage, null);
+        UserDataExtractionResult result = geminiService.extractUserData(userMessage, null, null);
 
         // Assert
         assertNotNull(result);
@@ -179,7 +179,7 @@ class GeminiServiceTest {
 
         // Act & Assert
         assertDoesNotThrow(() -> {
-            UserDataExtractionResult result = geminiService.extractUserData(userMessage, null);
+            UserDataExtractionResult result = geminiService.extractUserData(userMessage, null, null);
             assertNotNull(result);
         });
     }
