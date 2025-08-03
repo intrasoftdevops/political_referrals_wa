@@ -178,7 +178,7 @@ GET /api/metrics/gemini
 Usuario: "Hola! Soy Dr. Miguel Rodríguez de Barranquilla, acepto sus términos"
 Bot: "¡Hola Miguel! 👋 ¿Te llamas Miguel cierto?
 
-¡Hola! 👋 Soy el bot de **Reset a la Política**...
+¡Hola! 👋 Soy el bot de Reset a la Política...
 ¡Perfecto! Confirmamos tus datos: Miguel Rodríguez, de Barranquilla. ¿Es correcto? (Sí/No)"
 ```
 
