@@ -10,6 +10,13 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.concurrent.CompletableFuture; // Importación necesaria para procesamiento asíncrono
 
@@ -22,6 +29,7 @@ import java.util.concurrent.CompletableFuture; // Importación necesaria para pr
  */
 @RestController
 @RequestMapping("/api/wati-webhook") // <<--- URL QUE DEBES CONFIGURAR EN WATI
+@Tag(name = "WhatsApp", description = "Endpoints relacionados con WhatsApp a través de Wati API")
 public class WatiWebhookController {
 
     private final ChatbotService chatbotService;
@@ -43,7 +51,59 @@ public class WatiWebhookController {
      * mientras el procesamiento real ocurre en segundo plano.
      */
     @PostMapping
-    public ResponseEntity<String> receiveMessage(@RequestBody String payload) {
+    @Operation(
+        summary = "Recibir mensajes de WhatsApp",
+        description = "Endpoint principal para procesar mensajes entrantes de WhatsApp a través de Wati API. Extrae automáticamente datos del usuario usando Gemini AI y responde de forma inteligente."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "Mensaje recibido y procesado exitosamente",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = String.class),
+                examples = @ExampleObject(
+                    value = "\"Mensaje recibido y en procesamiento asíncrono\""
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "Datos de mensaje incompletos o inválidos",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = String.class),
+                examples = @ExampleObject(
+                    value = "\"Datos de mensaje incompletos/inválidos\""
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "500",
+            description = "Error interno del servidor",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = String.class),
+                examples = @ExampleObject(
+                    value = "\"Error interno del servidor\""
+                )
+            )
+        )
+    })
+    public ResponseEntity<String> receiveMessage(
+        @RequestBody @Schema(
+            description = "Payload del webhook de Wati",
+            example = """
+            {
+              "eventType": "message",
+              "type": "text",
+              "waId": "+573001234567",
+              "senderName": "Miguel",
+              "text": "Hola! Soy Dr. Miguel Rodríguez de Barranquilla, acepto sus términos"
+            }
+            """
+        ) String payload
+    ) {
         System.out.println("\n--- WATI WEBHOOK RECIBIDO (POST) ---");
         System.out.println("Payload completo (RAW): " + payload);
 

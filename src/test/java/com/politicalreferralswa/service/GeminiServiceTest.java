@@ -184,5 +184,86 @@ class GeminiServiceTest {
         });
     }
 
+    @Test
+    void testExtractUserData_TermsAcceptance() {
+        // Arrange
+        String userMessage = "Sí";
+        String expectedResponse = """
+            {
+              "candidates": [{
+                "content": {
+                  "parts": [{
+                    "text": "{\\"acceptsTerms\\":true,\\"confidence\\":0.95}"
+                  }]
+                }
+              }]
+            }
+            """;
+
+        // Act
+        UserDataExtractionResult result = geminiService.extractUserData(userMessage, "WAITING_TERMS_ACCEPTANCE", "WAITING_TERMS_ACCEPTANCE");
+
+        // Assert
+        assertNotNull(result);
+        assertTrue(result.getAcceptsTerms());
+        assertEquals(0.95, result.getConfidence());
+        assertTrue(result.isSuccessful());
+        assertFalse(result.needsClarification());
+    }
+
+    @Test
+    void testExtractUserData_TermsAcceptanceWithoutAccent() {
+        // Arrange
+        String userMessage = "Si";
+        String expectedResponse = """
+            {
+              "candidates": [{
+                "content": {
+                  "parts": [{
+                    "text": "{\\"acceptsTerms\\":true,\\"confidence\\":0.95}"
+                  }]
+                }
+              }]
+            }
+            """;
+
+        // Act
+        UserDataExtractionResult result = geminiService.extractUserData(userMessage, "WAITING_TERMS_ACCEPTANCE", "WAITING_TERMS_ACCEPTANCE");
+
+        // Assert
+        assertNotNull(result);
+        assertTrue(result.getAcceptsTerms());
+        assertEquals(0.95, result.getConfidence());
+        assertTrue(result.isSuccessful());
+        assertFalse(result.needsClarification());
+    }
+
+    @Test
+    void testExtractUserData_TermsRejection() {
+        // Arrange
+        String userMessage = "No";
+        String expectedResponse = """
+            {
+              "candidates": [{
+                "content": {
+                  "parts": [{
+                    "text": "{\\"acceptsTerms\\":false,\\"confidence\\":0.95}"
+                  }]
+                }
+              }]
+            }
+            """;
+
+        // Act
+        UserDataExtractionResult result = geminiService.extractUserData(userMessage, "WAITING_TERMS_ACCEPTANCE", "WAITING_TERMS_ACCEPTANCE");
+
+        // Assert
+        assertNotNull(result);
+        assertFalse(result.getAcceptsTerms());
+        assertEquals(0.95, result.getConfidence());
+        assertTrue(result.isSuccessful());
+        assertFalse(result.needsClarification());
+    }
+
 
 } 
