@@ -263,6 +263,19 @@ public class GeminiService {
             - "Me equivoqué, no soy de Medellín sino de Envigado": {"city": "Envigado", "correction": true, "previousValue": "Medellín"}
             - "Perdón, mi nombre es Carlos no Juan": {"name": "Carlos", "correction": true, "previousValue": "Juan"}
             - "Es Barbosa no Armenia": {"city": "Barbosa", "correction": true, "previousValue": "Armenia"}
+
+            EJEMPLOS DE ACEPTACIÓN DE TÉRMINOS:
+            - "Sí": {"acceptsTerms": true, "confidence": 0.95}
+            - "Si": {"acceptsTerms": true, "confidence": 0.95}
+            - "Yes": {"acceptsTerms": true, "confidence": 0.95}
+            - "Acepto": {"acceptsTerms": true, "confidence": 0.9}
+            - "Estoy de acuerdo": {"acceptsTerms": true, "confidence": 0.9}
+            - "Claro": {"acceptsTerms": true, "confidence": 0.85}
+            - "Por supuesto": {"acceptsTerms": true, "confidence": 0.85}
+            - "Perfecto": {"acceptsTerms": true, "confidence": 0.8}
+            - "No": {"acceptsTerms": false, "confidence": 0.95}
+            - "No acepto": {"acceptsTerms": false, "confidence": 0.9}
+            - "No estoy de acuerdo": {"acceptsTerms": false, "confidence": 0.9}
             """,
             safeUserMessage,
             safePreviousContext,

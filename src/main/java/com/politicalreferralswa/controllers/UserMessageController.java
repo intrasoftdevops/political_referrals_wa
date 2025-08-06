@@ -1,6 +1,6 @@
-package com.politicalreferralswa.controller; // O un paquete similar para tus controladores
+package com.politicalreferralswa.controllers; // Corregir el paquete
 
-import com.politicalreferralswa.service.AIBotService;
+import com.politicalreferralswa.service.ChatbotService;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -12,11 +12,11 @@ import java.util.Map; // Para un ejemplo simple de JSON de entrada
 @RestController // Indica que esta clase es un controlador REST
 public class UserMessageController {
 
-    private final AIBotService aiBotService;
+    private final ChatbotService chatbotService;
 
-    // Inyección de dependencias del AIBotService
-    public UserMessageController(AIBotService aiBotService) {
-        this.aiBotService = aiBotService;
+    // Inyección de dependencias del ChatbotService
+    public UserMessageController(ChatbotService chatbotService) {
+        this.chatbotService = chatbotService;
     }
 
     /**
@@ -48,8 +48,8 @@ public class UserMessageController {
             System.out.println("Controlador: Recibido mensaje de " + userPhoneNumber + ": '" + userMessage + "'");
 
             // *** ESTA ES LA CLAVE DEL CAMBIO ***
-            // Llamar al AIBotService, pasando el número de teléfono como sessionId
-            String aiResponse = aiBotService.getAIResponse(userPhoneNumber, userMessage);
+            // Llamar al ChatbotService, pasando el número de teléfono como fromId
+            String aiResponse = chatbotService.processIncomingMessage(userPhoneNumber, userMessage, "API");
 
             // Devolver la respuesta de la IA
             return new ResponseEntity<>(aiResponse, HttpStatus.OK);

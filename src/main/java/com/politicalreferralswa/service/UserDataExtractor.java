@@ -34,12 +34,14 @@ public class UserDataExtractor {
         
         // VERIFICACIÓN PREVENTIVA: Si el usuario ya tiene datos completos y dice "Sí"/"No", 
         // probablemente está respondiendo a términos, NO dando datos nuevos
+        // EXCEPCIÓN: Si el estado actual es WAITING_TERMS_ACCEPTANCE, permitir procesamiento
         boolean hasCompleteName = user.getName() != null && !user.getName().isEmpty();
         boolean hasCompleteCity = user.getCity() != null && !user.getCity().isEmpty();
         boolean isAcceptanceMessage = userMessage.equalsIgnoreCase("Sí") || userMessage.equalsIgnoreCase("Si") || 
                                     userMessage.equalsIgnoreCase("No") || userMessage.equalsIgnoreCase("yes") || userMessage.equalsIgnoreCase("no");
+        boolean isWaitingTerms = "WAITING_TERMS_ACCEPTANCE".equals(user.getChatbot_state());
         
-        if (hasCompleteName && hasCompleteCity && isAcceptanceMessage) {
+        if (hasCompleteName && hasCompleteCity && isAcceptanceMessage && !isWaitingTerms) {
             System.out.println("DEBUG EXTRACTOR: 🛑 PROTECCIÓN ACTIVADA - Usuario con datos completos + mensaje de aceptación");
             System.out.println("DEBUG EXTRACTOR: NO procesando '" + userMessage + "' para evitar sobrescribir datos existentes");
             System.out.println("DEBUG EXTRACTOR: Datos protegidos - Nombre: '" + user.getName() + "', Ciudad: '" + user.getCity() + "'");

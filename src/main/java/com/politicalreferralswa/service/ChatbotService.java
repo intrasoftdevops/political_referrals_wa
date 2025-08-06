@@ -17,6 +17,8 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.Map;
+import java.util.HashMap;
 
 @Service
 public class ChatbotService {
@@ -27,21 +29,116 @@ public class ChatbotService {
     private final AIBotService aiBotService;
     private final UserDataExtractor userDataExtractor;
     private final NameValidationService nameValidationService;
+    private final TribalAnalysisService tribalAnalysisService;
 
     private static final Pattern REFERRAL_MESSAGE_PATTERN = Pattern
             .compile("Hola, vengo referido por:\\s*([A-Za-z0-9]{8})");
     private static final String TELEGRAM_BOT_USERNAME = "ResetPoliticaBot";
     private static final Pattern STRICT_PHONE_NUMBER_PATTERN = Pattern.compile("^\\+\\d{10,15}$");
 
+    // Patrones para detectar solicitudes de link de tribu
+    private static final List<String> TRIBAL_LINK_PATTERNS = List.of(
+        "mándame el link de mi tribu",
+        "envíame el link de mi tribu",
+        "¿me puedes mandar el enlace de mi tribu?",
+        "pásame el link de la tribu",
+        "¿dónde está el link de mi tribu?",
+        "mandame el link d mi tribu",
+        "mandame el link mi tribu",
+        "pasame el link d mi tribu",
+        "pasame link tribu",
+        "mandame link tribu",
+        "enlace tribu porfa",
+        "link tribu ya",
+        "dame el enlace de mi grupo",
+        "pásame el link del grupo",
+        "¿dónde está el grupo?",
+        "¿cómo entro a la tribu?",
+        "¿cuál es el link de ingreso a la tribu?",
+        "parce, mándame el link de mi tribu",
+        "oe, ¿tenés el enlace de la tribu?",
+        "mijo, pásame el link del parche",
+        "mija, pásame el link del parche",
+        "necesito el link pa entrar a mi tribu",
+        "¿dónde está el bendito link de la tribu?",
+        "hágame el favor y me manda el link de la tribu",
+        "¿y el enlace pa unirme?",
+        "manda ese link pues",
+        "quiero entrar a mi tribu",
+        "cómo ingreso a mi tribu",
+        "no encuentro el link de mi tribu",
+        "perdí el link de la tribu",
+        "ayúdame con el link de la tribu",
+        "me puedes enviar el link de mi grupo",
+        "necesito volver a entrar a mi tribu",
+        "como es que invito gente?",
+        "dame el link",
+        // Patrones adicionales más flexibles
+        "pásame el link de mi tribu",
+        "mandame el link de mi tribu",
+        "envíame el link de mi tribu",
+        "dame el link de mi tribu",
+        "pásame el enlace de mi tribu",
+        "mandame el enlace de mi tribu",
+        "envíame el enlace de mi tribu",
+        "dame el enlace de mi tribu",
+        "link de mi tribu",
+        "enlace de mi tribu",
+        "link tribu",
+        "enlace tribu",
+        "link del grupo",
+        "enlace del grupo",
+        "link de la tribu",
+        "enlace de la tribu",
+        "¿dónde está el link de la tribu?",
+        "¿dónde está el enlace de la tribu?",
+        "¿dónde está el link del grupo?",
+        "¿dónde está el enlace del grupo?",
+        "¿cómo entro a mi tribu?",
+        "¿cómo entro al grupo?",
+        "¿cuál es el link de ingreso?",
+        "¿cuál es el enlace de ingreso?",
+        "perdí el link de mi tribu",
+        "perdí el enlace de mi tribu",
+        "perdí el link del grupo",
+        "perdí el enlace del grupo",
+        "ayúdame con el link de mi tribu",
+        "ayúdame con el enlace de mi tribu",
+        "ayúdame con el link del grupo",
+        "ayúdame con el enlace del grupo",
+        "necesito el link para entrar",
+        "necesito el enlace para entrar",
+        "necesito el link para unirme",
+        "necesito el enlace para unirme",
+        "como invito gente",
+        "cómo invito gente",
+        "como es que invito",
+        "cómo es que invito",
+        // Patrones adicionales para casos específicos
+        "¿dónde está el grupo?",
+        "¿cómo entro a la tribu?",
+        "¿cómo entro al grupo?",
+        "cómo ingreso a mi tribu",
+        "cómo ingreso al grupo",
+        "mijo, pásame el link del parche",
+        "mija, pásame el link del parche",
+        "link del parche",
+        "enlace del parche",
+        "link de mi parche",
+        "enlace de mi parche"
+    );
+
     public ChatbotService(Firestore firestore, WatiApiService watiApiService,
                           TelegramApiService telegramApiService, AIBotService aiBotService,
-                          UserDataExtractor userDataExtractor, NameValidationService nameValidationService) {
+                          UserDataExtractor userDataExtractor, NameValidationService nameValidationService,
+                          TribalAnalysisService tribalAnalysisService) {
         this.firestore = firestore;
         this.watiApiService = watiApiService;
         this.telegramApiService = telegramApiService;
         this.aiBotService = aiBotService;
         this.userDataExtractor = userDataExtractor;
         this.nameValidationService = nameValidationService;
+        this.tribalAnalysisService = tribalAnalysisService;
     }
 
     /**
@@ -681,7 +778,7 @@ public class ChatbotService {
 
                                 String aiBotIntroMessage = """
                                         ¡Atención! Ahora entrarás en conversación con una inteligencia artificial.
-                                        Soy Daniel Quintero Bot, en mi versión de IA de prueba para este proyecto.
+                                        Soy una IA de prueba para este proyecto.
                                         Mi objetivo es simular mis respuestas basadas en información clave y mi visión política.
                                         Ten en cuenta que aún estoy en etapa de prueba y mejora continua.
                                         ¡Hazme tu pregunta!
@@ -868,7 +965,7 @@ public class ChatbotService {
 
                         String aiBotIntroMessage = """
                                 ¡Atención! Ahora entrarás en conversación con una inteligencia artificial.
-                                Soy Daniel Quintero Bot, en mi versión de IA de prueba para este proyecto.
+                                Soy una IA de prueba para este proyecto.
                                 Mi objetivo es simular mis respuestas basadas en información clave y mi visión política.
                                 Ten en cuenta que aún estoy en etapa de prueba y mejora continua.
                                 ¡Hazme tu pregunta!
@@ -973,10 +1070,10 @@ public class ChatbotService {
                 }
                 break;
             case "COMPLETED":
-                System.out.println("ChatbotService: Usuario COMPLETED. Pasando consulta a AI Bot.");
+                System.out.println("ChatbotService: Usuario COMPLETED. Analizando consulta con IA...");
 
+                // Obtener session ID para el análisis
                 String sessionId = user.getPhone();
-
                 if ((sessionId == null || sessionId.isEmpty()) && user.getTelegram_chat_id() != null) {
                     System.err.println("ADVERTENCIA: Usuario COMPLETED sin teléfono. Usando Telegram Chat ID ("
                             + user.getTelegram_chat_id() + ") como fallback para la sesión de IA. Doc ID: "
@@ -985,8 +1082,84 @@ public class ChatbotService {
                 }
 
                 if (sessionId != null && !sessionId.isEmpty()) {
-                    responseMessage = aiBotService.getAIResponse(sessionId, messageText);
-                    nextChatbotState = "COMPLETED";
+                    // Preparar datos del usuario para el análisis
+                    Map<String, Object> userData = new HashMap<>();
+                    userData.put("name", user.getName());
+                    userData.put("referral_code", user.getReferral_code());
+                    userData.put("city", user.getCity());
+                    userData.put("phone", user.getPhone());
+                    
+                    // Analizar la consulta con el servicio de IA
+                    Optional<TribalAnalysisService.TribalAnalysisResult> analysisResult = 
+                        tribalAnalysisService.analyzeTribalRequest(messageText, sessionId, userData);
+                    
+                    if (analysisResult.isPresent()) {
+                        TribalAnalysisService.TribalAnalysisResult result = analysisResult.get();
+                        
+                        if (result.isTribalRequest()) {
+                            System.out.println("ChatbotService: IA detectó solicitud de tribu. Generando link...");
+                            
+                            // Generar el link de referido para el usuario
+                            String referralCode = user.getReferral_code();
+                            if (referralCode == null || referralCode.isEmpty()) {
+                                referralCode = generateUniqueReferralCode();
+                                user.setReferral_code(referralCode);
+                                saveUser(user);
+                            }
+                            
+                            try {
+                                String tribalLinkMessage = String.format(
+                                    "Amigos, los invito a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/573224029924?text=%s",
+                                    URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
+                                            StandardCharsets.UTF_8.toString()).replace("+", "%20")
+                                );
+                                
+                                // Combinar respuesta IA con el link generado
+                                responseMessage = result.getAiResponse() + "\n\n" + tribalLinkMessage;
+                                nextChatbotState = "COMPLETED";
+                                System.out.println("ChatbotService: Respuesta de tribu con IA enviada");
+                            } catch (UnsupportedEncodingException e) {
+                                System.err.println("ERROR: No se pudo codificar el link de tribu: " + e.getMessage());
+                                responseMessage = result.getAiResponse() + "\n\nLo siento, tuve un problema al generar el link. Por favor, intenta de nuevo.";
+                                nextChatbotState = "COMPLETED";
+                            }
+                        } else {
+                            // No es solicitud de tribu, usar respuesta IA normal
+                            System.out.println("ChatbotService: IA detectó consulta normal. Procesando con AI Bot...");
+                            responseMessage = aiBotService.getAIResponse(sessionId, messageText);
+                            nextChatbotState = "COMPLETED";
+                        }
+                    } else {
+                        // Fallback si el análisis falla
+                        System.err.println("ChatbotService: Fallback - Análisis de IA falló, usando detección tradicional");
+                        if (isTribalLinkRequest(messageText)) {
+                            // Lógica tradicional de tribus
+                            String referralCode = user.getReferral_code();
+                            if (referralCode == null || referralCode.isEmpty()) {
+                                referralCode = generateUniqueReferralCode();
+                                user.setReferral_code(referralCode);
+                                saveUser(user);
+                            }
+                            
+                            try {
+                                String tribalLinkMessage = String.format(
+                                    "Amigos, los invito a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/573224029924?text=%s",
+                                    URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
+                                            StandardCharsets.UTF_8.toString()).replace("+", "%20")
+                                );
+                                
+                                responseMessage = tribalLinkMessage;
+                                nextChatbotState = "COMPLETED";
+                            } catch (UnsupportedEncodingException e) {
+                                System.err.println("ERROR: No se pudo codificar el link de tribu: " + e.getMessage());
+                                responseMessage = "Lo siento, tuve un problema al generar el link. Por favor, intenta de nuevo.";
+                                nextChatbotState = "COMPLETED";
+                            }
+                        } else {
+                            responseMessage = aiBotService.getAIResponse(sessionId, messageText);
+                            nextChatbotState = "COMPLETED";
+                        }
+                    }
                 } else {
                     System.err.println(
                             "ERROR CRÍTICO: Usuario COMPLETED sin un ID de sesión válido (ni teléfono, ni Telegram ID). Doc ID: "
@@ -1313,6 +1486,58 @@ public class ChatbotService {
         
         // Si no coincide con ningún patrón, devolver el mensaje original
         return trimmedMessage;
+    }
+
+    /**
+     * Verifica si el mensaje del usuario es una solicitud de link de tribu.
+     * Compara el mensaje normalizado con los patrones predefinidos.
+     *
+     * @param messageText El mensaje del usuario
+     * @return true si el mensaje es una solicitud de link de tribu, false en caso contrario
+     */
+    private boolean isTribalLinkRequest(String messageText) {
+        if (messageText == null || messageText.trim().isEmpty()) {
+            return false;
+        }
+        
+        // Normalizar el mensaje: convertir a minúsculas y remover acentos
+        String normalizedMessage = normalizeText(messageText.trim());
+        
+        // Verificar si coincide con alguno de los patrones
+        for (String pattern : TRIBAL_LINK_PATTERNS) {
+            if (normalizedMessage.contains(pattern)) {
+                System.out.println("ChatbotService: Coincidencia encontrada con patrón: '" + pattern + "'");
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+    /**
+     * Normaliza el texto removiendo acentos y convirtiendo a minúsculas.
+     *
+     * @param text El texto a normalizar
+     * @return El texto normalizado
+     */
+    private String normalizeText(String text) {
+        if (text == null) {
+            return "";
+        }
+        
+        // Convertir a minúsculas
+        String normalized = text.toLowerCase();
+        
+        // Remover acentos (mapping básico de caracteres acentuados)
+        normalized = normalized.replace("á", "a")
+                              .replace("é", "e")
+                              .replace("í", "i")
+                              .replace("ó", "o")
+                              .replace("ú", "u")
+                              .replace("ñ", "n")
+                              .replace("ü", "u");
+        
+        return normalized;
     }
 
     /**
