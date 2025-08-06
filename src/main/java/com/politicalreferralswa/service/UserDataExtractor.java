@@ -41,11 +41,17 @@ public class UserDataExtractor {
                                     userMessage.equalsIgnoreCase("No") || userMessage.equalsIgnoreCase("yes") || userMessage.equalsIgnoreCase("no");
         boolean isWaitingTerms = "WAITING_TERMS_ACCEPTANCE".equals(user.getChatbot_state());
         
+        // SOLO activar protección si NO estamos esperando términos Y el usuario tiene datos completos
         if (hasCompleteName && hasCompleteCity && isAcceptanceMessage && !isWaitingTerms) {
             System.out.println("DEBUG EXTRACTOR: 🛑 PROTECCIÓN ACTIVADA - Usuario con datos completos + mensaje de aceptación");
             System.out.println("DEBUG EXTRACTOR: NO procesando '" + userMessage + "' para evitar sobrescribir datos existentes");
             System.out.println("DEBUG EXTRACTOR: Datos protegidos - Nombre: '" + user.getName() + "', Ciudad: '" + user.getCity() + "'");
             return ExtractionResult.incomplete("Procesando tu respuesta...");
+        }
+        
+        // Si estamos esperando términos, SIEMPRE procesar el mensaje
+        if (isWaitingTerms) {
+            System.out.println("DEBUG EXTRACTOR: ✅ PROCESANDO ACEPTACIÓN DE TÉRMINOS - Estado: " + user.getChatbot_state());
         }
         
         try {

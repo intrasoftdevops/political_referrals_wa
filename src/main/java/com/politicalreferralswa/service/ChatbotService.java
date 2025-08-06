@@ -740,7 +740,7 @@ public class ChatbotService {
                     // Si la extracción fue exitosa, verificar si aceptó términos
                     // El UserDataExtractor ya actualiza el usuario si detecta aceptación
                     if (user.isAceptaTerminos()) {
-                        System.out.println("DEBUG: Usuario aceptó términos de privacidad (detectado por IA). Validando datos completos...");
+                        System.out.println("DEBUG: ✅ Usuario aceptó términos de privacidad (detectado por IA). Validando datos completos...");
                     
                         // Verificar si ya tiene todos los datos necesarios
                         boolean hasName = user.getName() != null && !user.getName().isEmpty();
@@ -750,7 +750,7 @@ public class ChatbotService {
                         System.out.println("DEBUG: Usuario tiene ciudad: " + hasCity + " (ciudad: " + user.getCity() + ")");
                         
                         if (hasName && hasCity) {
-                            System.out.println("DEBUG: Usuario tiene todos los datos. Completando registro...");
+                            System.out.println("DEBUG: ✅ Usuario tiene todos los datos. Completando registro...");
                             // Si ya tiene nombre y ciudad, completar el registro
                             String referralCode = generateUniqueReferralCode();
                             user.setReferral_code(referralCode);
@@ -810,17 +810,17 @@ public class ChatbotService {
                             return new ChatResponse(responseMessage, nextChatbotState, termsSecondaryMessage);
                         } else {
                             // Si no tiene todos los datos, continuar con el flujo normal
-                            System.out.println("DEBUG: Usuario no tiene todos los datos. Continuando flujo...");
+                            System.out.println("DEBUG: ⚠️ Usuario no tiene todos los datos. Continuando flujo...");
                             responseMessage = "¿Cuál es tu nombre?";
                             nextChatbotState = "WAITING_NAME";
                         }
                     } else {
-                        System.out.println("DEBUG: Usuario no aceptó términos (detectado por IA). Pidiendo confirmación...");
+                        System.out.println("DEBUG: ❌ Usuario no aceptó términos (detectado por IA). Pidiendo confirmación...");
                         responseMessage = "Para seguir adelante y unirnos en esta gran tarea de transformación nacional, te invito a que revises nuestra política de tratamiento de datos, plasmadas aquí https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo y aceptas los principios con los que manejamos la información.\n\nAcompáñame hacia una Colombia más justa, equitativa y próspera para todos. ¿Aceptas el reto de resetear la política?";
                         nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
                     }
                 } else {
-                    System.out.println("DEBUG: Extracción de términos falló. Pidiendo confirmación...");
+                    System.out.println("DEBUG: ❌ Extracción de términos falló. Pidiendo confirmación...");
                     responseMessage = "Para seguir adelante y unirnos en esta gran tarea de transformación nacional, te invito a que revises nuestra política de tratamiento de datos, plasmadas aquí https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo y aceptas los principios con los que manejamos la información.\n\nAcompáñame hacia una Colombia más justa, equitativa y próspera para todos. ¿Aceptas el reto de resetear la política?";
                     nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
                 }
