@@ -30,6 +30,7 @@ public class ChatbotService {
     private final UserDataExtractor userDataExtractor;
     private final NameValidationService nameValidationService;
     private final TribalAnalysisService tribalAnalysisService;
+    private final AnalyticsService analyticsService;
 
     private static final Pattern REFERRAL_MESSAGE_PATTERN = Pattern
             .compile("Hola, vengo referido por:\\s*([A-Za-z0-9]{8})");
@@ -131,7 +132,7 @@ public class ChatbotService {
     public ChatbotService(Firestore firestore, WatiApiService watiApiService,
                           TelegramApiService telegramApiService, AIBotService aiBotService,
                           UserDataExtractor userDataExtractor, NameValidationService nameValidationService,
-                          TribalAnalysisService tribalAnalysisService) {
+                          TribalAnalysisService tribalAnalysisService, AnalyticsService analyticsService) {
         this.firestore = firestore;
         this.watiApiService = watiApiService;
         this.telegramApiService = telegramApiService;
@@ -139,6 +140,7 @@ public class ChatbotService {
         this.userDataExtractor = userDataExtractor;
         this.nameValidationService = nameValidationService;
         this.tribalAnalysisService = tribalAnalysisService;
+        this.analyticsService = analyticsService;
     }
 
     /**
@@ -1070,7 +1072,7 @@ public class ChatbotService {
                 }
                 break;
             case "COMPLETED":
-                System.out.println("ChatbotService: Usuario COMPLETED. Analizando consulta con IA...");
+                System.out.println("ChatbotService: Usuario COMPLETED. Analizando consulta...");
 
                 // Obtener session ID para el análisis
                 String sessionId = user.getPhone();
@@ -1082,82 +1084,111 @@ public class ChatbotService {
                 }
 
                 if (sessionId != null && !sessionId.isEmpty()) {
-                    // Preparar datos del usuario para el análisis
-                    Map<String, Object> userData = new HashMap<>();
-                    userData.put("name", user.getName());
-                    userData.put("referral_code", user.getReferral_code());
-                    userData.put("city", user.getCity());
-                    userData.put("phone", user.getPhone());
-                    
-                    // Analizar la consulta con el servicio de IA
-                    Optional<TribalAnalysisService.TribalAnalysisResult> analysisResult = 
-                        tribalAnalysisService.analyzeTribalRequest(messageText, sessionId, userData);
-                    
-                    if (analysisResult.isPresent()) {
-                        TribalAnalysisService.TribalAnalysisResult result = analysisResult.get();
+                    // Primero verificar si es una pregunta de analytics
+                    if (analyticsService.isAnalyticsQuestion(messageText)) {
+                        System.out.println("ChatbotService: Detectada pregunta de analytics. Obteniendo métricas...");
                         
-                        if (result.isTribalRequest()) {
-                            System.out.println("ChatbotService: IA detectó solicitud de tribu. Generando link...");
+                        // Obtener métricas del usuario
+                        Optional<AnalyticsService.AnalyticsData> analyticsData = 
+                            analyticsService.getUserStats(sessionId, sessionId);
+                        
+                        if (analyticsData.isPresent()) {
+                            // Enviar datos de analytics al chatbot IA para generar respuesta
+                            Map<String, Object> userData = new HashMap<>();
+                            userData.put("name", user.getName());
+                            userData.put("referral_code", user.getReferral_code());
+                            userData.put("city", user.getCity());
+                            userData.put("phone", user.getPhone());
+                            userData.put("analytics_data", analyticsData.get());
                             
-                            // Generar el link de referido para el usuario
-                            String referralCode = user.getReferral_code();
-                            if (referralCode == null || referralCode.isEmpty()) {
-                                referralCode = generateUniqueReferralCode();
-                                user.setReferral_code(referralCode);
-                                saveUser(user);
-                            }
-                            
-                            try {
-                                String tribalLinkMessage = String.format(
-                                    "Amigos, los invito a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/573224029924?text=%s",
-                                    URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
-                                            StandardCharsets.UTF_8.toString()).replace("+", "%20")
-                                );
-                                
-                                // Combinar respuesta IA con el link generado
-                                responseMessage = result.getAiResponse() + "\n\n" + tribalLinkMessage;
-                                nextChatbotState = "COMPLETED";
-                                System.out.println("ChatbotService: Respuesta de tribu con IA enviada");
-                            } catch (UnsupportedEncodingException e) {
-                                System.err.println("ERROR: No se pudo codificar el link de tribu: " + e.getMessage());
-                                responseMessage = result.getAiResponse() + "\n\nLo siento, tuve un problema al generar el link. Por favor, intenta de nuevo.";
-                                nextChatbotState = "COMPLETED";
-                            }
+                            // Usar el chatbot IA con datos de analytics
+                            responseMessage = aiBotService.getAIResponseWithAnalytics(sessionId, messageText, userData);
+                            nextChatbotState = "COMPLETED";
+                            System.out.println("ChatbotService: Respuesta de analytics enviada");
                         } else {
-                            // No es solicitud de tribu, usar respuesta IA normal
-                            System.out.println("ChatbotService: IA detectó consulta normal. Procesando con AI Bot...");
-                            responseMessage = aiBotService.getAIResponse(sessionId, messageText);
+                            // Fallback si no se pueden obtener las métricas
+                            responseMessage = "¡Hola! Veo que quieres saber sobre tu rendimiento. En este momento no puedo acceder a tus métricas, pero te puedo ayudar con otras preguntas sobre la campaña. ¿En qué más puedo ayudarte?";
                             nextChatbotState = "COMPLETED";
                         }
                     } else {
-                        // Fallback si el análisis falla
-                        System.err.println("ChatbotService: Fallback - Análisis de IA falló, usando detección tradicional");
-                        if (isTribalLinkRequest(messageText)) {
-                            // Lógica tradicional de tribus
-                            String referralCode = user.getReferral_code();
-                            if (referralCode == null || referralCode.isEmpty()) {
-                                referralCode = generateUniqueReferralCode();
-                                user.setReferral_code(referralCode);
-                                saveUser(user);
-                            }
+                        // No es pregunta de analytics, continuar con el flujo normal
+                        // Preparar datos del usuario para el análisis
+                        Map<String, Object> userData = new HashMap<>();
+                        userData.put("name", user.getName());
+                        userData.put("referral_code", user.getReferral_code());
+                        userData.put("city", user.getCity());
+                        userData.put("phone", user.getPhone());
+                        
+                        // Analizar la consulta con el servicio de IA
+                        Optional<TribalAnalysisService.TribalAnalysisResult> analysisResult = 
+                            tribalAnalysisService.analyzeTribalRequest(messageText, sessionId, userData);
+                        
+                        if (analysisResult.isPresent()) {
+                            TribalAnalysisService.TribalAnalysisResult result = analysisResult.get();
                             
-                            try {
-                                String tribalLinkMessage = String.format(
-                                    "Amigos, los invito a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/573224029924?text=%s",
-                                    URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
-                                            StandardCharsets.UTF_8.toString()).replace("+", "%20")
-                                );
+                            if (result.isTribalRequest()) {
+                                System.out.println("ChatbotService: IA detectó solicitud de tribu. Generando link...");
                                 
-                                responseMessage = tribalLinkMessage;
-                                nextChatbotState = "COMPLETED";
-                            } catch (UnsupportedEncodingException e) {
-                                System.err.println("ERROR: No se pudo codificar el link de tribu: " + e.getMessage());
-                                responseMessage = "Lo siento, tuve un problema al generar el link. Por favor, intenta de nuevo.";
+                                // Generar el link de referido para el usuario
+                                String referralCode = user.getReferral_code();
+                                if (referralCode == null || referralCode.isEmpty()) {
+                                    referralCode = generateUniqueReferralCode();
+                                    user.setReferral_code(referralCode);
+                                    saveUser(user);
+                                }
+                                
+                                try {
+                                    String tribalLinkMessage = String.format(
+                                        "Amigos, los invito a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/573224029924?text=%s",
+                                        URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
+                                                StandardCharsets.UTF_8.toString()).replace("+", "%20")
+                                    );
+                                    
+                                    // Combinar respuesta IA con el link generado
+                                    responseMessage = result.getAiResponse() + "\n\n" + tribalLinkMessage;
+                                    nextChatbotState = "COMPLETED";
+                                    System.out.println("ChatbotService: Respuesta de tribu con IA enviada");
+                                } catch (UnsupportedEncodingException e) {
+                                    System.err.println("ERROR: No se pudo codificar el link de tribu: " + e.getMessage());
+                                    responseMessage = result.getAiResponse() + "\n\nLo siento, tuve un problema al generar el link. Por favor, intenta de nuevo.";
+                                    nextChatbotState = "COMPLETED";
+                                }
+                            } else {
+                                // No es solicitud de tribu, usar respuesta IA normal
+                                System.out.println("ChatbotService: IA detectó consulta normal. Procesando con AI Bot...");
+                                responseMessage = aiBotService.getAIResponse(sessionId, messageText);
                                 nextChatbotState = "COMPLETED";
                             }
                         } else {
-                            responseMessage = aiBotService.getAIResponse(sessionId, messageText);
-                            nextChatbotState = "COMPLETED";
+                            // Fallback si el análisis falla
+                            System.err.println("ChatbotService: Fallback - Análisis de IA falló, usando detección tradicional");
+                            if (isTribalLinkRequest(messageText)) {
+                                // Lógica tradicional de tribus
+                                String referralCode = user.getReferral_code();
+                                if (referralCode == null || referralCode.isEmpty()) {
+                                    referralCode = generateUniqueReferralCode();
+                                    user.setReferral_code(referralCode);
+                                    saveUser(user);
+                                }
+                                
+                                try {
+                                    String tribalLinkMessage = String.format(
+                                        "Amigos, los invito a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/573224029924?text=%s",
+                                        URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
+                                                StandardCharsets.UTF_8.toString()).replace("+", "%20")
+                                    );
+                                    
+                                    responseMessage = tribalLinkMessage;
+                                    nextChatbotState = "COMPLETED";
+                                } catch (UnsupportedEncodingException e) {
+                                    System.err.println("ERROR: No se pudo codificar el link de tribu: " + e.getMessage());
+                                    responseMessage = "Lo siento, tuve un problema al generar el link. Por favor, intenta de nuevo.";
+                                    nextChatbotState = "COMPLETED";
+                                }
+                            } else {
+                                responseMessage = aiBotService.getAIResponse(sessionId, messageText);
+                                nextChatbotState = "COMPLETED";
+                            }
                         }
                     }
                 } else {
