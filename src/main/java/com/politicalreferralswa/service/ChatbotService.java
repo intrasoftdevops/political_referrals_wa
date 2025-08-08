@@ -3,6 +3,7 @@ package com.politicalreferralswa.service;
 import com.google.cloud.firestore.Firestore;
 import com.politicalreferralswa.model.User; // Asegúrate de que User.java tiene campos: id (String UUID), phone (String), telegram_chat_id (String), Y AHORA referred_by_code (String)
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
 import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.QuerySnapshot;
@@ -31,6 +32,9 @@ public class ChatbotService {
     private final NameValidationService nameValidationService;
     private final TribalAnalysisService tribalAnalysisService;
     private final AnalyticsService analyticsService;
+
+    @Value("${welcome.video.url}")
+    private String welcomeVideoUrl;
 
     private static final Pattern REFERRAL_MESSAGE_PATTERN = Pattern
             .compile("Hola, vengo referido por:\\s*([A-Za-z0-9]{8})");
@@ -778,6 +782,18 @@ public class ChatbotService {
                                                 StandardCharsets.UTF_8.toString()).replace("+", "%20"));
                                 additionalMessages.add(friendsInviteMessage);
 
+                                // Enviar el video de bienvenida ANTES del mensaje de IA
+                                try { 
+                                    // Enviar el video real usando la URL configurada
+                                    watiApiService.sendVideoMessage(user.getPhone(), welcomeVideoUrl, "Video de bienvenida a la campaña");
+                                    System.out.println("DEBUG: Video de bienvenida enviado a: " + user.getPhone());
+                                } catch (Exception e) {
+                                    System.err.println("ERROR: No se pudo enviar el video de bienvenida: " + e.getMessage());
+                                    // Fallback: enviar el enlace si falla el envío del video
+                                    String welcomeVideoMessage = "🎥 Video de bienvenida: " + welcomeVideoUrl;
+                                    additionalMessages.add(welcomeVideoMessage);
+                                }
+
                                 String aiBotIntroMessage = """
                                         ¡Atención! Ahora entrarás en conversación con una inteligencia artificial.
                                         Soy una IA de prueba para este proyecto.
@@ -964,6 +980,18 @@ public class ChatbotService {
                                 URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
                                         StandardCharsets.UTF_8.toString()).replace("+", "%20"));
                         additionalMessages.add(friendsInviteMessage);
+
+                        // Enviar el video de bienvenida ANTES del mensaje de IA
+                        try {
+                            // Enviar el video real usando la URL configurada
+                            watiApiService.sendVideoMessage(user.getPhone(), welcomeVideoUrl, "Video de bienvenida a la campaña");
+                            System.out.println("DEBUG: Video de bienvenida enviado a: " + user.getPhone());
+                        } catch (Exception e) {
+                            System.err.println("ERROR: No se pudo enviar el video de bienvenida: " + e.getMessage());
+                            // Fallback: enviar el enlace si falla el envío del video
+                            String welcomeVideoMessage = "🎥 Video de bienvenida: " + welcomeVideoUrl;
+                            additionalMessages.add(welcomeVideoMessage);
+                        }
 
                         String aiBotIntroMessage = """
                                 ¡Atención! Ahora entrarás en conversación con una inteligencia artificial.
