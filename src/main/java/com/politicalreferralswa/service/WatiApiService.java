@@ -22,7 +22,12 @@ public class WatiApiService {
 
     public WatiApiService(WebClient.Builder webClientBuilder) {
         // Construimos WebClient SIN una base URL. La URL completa se construirá dinámicamente.
-        this.webClient = webClientBuilder.build();
+        // Configuramos un límite de buffer mayor para manejar archivos de video (el video actual pesa ~24MB)
+        this.webClient = webClientBuilder
+                .codecs(configurer -> configurer
+                    .defaultCodecs()
+                    .maxInMemorySize(30 * 1024 * 1024)) // 30MB límite para archivos grandes como videos
+                .build();
     }
 
     public void sendWhatsAppMessage(String toPhoneNumber, String messageText) {
@@ -93,6 +98,86 @@ public class WatiApiService {
         } catch (Exception e) {
             System.err.println("WatiApiService: Error en envío síncrono: " + e.getMessage());
             e.printStackTrace();
+        }
+    }
+
+    /**
+     * Envía un video de WhatsApp usando la API de Wati.
+     * Este método envía un video desde una URL.
+     *
+     * @param toPhoneNumber El número de teléfono del destinatario
+     * @param videoUrl La URL del video a enviar
+     * @param caption El texto que acompaña al video (opcional)
+     */
+    public void sendVideoMessage(String toPhoneNumber, String videoUrl, String caption) {
+        System.out.println("WatiApiService: Preparando para enviar video a " + toPhoneNumber + " a través de Wati.");
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(watiApiToken);
+        headers.setContentType(org.springframework.http.MediaType.MULTIPART_FORM_DATA);
+
+        // Construir la URL para enviar video
+        URI fullApiUri = UriComponentsBuilder.fromUriString(watiApiBaseEndpoint)
+                                            .pathSegment(watiApiTenantId)
+                                            .path("/api/v1/sendSessionFile/{whatsappNumber}")
+                                            .buildAndExpand(toPhoneNumber)
+                                            .encode()
+                                            .toUri();
+
+        System.out.println("WatiApiService: URL de Wati para video construida: " + fullApiUri.toString());
+
+        try {
+            // Crear el cuerpo multipart para enviar el video
+            // Primero descargar el video desde la URL (evitar doble codificación)
+            byte[] videoBytes = webClient.get()
+                    .uri(java.net.URI.create(videoUrl))
+                    .retrieve()
+                    .bodyToMono(byte[].class)
+                    .timeout(java.time.Duration.ofMinutes(2)) // 2 minutos para descargar el video
+                    .block(java.time.Duration.ofMinutes(2));
+
+            if (videoBytes == null || videoBytes.length == 0) {
+                throw new RuntimeException("No se pudo descargar el video desde la URL: " + videoUrl);
+            }
+
+            System.out.println("WatiApiService: Video descargado exitosamente, tamaño: " + videoBytes.length + " bytes");
+
+            // Crear el cuerpo multipart
+            org.springframework.core.io.ByteArrayResource videoResource = 
+                new org.springframework.core.io.ByteArrayResource(videoBytes) {
+                    @Override
+                    public String getFilename() {
+                        return "video_bienvenida.mp4";
+                    }
+                };
+
+            // Enviar como multipart form data con timeout extendido para videos grandes
+            String response = webClient.post()
+                    .uri(fullApiUri)
+                    .headers(h -> h.addAll(headers))
+                    .body(org.springframework.web.reactive.function.BodyInserters
+                            .fromMultipartData("file", videoResource)
+                            .with("caption", caption != null ? caption : ""))
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .timeout(java.time.Duration.ofMinutes(3)) // 3 minutos para uploads de video grandes
+                    .doOnSuccess(resp -> {
+                        System.out.println("WatiApiService: Video enviado exitosamente. Respuesta de Wati: " + resp);
+                        // Verificar si la respuesta indica éxito
+                        if (resp.contains("\"result\":false") || resp.contains("file can not be null")) {
+                            throw new RuntimeException("Wati API rechazó el video: " + resp);
+                        }
+                    })
+                    .doOnError(error -> System.err.println("WatiApiService: Error al enviar video a Wati: " + error.getMessage()))
+                    .block(java.time.Duration.ofMinutes(3)); // Timeout de 3 minutos para el bloqueo
+
+            if (response != null) {
+                System.out.println("WatiApiService: Video enviado completado exitosamente");
+            }
+        } catch (Exception e) {
+            System.err.println("WatiApiService: Error en envío de video: " + e.getMessage());
+            e.printStackTrace();
+            throw e; // Re-lanzar la excepción para que el ChatbotService la capture
         }
     }
 }

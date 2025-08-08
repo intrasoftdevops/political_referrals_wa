@@ -2,6 +2,18 @@
 
 Sistema de chatbot político colombiano con **extracción inteligente de datos** usando Gemini AI.
 
+## 🧹 **Limpieza Realizada**
+
+### **Archivos Eliminados**
+- ✅ **Documentación Redundante**: `ANALYTICS_INTEGRATION.md`, `GEMINI_INTEGRATION.md`, `IMPLEMENTATION_GUIDE.md`, `TECHNICAL_DOCUMENTATION.md`, `planning.md`
+- ✅ **Scripts de Test Redundantes**: 9 archivos `.sh` eliminados, manteniendo solo los esenciales
+- ✅ **Variables Sensibles**: Todas las credenciales reales reemplazadas por placeholders
+
+### **Información Consolidada**
+- ✅ **README Principal**: Toda la documentación importante consolidada aquí
+- ✅ **Configuración Segura**: Variables de entorno documentadas y protegidas
+- ✅ **Instrucciones Claras**: Guías de configuración y seguridad actualizadas
+
 ## 🎯 **Funcionalidades Implementadas**
 
 ### **1. Inputs Inteligentes con Gemini AI**
@@ -72,25 +84,57 @@ git clone <repository-url>
 cd political_referrals_wa
 ```
 
-### 2. Configurar Credenciales
+### 2. Configurar Variables de Entorno
 Copiar `application.properties.example` a `application.properties` y configurar:
 
 ```properties
-# Gemini AI
-gemini.api.key=TU_API_KEY_DE_GEMINI
+# Google Cloud Configuration
+spring.cloud.gcp.project-id=your-project-id
+spring.cloud.gcp.credentials.location=classpath:political-referrals-wa-key.json
 
-# Wati API
-wati.api.token=TU_TOKEN_DE_WATI
+# Webhook verification token
+webhook.verify-token=your_webhook_verify_token
 
-# Telegram
-telegram.bot.token=TU_TOKEN_DE_TELEGRAM
+# Telegram Bot Configuration
+telegram.bot.token=your_telegram_bot_token
+telegram.bot.username=your_telegram_bot_username
 
-# Firebase
-spring.cloud.gcp.project-id=TU_PROJECT_ID
+# Wati API Configuration
+wati.api.tenant-id=your_tenant_id
+wati.api.token=your_wati_api_token
+
+# Gemini AI Configuration
+gemini.api.key=your_gemini_api_key
+
+# Analytics Configuration
+analytics.jwt.secret=your_secret_key_here_change_in_production
 ```
 
 ### 3. Configurar Firebase
 - Colocar `political-referrals-wa-key.json` en `src/main/resources/`
+- **⚠️ IMPORTANTE**: Este archivo contiene credenciales sensibles, no lo subas al repositorio
+
+## 🔒 Seguridad
+
+### **Archivos Sensibles**
+- ✅ **`application.properties`**: Incluido en `.gitignore` para proteger credenciales
+- ✅ **`political-referrals-wa-key.json`**: Credenciales de Google Cloud (no subir al repo)
+- ✅ **Variables de Entorno**: Todas las credenciales movidas a variables de entorno
+
+### **Configuración Segura**
+```bash
+# Copiar archivo de ejemplo
+cp src/main/resources/application.properties.example src/main/resources/application.properties
+
+# Editar con tus credenciales
+nano src/main/resources/application.properties
+```
+
+### **⚠️ Credenciales Expuestas**
+Si encuentras credenciales reales en el repositorio:
+1. **Revoca inmediatamente** las credenciales expuestas
+2. **Genera nuevas credenciales**
+3. **Actualiza tu configuración local**
 
 ## 🚀 Ejecución
 
