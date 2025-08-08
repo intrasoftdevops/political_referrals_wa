@@ -41,6 +41,14 @@ public class ChatbotService {
     private static final String TELEGRAM_BOT_USERNAME = "ResetPoliticaBot";
     private static final Pattern STRICT_PHONE_NUMBER_PATTERN = Pattern.compile("^\\+\\d{10,15}$");
 
+    // Nuevos mensajes de la campaña
+    private static final String WELCOME_MESSAGE_BASE = "Hola. Te doy la bienvenida a nuestra campaña: Daniel Quintero Presidente!!!";
+    
+    private static final String SECOND_MESSAGE = "Vamos a resetear la politica, a cerrar el congreso y a llamar a una constituyente, no más camaras de comercio, notarías, fotomultas y sanguijuelas quitándole plata a la gente.";
+    
+    private static final String PRIVACY_MESSAGE = """
+        Respetamos la ley y cuidamos tu información, vamos a mantenerla de forma confidencial, esta es nuestra política de seguridad https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo con ella.""";
+
     // Patrones para detectar solicitudes de link de tribu
     private static final List<String> TRIBAL_LINK_PATTERNS = List.of(
         "mándame el link de mi tribu",
@@ -376,7 +384,33 @@ public class ChatbotService {
             // Enviar mensaje principal de forma síncrona para garantizar el orden
             if ("WHATSAPP".equalsIgnoreCase(channelType)) {
                 System.out.println("ChatbotService: Enviando mensaje principal a " + fromId + " (Canal: " + channelType + ")");
-                sendWhatsAppMessageSync(fromId, chatResponse.getPrimaryMessage());
+                
+                // Detectar si es un mensaje múltiple
+                if (primaryMessage.startsWith("MULTI:")) {
+                    // Remover el prefijo "MULTI:" y dividir por "|"
+                    String messagesContent = primaryMessage.substring(6); // Remover "MULTI:"
+                    String[] messages = messagesContent.split("\\|");
+                    
+                    // Enviar cada mensaje con una pausa
+                    for (int i = 0; i < messages.length; i++) {
+                        if (!messages[i].trim().isEmpty()) {
+                            sendWhatsAppMessageSync(fromId, messages[i].trim());
+                            
+                            // Pausa entre mensajes (excepto el último)
+                            if (i < messages.length - 1) {
+                                try {
+                                    Thread.sleep(1500); // 1.5 segundos entre mensajes
+                                } catch (InterruptedException e) {
+                                    Thread.currentThread().interrupt();
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // Mensaje normal
+                    sendWhatsAppMessageSync(fromId, primaryMessage);
+                }
             } else if ("TELEGRAM".equalsIgnoreCase(channelType)) {
                 telegramApiService.sendTelegramMessage(fromId, chatResponse.getPrimaryMessage());
             } else {
@@ -409,7 +443,13 @@ public class ChatbotService {
             user.setUpdated_at(Timestamp.now());
             saveUser(user);
 
-            return chatResponse.getPrimaryMessage();
+            // Limpiar el prefijo MULTI: del mensaje de retorno para logs
+            String returnMessage = chatResponse.getPrimaryMessage();
+            if (returnMessage.startsWith("MULTI:")) {
+                String[] messages = returnMessage.substring(6).split("\\|");
+                returnMessage = messages[0].trim(); // Retornar solo el primer mensaje
+            }
+            return returnMessage;
         }
         return "ERROR: No se pudo generar una respuesta.";
     }
@@ -449,24 +489,16 @@ public class ChatbotService {
                 // Si se completó la extracción, pero aún necesitamos validar política de privacidad
                 System.out.println("DEBUG handleNewUserIntro: Usando extracción inteligente - Completado, pero validando política");
                 
-                // Construir mensaje personalizado con política de privacidad
-                String personalizedMessage = extractionResult.getMessage() + 
-                    "\n\nPara continuar, necesito que confirmes que has leído y aceptas nuestra política de privacidad: " +
-                    "https://danielquinterocalle.com/privacidad. ¿Aceptas? (Sí/No)";
-                
-                return new ChatResponse(personalizedMessage, "WAITING_TERMS_ACCEPTANCE");
+                // Preparar múltiples mensajes
+                String finalMessage = extractionResult.getMessage() + "\n\n" + PRIVACY_MESSAGE;
+                return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + SECOND_MESSAGE + "|" + finalMessage, "WAITING_TERMS_ACCEPTANCE");
             } else {
                 // Si se extrajo parcialmente, usar el mensaje de extracción sin incluir política de privacidad
                 System.out.println("DEBUG handleNewUserIntro: Usando extracción inteligente - Parcial, sin política de privacidad");
                 
-                String welcomeMessage = """
-                    ¡Hola! 👋 Soy el bot de Reset a la Política.
-                    Te doy la bienvenida a este espacio de conversación, donde construimos juntos el futuro de Colombia.
-                    
-                    """ + extractionResult.getMessage();
-                
+                // Preparar múltiples mensajes para extracción parcial
                 System.out.println("⚠️  WARNING: Generando mensaje de bienvenida en extracción inteligente parcial");
-                return new ChatResponse(welcomeMessage, extractionResult.getNextState());
+                return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + SECOND_MESSAGE + "|" + extractionResult.getMessage(), extractionResult.getNextState());
             }
         }
         
@@ -495,34 +527,31 @@ public class ChatbotService {
 
                 // Personalizar saludo si tenemos el nombre de WhatsApp validado
                 String personalizedGreeting = "";
-                if (user.getName() != null && !user.getName().trim().isEmpty()) {
-                    personalizedGreeting = "¡Hola " + user.getName().trim() + "! 👋 ¿Te llamas " + user.getName().trim() + " cierto?\n\n";
+                // Agregar mensaje de referido
+                String referrerName = referrerUser.get().getName();
+                if (referrerName != null && !referrerName.trim().isEmpty()) {
+                    personalizedGreeting = "Te ha referido " + referrerName.trim() + ". ";
+                } else {
+                    personalizedGreeting = "Te ha referido un amigo. ";
                 }
                 
+                if (user.getName() != null && !user.getName().trim().isEmpty()) {
+                    personalizedGreeting += "¡Hola " + user.getName().trim() + "! ";
+                }
+                
+                // Preparar múltiples mensajes para usuario con referido
+                String finalMessage = personalizedGreeting + " Quiero saber como te llamas, me confirmas si tu nombre es el que aparece en WhatsApp o me dices como te llamas?";
                 System.out.println("⚠️  WARNING: Generando mensaje de bienvenida con código de referido válido");
-                return new ChatResponse(
-                        personalizedGreeting + """
-                                ¡Hola! 👋 Soy el bot de Reset a la Política.
-                                Te doy la bienvenida a este espacio de conversación, donde construimos juntos el futuro de Colombia.
-                                ¡Qué emoción que te unas a esta ola de cambio para Colombia! Veo que vienes referido por un amigo.
-
-                                Para continuar con tu registro, necesito algunos datos. ¿Cuál es tu nombre?
-                                """,
-                        "WAITING_NAME");
+                return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + SECOND_MESSAGE + "|" + finalMessage, "WAITING_NAME");
             } else {
                 System.out.println(
                         "ChatbotService: Código de referido válido en formato, pero NO ENCONTRADO en el primer mensaje: "
                                 + incomingReferralCode);
                 System.out.println("⚠️  WARNING: Generando mensaje de bienvenida con código de referido inválido");
-                return new ChatResponse(
-                        """
-                                ¡Hola! 👋 Soy el bot de Reset a la Política.
-                                Te doy la bienvenida a este espacio de conversación, donde construimos juntos el futuro de Colombia.
-                                Parece que el código de referido que me enviaste no es válido, pero no te preocupes, ¡podemos continuar!
-
-                                Para continuar con tu registro, necesito algunos datos. ¿Cuál es tu nombre?
-                                """,
-                        "WAITING_NAME");
+                // Preparar múltiples mensajes para código de referido inválido
+                String finalMessage = "Parece que el código de referido que me enviaste no es válido, pero no te preocupes, ¡podemos continuar!\n\n" +
+                    "Quiero saber como te llamas, me confirmas si tu nombre es el que aparece en WhatsApp o me dices como te llamas?";
+                return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + SECOND_MESSAGE + "|" + finalMessage, "WAITING_NAME");
             }
         } else {
             System.out.println("DEBUG handleNewUserIntro: El mensaje no coincide con el patrón de referido.");
@@ -542,35 +571,21 @@ public class ChatbotService {
                 
                 // Si no tiene apellido, preguntarlo
                 if (user.getLastname() == null || user.getLastname().trim().isEmpty()) {
-                    return new ChatResponse(
-                            String.format("""
-                                    ¡Hola! 👋 Soy el bot de Reset a la Política.
-                                    Te doy la bienvenida a este espacio de conversación, donde construimos juntos el futuro de Colombia.
-
-                                    Veo que te llamas %s. ¿Cuál es tu apellido?
-                                    """, user.getName()),
-                            "WAITING_LASTNAME");
+                    // Preparar múltiples mensajes para usuario sin apellido
+                    String finalMessage = String.format("Veo que te llamas %s. ¿Cuál es tu apellido?", user.getName());
+                    return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + SECOND_MESSAGE + "|" + finalMessage, "WAITING_LASTNAME");
                 } else {
                     // Si ya tiene nombre y apellido, preguntar ciudad
-                    return new ChatResponse(
-                            String.format("""
-                                    ¡Hola! 👋 Soy el bot de Reset a la Política.
-                                    Te doy la bienvenida a este espacio de conversación, donde construimos juntos el futuro de Colombia.
-
-                                    Veo que te llamas %s. ¿En qué ciudad vives?
-                                    """, fullName),
-                            "WAITING_CITY");
+                    // Preparar múltiples mensajes para usuario con nombre y apellido
+                    String finalMessage = String.format("Veo que te llamas %s. ¿En qué ciudad vives?", fullName);
+                    return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + SECOND_MESSAGE + "|" + finalMessage, "WAITING_CITY");
                 }
             } else {
                 System.out.println("⚠️  WARNING: Generando mensaje de bienvenida general (sin código de referido)");
-                return new ChatResponse(
-                        """
-                                ¡Hola! 👋 Soy el bot de Reset a la Política.
-                                Te doy la bienvenida a este espacio de conversación, donde construimos juntos el futuro de Colombia.
-
-                                Para continuar con tu registro, necesito algunos datos. ¿Cuál es tu nombre?
-                                """,
-                        "WAITING_NAME");
+                // Preparar múltiples mensajes para usuario general
+                String finalMessage = "Quiero saber como te llamas, me confirmas si tu nombre es el que aparece en WhatsApp o me dices como te llamas?";
+                System.out.println("⚠️  WARNING: Generando mensaje de bienvenida general (sin código de referido)");
+                return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + SECOND_MESSAGE + "|" + finalMessage, "WAITING_NAME");
             }
         }
     }
@@ -727,7 +742,7 @@ public class ChatbotService {
 
                 responseMessage = """
                         ¡Gracias! Hemos registrado tu número de teléfono.
-                        Ahora, para seguir adelante y unirnos en esta gran tarea de transformación nacional, te invito a que revises nuestra política de tratamiento de datos, plasmadas aquí https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo y aceptas los principios con los que manejamos la información.
+                        Respetamos la ley y cuidamos tu información, vamos a mantenerla de forma confidencial, esta es nuestra política de seguridad https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo con ella.
 
                         Acompáñame hacia una Colombia más justa, equitativa y próspera para todos. ¿Aceptas el reto de resetear la política?
 
@@ -834,7 +849,7 @@ public class ChatbotService {
                         }
                     } else {
                         System.out.println("DEBUG: ❌ Usuario no aceptó términos (detectado por IA). Pidiendo confirmación...");
-                        responseMessage = "Para seguir adelante y unirnos en esta gran tarea de transformación nacional, te invito a que revises nuestra política de tratamiento de datos, plasmadas aquí https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo y aceptas los principios con los que manejamos la información.\n\nAcompáñame hacia una Colombia más justa, equitativa y próspera para todos. ¿Aceptas el reto de resetear la política?";
+                        responseMessage = "Respetamos la ley y cuidamos tu información, vamos a mantenerla de forma confidencial, esta es nuestra política de seguridad https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo con ella.\n\nAcompáñame hacia una Colombia más justa, equitativa y próspera para todos. ¿Aceptas el reto de resetear la política?";
                         nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
                     }
                 } else {
@@ -949,7 +964,7 @@ public class ChatbotService {
                     // Verificar si ya aceptó los términos
                     if (!user.isAceptaTerminos()) {
                         // Si no aceptó términos, pedirle que los acepte
-                        responseMessage = "Para seguir adelante y unirnos en esta gran tarea de transformación nacional, te invito a que revises nuestra política de tratamiento de datos, plasmadas aquí https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo y aceptas los principios con los que manejamos la información.\n\nAcompáñame hacia una Colombia más justa, equitativa y próspera para todos. ¿Aceptas el reto de resetear la política?";
+                        responseMessage = "Respetamos la ley y cuidamos tu información, vamos a mantenerla de forma confidencial, esta es nuestra política de seguridad https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo con ella.\n\nAcompáñame hacia una Colombia más justa, equitativa y próspera para todos. ¿Aceptas el reto de resetear la política?";
                         nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
                         return new ChatResponse(responseMessage, nextChatbotState);
                     }
