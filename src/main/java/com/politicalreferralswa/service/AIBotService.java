@@ -86,4 +86,54 @@ public class AIBotService {
             return "Lo siento, tuve un problema al conectar con la inteligencia artificial. Por favor, intenta de nuevo más tarde.";
         }
     }
+    
+    /**
+     * Envía una consulta al bot de IA con datos de analytics incluidos
+     * 
+     * @param sessionId ID de sesión
+     * @param userQuery Pregunta del usuario
+     * @param userData Datos del usuario incluyendo analytics
+     * @return Respuesta del bot de IA
+     */
+    public String getAIResponseWithAnalytics(String sessionId, String userQuery, Map<String, Object> userData) {
+        System.out.println("AIBotService: Enviando consulta con analytics al bot de IA para sesión " + sessionId + ": '" + userQuery + "'");
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        // Construir el cuerpo de la petición JSON incluyendo analytics
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("query", userQuery);
+        requestBody.put("session_id", sessionId);
+        requestBody.put("user_data", userData);
+
+        try {
+            // Construir la URL para el endpoint de analytics
+            URI fullApiUri = UriComponentsBuilder.fromUriString(aiBotEndpoint)
+                                                .path("/analytics-chat")
+                                                .build()
+                                                .toUri();
+
+            System.out.println("AIBotService: URL de AI Bot con analytics construida: " + fullApiUri.toString());
+
+            String jsonResponse = webClient.post()
+                .uri(fullApiUri)
+                .headers(h -> h.addAll(headers))
+                .bodyValue(requestBody)
+                .retrieve()
+                .bodyToMono(String.class)
+                .block();
+
+            JsonNode rootNode = objectMapper.readTree(jsonResponse);
+            String aiBotMessage = rootNode.path("response").path("response").asText();
+
+            System.out.println("AIBotService: Respuesta con analytics recibida del bot de IA: '" + aiBotMessage + "'");
+            return aiBotMessage;
+
+        } catch (Exception e) {
+            System.err.println("AIBotService: ERROR al obtener respuesta con analytics del bot de IA: " + e.getMessage());
+            e.printStackTrace();
+            return "Lo siento, tuve un problema al obtener tus métricas. Por favor, intenta de nuevo más tarde.";
+        }
+    }
 }

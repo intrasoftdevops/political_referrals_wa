@@ -3,6 +3,7 @@ package com.politicalreferralswa.service;
 import com.google.cloud.firestore.Firestore;
 import com.politicalreferralswa.model.User; // Asegúrate de que User.java tiene campos: id (String UUID), phone (String), telegram_chat_id (String), Y AHORA referred_by_code (String)
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
 import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.QuerySnapshot;
@@ -30,11 +31,23 @@ public class ChatbotService {
     private final UserDataExtractor userDataExtractor;
     private final NameValidationService nameValidationService;
     private final TribalAnalysisService tribalAnalysisService;
+    private final AnalyticsService analyticsService;
+
+    @Value("${welcome.video.url}")
+    private String welcomeVideoUrl;
 
     private static final Pattern REFERRAL_MESSAGE_PATTERN = Pattern
             .compile("Hola, vengo referido por:\\s*([A-Za-z0-9]{8})");
     private static final String TELEGRAM_BOT_USERNAME = "ResetPoliticaBot";
     private static final Pattern STRICT_PHONE_NUMBER_PATTERN = Pattern.compile("^\\+\\d{10,15}$");
+
+    // Nuevos mensajes de la campaña
+    private static final String WELCOME_MESSAGE_BASE = "Hola. Te doy la bienvenida a nuestra campaña: Daniel Quintero Presidente!!!";
+    
+    private static final String SECOND_MESSAGE = "Vamos a resetear la politica, a cerrar el congreso y a llamar a una constituyente, no más camaras de comercio, notarías, fotomultas y sanguijuelas quitándole plata a la gente.";
+    
+    private static final String PRIVACY_MESSAGE = """
+        Respetamos la ley y cuidamos tu información, vamos a mantenerla de forma confidencial, esta es nuestra política de seguridad https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo con ella.""";
 
     // Patrones para detectar solicitudes de link de tribu
     private static final List<String> TRIBAL_LINK_PATTERNS = List.of(
@@ -131,7 +144,7 @@ public class ChatbotService {
     public ChatbotService(Firestore firestore, WatiApiService watiApiService,
                           TelegramApiService telegramApiService, AIBotService aiBotService,
                           UserDataExtractor userDataExtractor, NameValidationService nameValidationService,
-                          TribalAnalysisService tribalAnalysisService) {
+                          TribalAnalysisService tribalAnalysisService, AnalyticsService analyticsService) {
         this.firestore = firestore;
         this.watiApiService = watiApiService;
         this.telegramApiService = telegramApiService;
@@ -139,6 +152,7 @@ public class ChatbotService {
         this.userDataExtractor = userDataExtractor;
         this.nameValidationService = nameValidationService;
         this.tribalAnalysisService = tribalAnalysisService;
+        this.analyticsService = analyticsService;
     }
 
     /**
@@ -370,7 +384,33 @@ public class ChatbotService {
             // Enviar mensaje principal de forma síncrona para garantizar el orden
             if ("WHATSAPP".equalsIgnoreCase(channelType)) {
                 System.out.println("ChatbotService: Enviando mensaje principal a " + fromId + " (Canal: " + channelType + ")");
-                sendWhatsAppMessageSync(fromId, chatResponse.getPrimaryMessage());
+                
+                // Detectar si es un mensaje múltiple
+                if (primaryMessage.startsWith("MULTI:")) {
+                    // Remover el prefijo "MULTI:" y dividir por "|"
+                    String messagesContent = primaryMessage.substring(6); // Remover "MULTI:"
+                    String[] messages = messagesContent.split("\\|");
+                    
+                    // Enviar cada mensaje con una pausa
+                    for (int i = 0; i < messages.length; i++) {
+                        if (!messages[i].trim().isEmpty()) {
+                            sendWhatsAppMessageSync(fromId, messages[i].trim());
+                            
+                            // Pausa entre mensajes (excepto el último)
+                            if (i < messages.length - 1) {
+                                try {
+                                    Thread.sleep(1500); // 1.5 segundos entre mensajes
+                                } catch (InterruptedException e) {
+                                    Thread.currentThread().interrupt();
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // Mensaje normal
+                    sendWhatsAppMessageSync(fromId, primaryMessage);
+                }
             } else if ("TELEGRAM".equalsIgnoreCase(channelType)) {
                 telegramApiService.sendTelegramMessage(fromId, chatResponse.getPrimaryMessage());
             } else {
@@ -403,7 +443,13 @@ public class ChatbotService {
             user.setUpdated_at(Timestamp.now());
             saveUser(user);
 
-            return chatResponse.getPrimaryMessage();
+            // Limpiar el prefijo MULTI: del mensaje de retorno para logs
+            String returnMessage = chatResponse.getPrimaryMessage();
+            if (returnMessage.startsWith("MULTI:")) {
+                String[] messages = returnMessage.substring(6).split("\\|");
+                returnMessage = messages[0].trim(); // Retornar solo el primer mensaje
+            }
+            return returnMessage;
         }
         return "ERROR: No se pudo generar una respuesta.";
     }
@@ -443,24 +489,16 @@ public class ChatbotService {
                 // Si se completó la extracción, pero aún necesitamos validar política de privacidad
                 System.out.println("DEBUG handleNewUserIntro: Usando extracción inteligente - Completado, pero validando política");
                 
-                // Construir mensaje personalizado con política de privacidad
-                String personalizedMessage = extractionResult.getMessage() + 
-                    "\n\nPara continuar, necesito que confirmes que has leído y aceptas nuestra política de privacidad: " +
-                    "https://danielquinterocalle.com/privacidad. ¿Aceptas? (Sí/No)";
-                
-                return new ChatResponse(personalizedMessage, "WAITING_TERMS_ACCEPTANCE");
+                // Preparar múltiples mensajes
+                String finalMessage = extractionResult.getMessage() + "\n\n" + PRIVACY_MESSAGE;
+                return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + SECOND_MESSAGE + "|" + finalMessage, "WAITING_TERMS_ACCEPTANCE");
             } else {
                 // Si se extrajo parcialmente, usar el mensaje de extracción sin incluir política de privacidad
                 System.out.println("DEBUG handleNewUserIntro: Usando extracción inteligente - Parcial, sin política de privacidad");
                 
-                String welcomeMessage = """
-                    ¡Hola! 👋 Soy el bot de Reset a la Política.
-                    Te doy la bienvenida a este espacio de conversación, donde construimos juntos el futuro de Colombia.
-                    
-                    """ + extractionResult.getMessage();
-                
+                // Preparar múltiples mensajes para extracción parcial
                 System.out.println("⚠️  WARNING: Generando mensaje de bienvenida en extracción inteligente parcial");
-                return new ChatResponse(welcomeMessage, extractionResult.getNextState());
+                return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + SECOND_MESSAGE + "|" + extractionResult.getMessage(), extractionResult.getNextState());
             }
         }
         
@@ -489,34 +527,31 @@ public class ChatbotService {
 
                 // Personalizar saludo si tenemos el nombre de WhatsApp validado
                 String personalizedGreeting = "";
-                if (user.getName() != null && !user.getName().trim().isEmpty()) {
-                    personalizedGreeting = "¡Hola " + user.getName().trim() + "! 👋 ¿Te llamas " + user.getName().trim() + " cierto?\n\n";
+                // Agregar mensaje de referido
+                String referrerName = referrerUser.get().getName();
+                if (referrerName != null && !referrerName.trim().isEmpty()) {
+                    personalizedGreeting = "Te ha referido " + referrerName.trim() + ". ";
+                } else {
+                    personalizedGreeting = "Te ha referido un amigo. ";
                 }
                 
+                if (user.getName() != null && !user.getName().trim().isEmpty()) {
+                    personalizedGreeting += "¡Hola " + user.getName().trim() + "! ";
+                }
+                
+                // Preparar múltiples mensajes para usuario con referido
+                String finalMessage = personalizedGreeting + " Quiero saber como te llamas, me confirmas si tu nombre es el que aparece en WhatsApp o me dices como te llamas?";
                 System.out.println("⚠️  WARNING: Generando mensaje de bienvenida con código de referido válido");
-                return new ChatResponse(
-                        personalizedGreeting + """
-                                ¡Hola! 👋 Soy el bot de Reset a la Política.
-                                Te doy la bienvenida a este espacio de conversación, donde construimos juntos el futuro de Colombia.
-                                ¡Qué emoción que te unas a esta ola de cambio para Colombia! Veo que vienes referido por un amigo.
-
-                                Para continuar con tu registro, necesito algunos datos. ¿Cuál es tu nombre?
-                                """,
-                        "WAITING_NAME");
+                return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + SECOND_MESSAGE + "|" + finalMessage, "WAITING_NAME");
             } else {
                 System.out.println(
                         "ChatbotService: Código de referido válido en formato, pero NO ENCONTRADO en el primer mensaje: "
                                 + incomingReferralCode);
                 System.out.println("⚠️  WARNING: Generando mensaje de bienvenida con código de referido inválido");
-                return new ChatResponse(
-                        """
-                                ¡Hola! 👋 Soy el bot de Reset a la Política.
-                                Te doy la bienvenida a este espacio de conversación, donde construimos juntos el futuro de Colombia.
-                                Parece que el código de referido que me enviaste no es válido, pero no te preocupes, ¡podemos continuar!
-
-                                Para continuar con tu registro, necesito algunos datos. ¿Cuál es tu nombre?
-                                """,
-                        "WAITING_NAME");
+                // Preparar múltiples mensajes para código de referido inválido
+                String finalMessage = "Parece que el código de referido que me enviaste no es válido, pero no te preocupes, ¡podemos continuar!\n\n" +
+                    "Quiero saber como te llamas, me confirmas si tu nombre es el que aparece en WhatsApp o me dices como te llamas?";
+                return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + SECOND_MESSAGE + "|" + finalMessage, "WAITING_NAME");
             }
         } else {
             System.out.println("DEBUG handleNewUserIntro: El mensaje no coincide con el patrón de referido.");
@@ -536,35 +571,21 @@ public class ChatbotService {
                 
                 // Si no tiene apellido, preguntarlo
                 if (user.getLastname() == null || user.getLastname().trim().isEmpty()) {
-                    return new ChatResponse(
-                            String.format("""
-                                    ¡Hola! 👋 Soy el bot de Reset a la Política.
-                                    Te doy la bienvenida a este espacio de conversación, donde construimos juntos el futuro de Colombia.
-
-                                    Veo que te llamas %s. ¿Cuál es tu apellido?
-                                    """, user.getName()),
-                            "WAITING_LASTNAME");
+                    // Preparar múltiples mensajes para usuario sin apellido
+                    String finalMessage = String.format("Veo que te llamas %s. ¿Cuál es tu apellido?", user.getName());
+                    return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + SECOND_MESSAGE + "|" + finalMessage, "WAITING_LASTNAME");
                 } else {
                     // Si ya tiene nombre y apellido, preguntar ciudad
-                    return new ChatResponse(
-                            String.format("""
-                                    ¡Hola! 👋 Soy el bot de Reset a la Política.
-                                    Te doy la bienvenida a este espacio de conversación, donde construimos juntos el futuro de Colombia.
-
-                                    Veo que te llamas %s. ¿En qué ciudad vives?
-                                    """, fullName),
-                            "WAITING_CITY");
+                    // Preparar múltiples mensajes para usuario con nombre y apellido
+                    String finalMessage = String.format("Veo que te llamas %s. ¿En qué ciudad vives?", fullName);
+                    return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + SECOND_MESSAGE + "|" + finalMessage, "WAITING_CITY");
                 }
             } else {
                 System.out.println("⚠️  WARNING: Generando mensaje de bienvenida general (sin código de referido)");
-                return new ChatResponse(
-                        """
-                                ¡Hola! 👋 Soy el bot de Reset a la Política.
-                                Te doy la bienvenida a este espacio de conversación, donde construimos juntos el futuro de Colombia.
-
-                                Para continuar con tu registro, necesito algunos datos. ¿Cuál es tu nombre?
-                                """,
-                        "WAITING_NAME");
+                // Preparar múltiples mensajes para usuario general
+                String finalMessage = "Quiero saber como te llamas, me confirmas si tu nombre es el que aparece en WhatsApp o me dices como te llamas?";
+                System.out.println("⚠️  WARNING: Generando mensaje de bienvenida general (sin código de referido)");
+                return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + SECOND_MESSAGE + "|" + finalMessage, "WAITING_NAME");
             }
         }
     }
@@ -721,7 +742,7 @@ public class ChatbotService {
 
                 responseMessage = """
                         ¡Gracias! Hemos registrado tu número de teléfono.
-                        Ahora, para seguir adelante y unirnos en esta gran tarea de transformación nacional, te invito a que revises nuestra política de tratamiento de datos, plasmadas aquí https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo y aceptas los principios con los que manejamos la información.
+                        Respetamos la ley y cuidamos tu información, vamos a mantenerla de forma confidencial, esta es nuestra política de seguridad https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo con ella.
 
                         Acompáñame hacia una Colombia más justa, equitativa y próspera para todos. ¿Aceptas el reto de resetear la política?
 
@@ -776,6 +797,18 @@ public class ChatbotService {
                                                 StandardCharsets.UTF_8.toString()).replace("+", "%20"));
                                 additionalMessages.add(friendsInviteMessage);
 
+                                // Enviar el video de bienvenida ANTES del mensaje de IA
+                                try { 
+                                    // Enviar el video real usando la URL configurada
+                                    watiApiService.sendVideoMessage(user.getPhone(), welcomeVideoUrl, "Video de bienvenida a la campaña");
+                                    System.out.println("DEBUG: Video de bienvenida enviado a: " + user.getPhone());
+                                } catch (Exception e) {
+                                    System.err.println("ERROR: No se pudo enviar el video de bienvenida: " + e.getMessage());
+                                    // Fallback: enviar el enlace si falla el envío del video
+                                    String welcomeVideoMessage = "🎥 Video de bienvenida: " + welcomeVideoUrl;
+                                    additionalMessages.add(welcomeVideoMessage);
+                                }
+
                                 String aiBotIntroMessage = """
                                         ¡Atención! Ahora entrarás en conversación con una inteligencia artificial.
                                         Soy una IA de prueba para este proyecto.
@@ -816,7 +849,7 @@ public class ChatbotService {
                         }
                     } else {
                         System.out.println("DEBUG: ❌ Usuario no aceptó términos (detectado por IA). Pidiendo confirmación...");
-                        responseMessage = "Para seguir adelante y unirnos en esta gran tarea de transformación nacional, te invito a que revises nuestra política de tratamiento de datos, plasmadas aquí https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo y aceptas los principios con los que manejamos la información.\n\nAcompáñame hacia una Colombia más justa, equitativa y próspera para todos. ¿Aceptas el reto de resetear la política?";
+                        responseMessage = "Respetamos la ley y cuidamos tu información, vamos a mantenerla de forma confidencial, esta es nuestra política de seguridad https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo con ella.\n\nAcompáñame hacia una Colombia más justa, equitativa y próspera para todos. ¿Aceptas el reto de resetear la política?";
                         nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
                     }
                 } else {
@@ -931,7 +964,7 @@ public class ChatbotService {
                     // Verificar si ya aceptó los términos
                     if (!user.isAceptaTerminos()) {
                         // Si no aceptó términos, pedirle que los acepte
-                        responseMessage = "Para seguir adelante y unirnos en esta gran tarea de transformación nacional, te invito a que revises nuestra política de tratamiento de datos, plasmadas aquí https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo y aceptas los principios con los que manejamos la información.\n\nAcompáñame hacia una Colombia más justa, equitativa y próspera para todos. ¿Aceptas el reto de resetear la política?";
+                        responseMessage = "Respetamos la ley y cuidamos tu información, vamos a mantenerla de forma confidencial, esta es nuestra política de seguridad https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo con ella.\n\nAcompáñame hacia una Colombia más justa, equitativa y próspera para todos. ¿Aceptas el reto de resetear la política?";
                         nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
                         return new ChatResponse(responseMessage, nextChatbotState);
                     }
@@ -962,6 +995,18 @@ public class ChatbotService {
                                 URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
                                         StandardCharsets.UTF_8.toString()).replace("+", "%20"));
                         additionalMessages.add(friendsInviteMessage);
+
+                        // Enviar el video de bienvenida ANTES del mensaje de IA
+                        try {
+                            // Enviar el video real usando la URL configurada
+                            watiApiService.sendVideoMessage(user.getPhone(), welcomeVideoUrl, "Video de bienvenida a la campaña");
+                            System.out.println("DEBUG: Video de bienvenida enviado a: " + user.getPhone());
+                        } catch (Exception e) {
+                            System.err.println("ERROR: No se pudo enviar el video de bienvenida: " + e.getMessage());
+                            // Fallback: enviar el enlace si falla el envío del video
+                            String welcomeVideoMessage = "🎥 Video de bienvenida: " + welcomeVideoUrl;
+                            additionalMessages.add(welcomeVideoMessage);
+                        }
 
                         String aiBotIntroMessage = """
                                 ¡Atención! Ahora entrarás en conversación con una inteligencia artificial.
@@ -1070,7 +1115,7 @@ public class ChatbotService {
                 }
                 break;
             case "COMPLETED":
-                System.out.println("ChatbotService: Usuario COMPLETED. Analizando consulta con IA...");
+                System.out.println("ChatbotService: Usuario COMPLETED. Analizando consulta...");
 
                 // Obtener session ID para el análisis
                 String sessionId = user.getPhone();
@@ -1082,82 +1127,111 @@ public class ChatbotService {
                 }
 
                 if (sessionId != null && !sessionId.isEmpty()) {
-                    // Preparar datos del usuario para el análisis
-                    Map<String, Object> userData = new HashMap<>();
-                    userData.put("name", user.getName());
-                    userData.put("referral_code", user.getReferral_code());
-                    userData.put("city", user.getCity());
-                    userData.put("phone", user.getPhone());
-                    
-                    // Analizar la consulta con el servicio de IA
-                    Optional<TribalAnalysisService.TribalAnalysisResult> analysisResult = 
-                        tribalAnalysisService.analyzeTribalRequest(messageText, sessionId, userData);
-                    
-                    if (analysisResult.isPresent()) {
-                        TribalAnalysisService.TribalAnalysisResult result = analysisResult.get();
+                    // Primero verificar si es una pregunta de analytics
+                    if (analyticsService.isAnalyticsQuestion(messageText)) {
+                        System.out.println("ChatbotService: Detectada pregunta de analytics. Obteniendo métricas...");
                         
-                        if (result.isTribalRequest()) {
-                            System.out.println("ChatbotService: IA detectó solicitud de tribu. Generando link...");
+                        // Obtener métricas del usuario
+                        Optional<AnalyticsService.AnalyticsData> analyticsData = 
+                            analyticsService.getUserStats(sessionId, sessionId);
+                        
+                        if (analyticsData.isPresent()) {
+                            // Enviar datos de analytics al chatbot IA para generar respuesta
+                            Map<String, Object> userData = new HashMap<>();
+                            userData.put("name", user.getName());
+                            userData.put("referral_code", user.getReferral_code());
+                            userData.put("city", user.getCity());
+                            userData.put("phone", user.getPhone());
+                            userData.put("analytics_data", analyticsData.get());
                             
-                            // Generar el link de referido para el usuario
-                            String referralCode = user.getReferral_code();
-                            if (referralCode == null || referralCode.isEmpty()) {
-                                referralCode = generateUniqueReferralCode();
-                                user.setReferral_code(referralCode);
-                                saveUser(user);
-                            }
-                            
-                            try {
-                                String tribalLinkMessage = String.format(
-                                    "Amigos, los invito a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/573224029924?text=%s",
-                                    URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
-                                            StandardCharsets.UTF_8.toString()).replace("+", "%20")
-                                );
-                                
-                                // Combinar respuesta IA con el link generado
-                                responseMessage = result.getAiResponse() + "\n\n" + tribalLinkMessage;
-                                nextChatbotState = "COMPLETED";
-                                System.out.println("ChatbotService: Respuesta de tribu con IA enviada");
-                            } catch (UnsupportedEncodingException e) {
-                                System.err.println("ERROR: No se pudo codificar el link de tribu: " + e.getMessage());
-                                responseMessage = result.getAiResponse() + "\n\nLo siento, tuve un problema al generar el link. Por favor, intenta de nuevo.";
-                                nextChatbotState = "COMPLETED";
-                            }
+                            // Usar el chatbot IA con datos de analytics
+                            responseMessage = aiBotService.getAIResponseWithAnalytics(sessionId, messageText, userData);
+                            nextChatbotState = "COMPLETED";
+                            System.out.println("ChatbotService: Respuesta de analytics enviada");
                         } else {
-                            // No es solicitud de tribu, usar respuesta IA normal
-                            System.out.println("ChatbotService: IA detectó consulta normal. Procesando con AI Bot...");
-                            responseMessage = aiBotService.getAIResponse(sessionId, messageText);
+                            // Fallback si no se pueden obtener las métricas
+                            responseMessage = "¡Hola! Veo que quieres saber sobre tu rendimiento. En este momento no puedo acceder a tus métricas, pero te puedo ayudar con otras preguntas sobre la campaña. ¿En qué más puedo ayudarte?";
                             nextChatbotState = "COMPLETED";
                         }
                     } else {
-                        // Fallback si el análisis falla
-                        System.err.println("ChatbotService: Fallback - Análisis de IA falló, usando detección tradicional");
-                        if (isTribalLinkRequest(messageText)) {
-                            // Lógica tradicional de tribus
-                            String referralCode = user.getReferral_code();
-                            if (referralCode == null || referralCode.isEmpty()) {
-                                referralCode = generateUniqueReferralCode();
-                                user.setReferral_code(referralCode);
-                                saveUser(user);
-                            }
+                        // No es pregunta de analytics, continuar con el flujo normal
+                        // Preparar datos del usuario para el análisis
+                        Map<String, Object> userData = new HashMap<>();
+                        userData.put("name", user.getName());
+                        userData.put("referral_code", user.getReferral_code());
+                        userData.put("city", user.getCity());
+                        userData.put("phone", user.getPhone());
+                        
+                        // Analizar la consulta con el servicio de IA
+                        Optional<TribalAnalysisService.TribalAnalysisResult> analysisResult = 
+                            tribalAnalysisService.analyzeTribalRequest(messageText, sessionId, userData);
+                        
+                        if (analysisResult.isPresent()) {
+                            TribalAnalysisService.TribalAnalysisResult result = analysisResult.get();
                             
-                            try {
-                                String tribalLinkMessage = String.format(
-                                    "Amigos, los invito a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/573224029924?text=%s",
-                                    URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
-                                            StandardCharsets.UTF_8.toString()).replace("+", "%20")
-                                );
+                            if (result.isTribalRequest()) {
+                                System.out.println("ChatbotService: IA detectó solicitud de tribu. Generando link...");
                                 
-                                responseMessage = tribalLinkMessage;
-                                nextChatbotState = "COMPLETED";
-                            } catch (UnsupportedEncodingException e) {
-                                System.err.println("ERROR: No se pudo codificar el link de tribu: " + e.getMessage());
-                                responseMessage = "Lo siento, tuve un problema al generar el link. Por favor, intenta de nuevo.";
+                                // Generar el link de referido para el usuario
+                                String referralCode = user.getReferral_code();
+                                if (referralCode == null || referralCode.isEmpty()) {
+                                    referralCode = generateUniqueReferralCode();
+                                    user.setReferral_code(referralCode);
+                                    saveUser(user);
+                                }
+                                
+                                try {
+                                    String tribalLinkMessage = String.format(
+                                        "Amigos, los invito a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/573224029924?text=%s",
+                                        URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
+                                                StandardCharsets.UTF_8.toString()).replace("+", "%20")
+                                    );
+                                    
+                                    // Combinar respuesta IA con el link generado
+                                    responseMessage = result.getAiResponse() + "\n\n" + tribalLinkMessage;
+                                    nextChatbotState = "COMPLETED";
+                                    System.out.println("ChatbotService: Respuesta de tribu con IA enviada");
+                                } catch (UnsupportedEncodingException e) {
+                                    System.err.println("ERROR: No se pudo codificar el link de tribu: " + e.getMessage());
+                                    responseMessage = result.getAiResponse() + "\n\nLo siento, tuve un problema al generar el link. Por favor, intenta de nuevo.";
+                                    nextChatbotState = "COMPLETED";
+                                }
+                            } else {
+                                // No es solicitud de tribu, usar respuesta IA normal
+                                System.out.println("ChatbotService: IA detectó consulta normal. Procesando con AI Bot...");
+                                responseMessage = aiBotService.getAIResponse(sessionId, messageText);
                                 nextChatbotState = "COMPLETED";
                             }
                         } else {
-                            responseMessage = aiBotService.getAIResponse(sessionId, messageText);
-                            nextChatbotState = "COMPLETED";
+                            // Fallback si el análisis falla
+                            System.err.println("ChatbotService: Fallback - Análisis de IA falló, usando detección tradicional");
+                            if (isTribalLinkRequest(messageText)) {
+                                // Lógica tradicional de tribus
+                                String referralCode = user.getReferral_code();
+                                if (referralCode == null || referralCode.isEmpty()) {
+                                    referralCode = generateUniqueReferralCode();
+                                    user.setReferral_code(referralCode);
+                                    saveUser(user);
+                                }
+                                
+                                try {
+                                    String tribalLinkMessage = String.format(
+                                        "Amigos, los invito a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/573224029924?text=%s",
+                                        URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
+                                                StandardCharsets.UTF_8.toString()).replace("+", "%20")
+                                    );
+                                    
+                                    responseMessage = tribalLinkMessage;
+                                    nextChatbotState = "COMPLETED";
+                                } catch (UnsupportedEncodingException e) {
+                                    System.err.println("ERROR: No se pudo codificar el link de tribu: " + e.getMessage());
+                                    responseMessage = "Lo siento, tuve un problema al generar el link. Por favor, intenta de nuevo.";
+                                    nextChatbotState = "COMPLETED";
+                                }
+                            } else {
+                                responseMessage = aiBotService.getAIResponse(sessionId, messageText);
+                                nextChatbotState = "COMPLETED";
+                            }
                         }
                     }
                 } else {
