@@ -1209,11 +1209,13 @@ public class ChatbotService {
                                         URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
                                                 StandardCharsets.UTF_8.toString()).replace("+", "%20")
                                     );
-                                    
-                                    // Combinar respuesta IA con el link generado
-                                    responseMessage = result.getAiResponse() + "\n\n" + tribalLinkMessage;
+
+                                    // Enviar SIEMPRE en dos mensajes: 1) saludo/explicación, 2) mensaje de 'Amigos...'
+                                    secondaryMessage = Optional.of(tribalLinkMessage);
+                                    responseMessage = result.getAiResponse();
                                     nextChatbotState = "COMPLETED";
-                                    System.out.println("ChatbotService: Respuesta de tribu con IA enviada");
+                                    System.out.println("ChatbotService: Respuesta de tribu con IA enviada (2 mensajes)");
+                                    return new ChatResponse(responseMessage, nextChatbotState, secondaryMessage);
                                 } catch (UnsupportedEncodingException e) {
                                     System.err.println("ERROR: No se pudo codificar el link de tribu: " + e.getMessage());
                                     responseMessage = result.getAiResponse() + "\n\nLo siento, tuve un problema al generar el link. Por favor, intenta de nuevo.";
@@ -1243,9 +1245,18 @@ public class ChatbotService {
                                         URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
                                                 StandardCharsets.UTF_8.toString()).replace("+", "%20")
                                     );
-                                    
-                                    responseMessage = tribalLinkMessage;
+
+                                    // Fallback tradicional: también en dos mensajes
+                                    String greeting;
+                                    if (user.getName() != null && !user.getName().trim().isEmpty()) {
+                                        greeting = "Hola " + user.getName().trim() + ", aquí tienes el link de tu tribu.";
+                                    } else {
+                                        greeting = "Hola, aquí tienes el link de tu tribu.";
+                                    }
+                                    secondaryMessage = Optional.of(tribalLinkMessage);
+                                    responseMessage = greeting;
                                     nextChatbotState = "COMPLETED";
+                                    return new ChatResponse(responseMessage, nextChatbotState, secondaryMessage);
                                 } catch (UnsupportedEncodingException e) {
                                     System.err.println("ERROR: No se pudo codificar el link de tribu: " + e.getMessage());
                                     responseMessage = "Lo siento, tuve un problema al generar el link. Por favor, intenta de nuevo.";
