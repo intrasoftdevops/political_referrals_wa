@@ -477,6 +477,24 @@ public class ChatbotService {
         System.out.println("DEBUG handleNewUserIntro: Resultado de extracción - Success: " + extractionResult.isSuccess() + 
                           ", Message: '" + extractionResult.getMessage() + "', NextState: " + extractionResult.getNextState());
         
+        // CORRECCIÓN CRÍTICA: Si la extracción inteligente detectó un código de referido pero no estableció referred_by_phone,
+        // debemos buscarlo manualmente antes de continuar
+        if (extractionResult.isSuccess() && user.getReferred_by_code() != null && user.getReferred_by_phone() == null) {
+            System.out.println("DEBUG handleNewUserIntro: 🔍 CORRECCIÓN: Código de referido detectado pero sin referred_by_phone. Buscando usuario referente...");
+            Optional<User> referrerUser = getUserByReferralCode(user.getReferred_by_code());
+            if (referrerUser.isPresent()) {
+                // Guardar el número del referente sin el símbolo "+"
+                String referrerPhone = referrerUser.get().getPhone();
+                if (referrerPhone != null && referrerPhone.startsWith("+")) {
+                    referrerPhone = referrerPhone.substring(1);
+                }
+                user.setReferred_by_phone(referrerPhone);
+                System.out.println("DEBUG handleNewUserIntro: ✅ CORRECCIÓN APLICADA: Establecido referred_by_phone: " + user.getReferred_by_phone());
+            } else {
+                System.out.println("DEBUG handleNewUserIntro: ⚠️ CORRECCIÓN FALLIDA: Código de referido no encontrado en base de datos");
+            }
+        }
+        
         if (extractionResult.isSuccess()) {
             // Guardar usuario actualizado después de la extracción
             saveUser(user);
@@ -520,7 +538,12 @@ public class ChatbotService {
 
             if (referrerUser.isPresent()) {
                 // MODIFICACIÓN CLAVE AQUÍ: Guardar el código de referido también
-                user.setReferred_by_phone(referrerUser.get().getPhone());
+                // Guardar el número del referente sin el símbolo "+"
+                String referrerPhone = referrerUser.get().getPhone();
+                if (referrerPhone != null && referrerPhone.startsWith("+")) {
+                    referrerPhone = referrerPhone.substring(1);
+                }
+                user.setReferred_by_phone(referrerPhone);
                 user.setReferred_by_code(incomingReferralCode); // <-- AÑADIDO: Guardar el código de referido
                 System.out.println("DEBUG handleNewUserIntro: Estableciendo referred_by_phone: '" + user.getReferred_by_phone() + "' y referred_by_code: '" + user.getReferred_by_code() + "'");
 
@@ -1186,11 +1209,13 @@ public class ChatbotService {
                                         URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
                                                 StandardCharsets.UTF_8.toString()).replace("+", "%20")
                                     );
-                                    
-                                    // Combinar respuesta IA con el link generado
-                                    responseMessage = result.getAiResponse() + "\n\n" + tribalLinkMessage;
+
+                                    // Enviar SIEMPRE en dos mensajes: 1) saludo/explicación, 2) mensaje de 'Amigos...'
+                                    secondaryMessage = Optional.of(tribalLinkMessage);
+                                    responseMessage = result.getAiResponse();
                                     nextChatbotState = "COMPLETED";
-                                    System.out.println("ChatbotService: Respuesta de tribu con IA enviada");
+                                    System.out.println("ChatbotService: Respuesta de tribu con IA enviada (2 mensajes)");
+                                    return new ChatResponse(responseMessage, nextChatbotState, secondaryMessage);
                                 } catch (UnsupportedEncodingException e) {
                                     System.err.println("ERROR: No se pudo codificar el link de tribu: " + e.getMessage());
                                     responseMessage = result.getAiResponse() + "\n\nLo siento, tuve un problema al generar el link. Por favor, intenta de nuevo.";
@@ -1220,9 +1245,18 @@ public class ChatbotService {
                                         URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
                                                 StandardCharsets.UTF_8.toString()).replace("+", "%20")
                                     );
-                                    
-                                    responseMessage = tribalLinkMessage;
+
+                                    // Fallback tradicional: también en dos mensajes
+                                    String greeting;
+                                    if (user.getName() != null && !user.getName().trim().isEmpty()) {
+                                        greeting = "Hola " + user.getName().trim() + ", aquí tienes el link de tu tribu.";
+                                    } else {
+                                        greeting = "Hola, aquí tienes el link de tu tribu.";
+                                    }
+                                    secondaryMessage = Optional.of(tribalLinkMessage);
+                                    responseMessage = greeting;
                                     nextChatbotState = "COMPLETED";
+                                    return new ChatResponse(responseMessage, nextChatbotState, secondaryMessage);
                                 } catch (UnsupportedEncodingException e) {
                                     System.err.println("ERROR: No se pudo codificar el link de tribu: " + e.getMessage());
                                     responseMessage = "Lo siento, tuve un problema al generar el link. Por favor, intenta de nuevo.";
