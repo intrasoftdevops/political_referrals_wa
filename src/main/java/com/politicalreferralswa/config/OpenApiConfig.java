@@ -43,17 +43,15 @@ public class OpenApiConfig {
                                 .url("https://opensource.org/licenses/MIT")))
                 .servers(List.of(
                         new Server()
-                                .url("http://localhost:8081")
-                                .description("Servidor de desarrollo local"),
-                        new Server()
-                                .url("https://api.politicalreferrals.com")
-                                .description("Servidor de producción")
+                                .url("/") // URL Relativa
+                                .description("Default Server URL")
                 ))
                 .tags(List.of(
                         new Tag().name("WhatsApp").description("Endpoints relacionados con WhatsApp a través de Wati API"),
                         new Tag().name("Telegram").description("Endpoints relacionados con Telegram Bot API"),
                         new Tag().name("Messages").description("API directa para envío de mensajes"),
-                        new Tag().name("Metrics").description("Métricas y estadísticas del sistema")
+                        new Tag().name("Metrics").description("Métricas y estadísticas del sistema"),
+                        new Tag().name("Admin").description("Operaciones de administración de usuarios") // Añadimos el tag para Admin
                 ));
     }
 } 
