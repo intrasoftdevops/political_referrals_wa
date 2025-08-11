@@ -44,7 +44,7 @@ public class ChatbotService {
     // Nuevos mensajes de la campaña
     private static final String WELCOME_MESSAGE_BASE = "Hola. Te doy la bienvenida a nuestra campaña: Daniel Quintero Presidente!!!";
     
-    private static final String SECOND_MESSAGE = "Vamos a resetear la politica, a cerrar el congreso y a llamar a una constituyente, no más camaras de comercio, notarías, fotomultas y sanguijuelas quitándole plata a la gente.";
+    private static final String SECOND_MESSAGE = "Vamos a resetear la política, a cerrar el congreso y a llamar a una constituyente, no más cámaras de comercio, notarías, fotomultas y sanguijuelas quitándole plata a la gente.";
     
     private static final String PRIVACY_MESSAGE = """
         Respetamos la ley y cuidamos tu información, vamos a mantenerla de forma confidencial, esta es nuestra política de seguridad https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo con ella.""";
