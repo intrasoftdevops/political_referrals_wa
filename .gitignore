@@ -56,3 +56,6 @@ build/
 src/main/resources/application.properties
 political-referrals-wa-key.json
 HELP.md
+
+# Guías de despliegue (documentación interna)
+DEPLOYMENT_GUIDE.md
