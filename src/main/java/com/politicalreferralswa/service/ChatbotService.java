@@ -561,7 +561,7 @@ public class ChatbotService {
                 }
                 
                 // Preparar múltiples mensajes para usuario con referido
-                String finalMessage = personalizedGreeting + " Quiero saber como te llamas, me confirmas si tu nombre es el que aparece en WhatsApp o me dices como te llamas?";
+                String finalMessage = personalizedGreeting + "¿Me confirmas si tu nombre es el que aparece en WhatsApp " + user.getName().trim() + " o me dices cómo te llamas para guardarte en mis contactos?";
                 System.out.println("⚠️  WARNING: Generando mensaje de bienvenida con código de referido válido");
                 return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + finalMessage, "WAITING_NAME");
             } else {
@@ -571,7 +571,7 @@ public class ChatbotService {
                 System.out.println("⚠️  WARNING: Generando mensaje de bienvenida con código de referido inválido");
                 // Preparar múltiples mensajes para código de referido inválido
                 String finalMessage = "Parece que el código de referido que me enviaste no es válido, pero no te preocupes, ¡podemos continuar!\n\n" +
-                    "Quiero saber como te llamas, me confirmas si tu nombre es el que aparece en WhatsApp o me dices como te llamas?";
+                    "¿Me confirmas si tu nombre es el que aparece en WhatsApp " + user.getName().trim() + " o me dices cómo te llamas para guardarte en mis contactos?";
                 return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + finalMessage, "WAITING_NAME");
             }
         } else {
@@ -604,7 +604,7 @@ public class ChatbotService {
             } else {
                 System.out.println("⚠️  WARNING: Generando mensaje de bienvenida general (sin código de referido)");
                 // Preparar múltiples mensajes para usuario general
-                String finalMessage = "Quiero saber como te llamas, me confirmas si tu nombre es el que aparece en WhatsApp o me dices como te llamas?";
+                String finalMessage = "¿Me confirmas si tu nombre es el que aparece en WhatsApp " + user.getName().trim() + " o me dices cómo te llamas para guardarte en mis contactos?";
                 System.out.println("⚠️  WARNING: Generando mensaje de bienvenida general (sin código de referido)");
                 return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + finalMessage, "WAITING_NAME");
             }
@@ -813,7 +813,8 @@ public class ChatbotService {
                                         + encodedTelegramPayload;
 
                                 String friendsInviteMessage = String.format(
-                                        "Amigos, los invito a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/573224029924?text=%s",
+                                        "Amigos, soy %s y quiero invitarte a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/573224029924?text=%s",
+                                        user.getName(),
                                         URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
                                                 StandardCharsets.UTF_8.toString()).replace("+", "%20"));
                                 additionalMessages.add(friendsInviteMessage);
@@ -973,7 +974,8 @@ public class ChatbotService {
                                 + encodedTelegramPayload;
 
                         String friendsInviteMessage = String.format(
-                                "Amigos, los invito a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/573224029924?text=%s",
+                                "Amigos, soy %s y quiero invitarte a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/573224029924?text=%s",
+                                user.getName(),
                                 URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
                                         StandardCharsets.UTF_8.toString()).replace("+", "%20"));
                         additionalMessages.add(friendsInviteMessage);
@@ -1164,7 +1166,8 @@ public class ChatbotService {
                                 
                                 try {
                                     String tribalLinkMessage = String.format(
-                                        "Amigos, los invito a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/573224029924?text=%s",
+                                        "Amigos, soy %s y quiero invitarte a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/573224029924?text=%s",
+                                        user.getName(),
                                         URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
                                                 StandardCharsets.UTF_8.toString()).replace("+", "%20")
                                     );
@@ -1200,7 +1203,8 @@ public class ChatbotService {
                                 
                                 try {
                                     String tribalLinkMessage = String.format(
-                                        "Amigos, los invito a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/573224029924?text=%s",
+                                        "Amigos, soy %s y quiero invitarte a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/573224029924?text=%s",
+                                        user.getName(),
                                         URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
                                                 StandardCharsets.UTF_8.toString()).replace("+", "%20")
                                     );
