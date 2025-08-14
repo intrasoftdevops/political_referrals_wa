@@ -273,4 +273,4 @@ political_referrals_wa/
 - ✅ **Sistema de métricas** para monitoreo
 - ✅ **Flujo conversacional inteligente**
 
-**¡Listo para producción!** 🚀 
+**¡Listo para producción!** 🚀 # Pipeline CI/CD activado - Thu Aug 14 18:41:28 -05 2025
