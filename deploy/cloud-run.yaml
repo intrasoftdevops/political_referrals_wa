@@ -1,0 +1,77 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: political-referrals-wa
+  annotations:
+    run.googleapis.com/ingress: all
+    run.googleapis.com/execution-environment: gen2
+spec:
+  template:
+    metadata:
+      annotations:
+        run.googleapis.com/execution-environment: gen2
+        run.googleapis.com/cpu-throttling: "false"
+        run.googleapis.com/startup-cpu-boost: "true"
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      containers:
+      - image: gcr.io/PROJECT_ID/political-referrals-wa:latest
+        ports:
+        - name: http1
+          containerPort: 8080
+        resources:
+          limits:
+            cpu: "2"
+            memory: 2Gi
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "prod"
+        - name: PORT
+          value: "8080"
+        - name: SPRING_CLOUD_GCP_PROJECT_ID
+          valueFrom:
+            secretKeyRef:
+              name: political-referrals-wa-secrets
+              key: gcp-project-id
+        - name: GEMINI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: political-referrals-wa-secrets
+              key: gemini-api-key
+        - name: TELEGRAM_BOT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: political-referrals-wa-secrets
+              key: telegram-bot-token
+        - name: WATI_API_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: political-referrals-wa-secrets
+              key: wati-api-token
+        - name: WEBHOOK_VERIFY_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: political-referrals-wa-secrets
+              key: webhook-verify-token
+        livenessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      scaling:
+        minScale: 0
+        maxScale: 10
+        targetCPUUtilization: 70
+        targetMemoryUtilization: 80 

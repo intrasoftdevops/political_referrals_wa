@@ -13,5 +13,5 @@ EXPOSE 8080
 # Configura las variables de entorno para producción
 ENV SPRING_PROFILES_ACTIVE=prod
 
-# Comando para ejecutar la aplicación
-ENTRYPOINT ["java", "-jar", "app.jar"] 
+# Comando para ejecutar la aplicación con puerto explícito
+ENTRYPOINT ["java", "-Dserver.port=${PORT:-8080}", "-jar", "app.jar"] 
