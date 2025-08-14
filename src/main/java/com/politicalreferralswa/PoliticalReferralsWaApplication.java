@@ -24,6 +24,7 @@ public class PoliticalReferralsWaApplication {
     public CommandLineRunner commandLineRunner(ChatbotService chatbotService) {
         return args -> {
             System.out.println("Ejecutando lógica de inicio de aplicación para crear usuario de ejemplo...");
+            
             // Llama al método para crear el usuario de prueba.
             // El método en ChatbotService ya verifica si el usuario existe para evitar duplicados.
             chatbotService.createTestReferrerUser();
