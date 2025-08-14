@@ -44,8 +44,6 @@ public class ChatbotService {
     // Nuevos mensajes de la campaña
     private static final String WELCOME_MESSAGE_BASE = "Hola. Te doy la bienvenida a nuestra campaña: Daniel Quintero Presidente!!!";
     
-    private static final String SECOND_MESSAGE = "Vamos a resetear la política, a cerrar el congreso y a llamar a una constituyente, no más cámaras de comercio, notarías, fotomultas y sanguijuelas quitándole plata a la gente.";
-    
     private static final String PRIVACY_MESSAGE = """
         Respetamos la ley y cuidamos tu información, vamos a mantenerla de forma confidencial, esta es nuestra política de seguridad https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo con ella.""";
 
@@ -509,14 +507,14 @@ public class ChatbotService {
                 
                 // Preparar múltiples mensajes
                 String finalMessage = extractionResult.getMessage() + "\n\n" + PRIVACY_MESSAGE;
-                return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + SECOND_MESSAGE + "|" + finalMessage, "WAITING_TERMS_ACCEPTANCE");
+                return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + finalMessage, "WAITING_TERMS_ACCEPTANCE");
             } else {
                 // Si se extrajo parcialmente, usar el mensaje de extracción sin incluir política de privacidad
                 System.out.println("DEBUG handleNewUserIntro: Usando extracción inteligente - Parcial, sin política de privacidad");
                 
                 // Preparar múltiples mensajes para extracción parcial
                 System.out.println("⚠️  WARNING: Generando mensaje de bienvenida en extracción inteligente parcial");
-                return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + SECOND_MESSAGE + "|" + extractionResult.getMessage(), extractionResult.getNextState());
+                return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + extractionResult.getMessage(), extractionResult.getNextState());
             }
         }
         
@@ -565,7 +563,7 @@ public class ChatbotService {
                 // Preparar múltiples mensajes para usuario con referido
                 String finalMessage = personalizedGreeting + " Quiero saber como te llamas, me confirmas si tu nombre es el que aparece en WhatsApp o me dices como te llamas?";
                 System.out.println("⚠️  WARNING: Generando mensaje de bienvenida con código de referido válido");
-                return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + SECOND_MESSAGE + "|" + finalMessage, "WAITING_NAME");
+                return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + finalMessage, "WAITING_NAME");
             } else {
                 System.out.println(
                         "ChatbotService: Código de referido válido en formato, pero NO ENCONTRADO en el primer mensaje: "
@@ -574,7 +572,7 @@ public class ChatbotService {
                 // Preparar múltiples mensajes para código de referido inválido
                 String finalMessage = "Parece que el código de referido que me enviaste no es válido, pero no te preocupes, ¡podemos continuar!\n\n" +
                     "Quiero saber como te llamas, me confirmas si tu nombre es el que aparece en WhatsApp o me dices como te llamas?";
-                return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + SECOND_MESSAGE + "|" + finalMessage, "WAITING_NAME");
+                return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + finalMessage, "WAITING_NAME");
             }
         } else {
             System.out.println("DEBUG handleNewUserIntro: El mensaje no coincide con el patrón de referido.");
@@ -596,19 +594,19 @@ public class ChatbotService {
                 if (user.getLastname() == null || user.getLastname().trim().isEmpty()) {
                     // Preparar múltiples mensajes para usuario sin apellido
                     String finalMessage = String.format("Veo que te llamas %s. ¿Cuál es tu apellido?", user.getName());
-                    return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + SECOND_MESSAGE + "|" + finalMessage, "WAITING_LASTNAME");
+                    return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + finalMessage, "WAITING_LASTNAME");
                 } else {
                     // Si ya tiene nombre y apellido, preguntar ciudad
                     // Preparar múltiples mensajes para usuario con nombre y apellido
                     String finalMessage = String.format("Veo que te llamas %s. ¿En qué ciudad vives?", fullName);
-                    return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + SECOND_MESSAGE + "|" + finalMessage, "WAITING_CITY");
+                    return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + finalMessage, "WAITING_CITY");
                 }
             } else {
                 System.out.println("⚠️  WARNING: Generando mensaje de bienvenida general (sin código de referido)");
                 // Preparar múltiples mensajes para usuario general
                 String finalMessage = "Quiero saber como te llamas, me confirmas si tu nombre es el que aparece en WhatsApp o me dices como te llamas?";
                 System.out.println("⚠️  WARNING: Generando mensaje de bienvenida general (sin código de referido)");
-                return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + SECOND_MESSAGE + "|" + finalMessage, "WAITING_NAME");
+                return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + finalMessage, "WAITING_NAME");
             }
         }
     }
@@ -882,104 +880,65 @@ public class ChatbotService {
                 }
                 break;
             case "WAITING_NAME":
-                // Intentar extracción inteligente primero
-                UserDataExtractor.ExtractionResult nameExtractionResult = userDataExtractor.extractAndUpdateUser(user, messageText, null);
+                // En WAITING_NAME solo procesamos confirmación del nombre, NO aceptación de términos
+                System.out.println("DEBUG: Procesando confirmación de nombre en estado WAITING_NAME");
                 
-                if (nameExtractionResult.isSuccess()) {
-                    // Guardar usuario actualizado después de la extracción
-                    saveUser(user);
+                // Verificar si es una confirmación del nombre (Sí, es correcto, etc.)
+                String lowerNameMessage = messageText.toLowerCase().trim();
+                System.out.println("DEBUG: Mensaje en minúsculas: '" + lowerNameMessage + "'");
+                
+                if (lowerNameMessage.equals("si") || lowerNameMessage.equals("sí") || 
+                    lowerNameMessage.equals("correcto") || lowerNameMessage.equals("es correcto") ||
+                    lowerNameMessage.contains("si es") || lowerNameMessage.contains("sí es")) {
                     
-                    if (nameExtractionResult.needsClarification()) {
-                        // Si necesita aclaración
-                        responseMessage = nameExtractionResult.getMessage();
-                        nextChatbotState = "WAITING_CLARIFICATION";
-                    } else if (nameExtractionResult.isCompleted()) {
-                        // Si se completó la extracción
-                        responseMessage = nameExtractionResult.getMessage();
-                        nextChatbotState = "CONFIRM_DATA";
-                    } else {
-                        // Si se extrajo parcialmente
-                        responseMessage = nameExtractionResult.getMessage();
-                        nextChatbotState = nameExtractionResult.getNextState();
-                    }
+                    // Usuario confirma el nombre existente
+                    System.out.println("DEBUG: Usuario confirmó el nombre existente: " + user.getName());
+                    
+                    // Preguntar apellido
+                    responseMessage = "¿Cuál es tu apellido?";
+                    nextChatbotState = "WAITING_LASTNAME";
                 } else {
-                    // Si falló la extracción, usar método tradicional
-                    if (messageText != null && !messageText.trim().isEmpty()) {
-                        user.setName(messageText.trim());
-                        responseMessage = "¿Cuál es tu apellido?";
-                        nextChatbotState = "WAITING_LASTNAME";
-                    } else {
-                        responseMessage = "Por favor, ingresa un nombre válido.";
-                    }
+                    // Usuario proporciona un nombre diferente
+                    user.setName(messageText.trim());
+                    System.out.println("DEBUG: Usuario proporcionó nuevo nombre: " + messageText.trim());
+                    responseMessage = "¿Cuál es tu apellido?";
+                    nextChatbotState = "WAITING_LASTNAME";
                 }
                 break;
             case "WAITING_LASTNAME":
-                // Intentar extracción inteligente primero
-                UserDataExtractor.ExtractionResult lastnameExtractionResult = userDataExtractor.extractAndUpdateUser(user, messageText, null);
+                // En WAITING_LASTNAME solo procesamos apellido
+                System.out.println("DEBUG: Procesando apellido en estado WAITING_LASTNAME");
                 
-                if (lastnameExtractionResult.isSuccess()) {
-                    // Guardar usuario actualizado después de la extracción
-                    saveUser(user);
-                    
-                    if (lastnameExtractionResult.needsClarification()) {
-                        // Si necesita aclaración
-                        responseMessage = lastnameExtractionResult.getMessage();
-                        nextChatbotState = "WAITING_CLARIFICATION";
-                    } else if (lastnameExtractionResult.isCompleted()) {
-                        // Si se completó la extracción
-                        responseMessage = lastnameExtractionResult.getMessage();
-                        nextChatbotState = "CONFIRM_DATA";
-                    } else {
-                        // Si se extrajo parcialmente
-                        responseMessage = lastnameExtractionResult.getMessage();
-                        nextChatbotState = lastnameExtractionResult.getNextState();
-                    }
+                if (messageText != null && !messageText.trim().isEmpty()) {
+                    user.setLastname(messageText.trim());
+                    System.out.println("DEBUG: Apellido establecido: " + messageText.trim());
+                    responseMessage = "¿En qué ciudad vives?";
+                    nextChatbotState = "WAITING_CITY";
                 } else {
-                    // Si falló la extracción, usar método tradicional
-                    if (messageText != null && !messageText.trim().isEmpty()) {
-                        user.setLastname(messageText.trim());
-                        responseMessage = "¿En qué ciudad vives?";
-                        nextChatbotState = "WAITING_CITY";
-                    } else {
-                        responseMessage = "Por favor, ingresa un apellido válido.";
-                    }
+                    responseMessage = "Por favor, ingresa un apellido válido.";
+                    nextChatbotState = "WAITING_LASTNAME";
                 }
                 break;
             case "WAITING_CITY":
-                // Intentar extracción inteligente primero
-                UserDataExtractor.ExtractionResult cityExtractionResult = userDataExtractor.extractAndUpdateUser(user, messageText, null);
+                // En WAITING_CITY solo procesamos ciudad, NO departamento completo
+                System.out.println("DEBUG: Procesando ciudad en estado WAITING_CITY");
                 
-                if (cityExtractionResult.isSuccess()) {
-                    // Guardar usuario actualizado después de la extracción
-                    saveUser(user);
+                if (messageText != null && !messageText.trim().isEmpty()) {
+                    user.setCity(messageText.trim());
+                    System.out.println("DEBUG: Ciudad establecida: " + messageText.trim());
                     
-                    if (cityExtractionResult.needsClarification()) {
-                        // Si necesita aclaración
-                        responseMessage = cityExtractionResult.getMessage();
-                        nextChatbotState = "WAITING_CLARIFICATION";
-                    } else if (cityExtractionResult.isCompleted()) {
-                        // Si se completó la extracción
-                        responseMessage = cityExtractionResult.getMessage();
-                        nextChatbotState = "CONFIRM_DATA";
-                    } else {
-                        // Si se extrajo parcialmente
-                        responseMessage = cityExtractionResult.getMessage();
-                        nextChatbotState = cityExtractionResult.getNextState();
+                    // Construir nombre completo para mostrar
+                    String fullName = user.getName();
+                    if (user.getLastname() != null && !user.getLastname().trim().isEmpty()) {
+                        fullName += " " + user.getLastname();
                     }
+                    
+                    // Ir directamente a la política de privacidad sin confirmar datos
+                    responseMessage = "Perfecto " + fullName + ". Ahora necesito que aceptes nuestra política de privacidad para continuar. ¿Aceptas los términos y condiciones? (Sí/No)";
+                    nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
                 } else {
-                    // Si falló la extracción, usar método tradicional
-                    if (messageText != null && !messageText.trim().isEmpty()) {
-                        user.setCity(messageText.trim());
-                        String fullName = user.getName();
-                        if (user.getLastname() != null && !user.getLastname().trim().isEmpty()) {
-                            fullName += " " + user.getLastname();
-                        }
-                        responseMessage = "Confirmamos tus datos: " + fullName + ", de " + user.getCity()
-                                + ". ¿Es correcto? (Sí/No)";
-                        nextChatbotState = "CONFIRM_DATA";
-                    } else {
-                        responseMessage = "Por favor, ingresa una ciudad válida.";
-                    }
+                    responseMessage = "Por favor, ingresa una ciudad válida.";
+                    nextChatbotState = "WAITING_CITY";
                 }
                 break;
             case "CONFIRM_DATA":
