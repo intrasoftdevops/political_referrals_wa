@@ -144,9 +144,17 @@ public class GeminiService {
 
             INTERPRETACIÓN POR ESTADO ACTUAL:
             - Si el estado es "WAITING_LASTNAME": Cualquier texto se interpreta como APELLIDO
-            - Si el estado es "WAITING_NAME": Cualquier texto se interpreta como NOMBRE
+            - Si el estado es "WAITING_NAME": 
+              * Si el mensaje es una CONFIRMACIÓN del nombre existente, marcar como confirmación
+              * Si es un NUEVO nombre, extraerlo normalmente
             - Si el estado es "WAITING_CITY": Cualquier texto se interpreta como CIUDAD
             - Si el estado es null o vacío: Usar análisis semántico normal
+
+            DETECCIÓN INTELIGENTE DE CONFIRMACIONES:
+            - Analiza si el mensaje confirma el nombre existente o proporciona uno nuevo
+            - Ejemplos de CONFIRMACIÓN: "Si, es correcto", "Sí, está bien", "Correcto", "Perfecto", "Es correcto", "Si, es", "Sí, es"
+            - Ejemplos de NUEVO NOMBRE: "Me llamo Carlos", "Soy María", "Carlos", "María"
+            - Campo "isConfirmation": true si confirma, false si es nuevo nombre
 
             DETECCIÓN DE CONTEXTO EMOCIONAL:
             - Si el usuario expresa que ya respondió, frustración o impaciencia, genera una respuesta empática en "emotionalContext".
@@ -226,11 +234,11 @@ public class GeminiService {
               "referralCode": "string|null",
               "correction": "boolean|null",
               "previousValue": "string|null",
+              "isConfirmation": "boolean|null",
               "needsClarification": {
                 "city": "mensaje específico|null",
                 "other": "otra aclaración|null"
               },
-              "emotionalContext": "mensaje empático|null",
               "emotionalContext": "mensaje empático|null",
               "confidence": 0.0-1.0
             }
@@ -263,6 +271,17 @@ public class GeminiService {
             - "Me equivoqué, no soy de Medellín sino de Envigado": {"city": "Envigado", "correction": true, "previousValue": "Medellín"}
             - "Perdón, mi nombre es Carlos no Juan": {"name": "Carlos", "correction": true, "previousValue": "Juan"}
             - "Es Barbosa no Armenia": {"city": "Barbosa", "correction": true, "previousValue": "Armenia"}
+
+            EJEMPLOS DE CONFIRMACIÓN DE NOMBRE:
+            - "Si, es correcto": {"isConfirmation": true, "confidence": 0.95}
+            - "Sí, está bien": {"isConfirmation": true, "confidence": 0.95}
+            - "Correcto": {"isConfirmation": true, "confidence": 0.9}
+            - "Perfecto": {"isConfirmation": true, "confidence": 0.85}
+            - "Es correcto": {"isConfirmation": true, "confidence": 0.9}
+            - "Si, es": {"isConfirmation": true, "confidence": 0.9}
+            - "Sí, es": {"isConfirmation": true, "confidence": 0.9}
+            - "Si, es correcto": {"isConfirmation": true, "confidence": 0.95}
+            - "Sí, es correcto": {"isConfirmation": true, "confidence": 0.95}
 
             EJEMPLOS DE ACEPTACIÓN DE TÉRMINOS:
             - "Sí": {"acceptsTerms": true, "confidence": 0.95}

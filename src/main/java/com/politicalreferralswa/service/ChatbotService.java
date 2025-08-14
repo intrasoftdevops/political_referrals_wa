@@ -2,6 +2,8 @@ package com.politicalreferralswa.service;
 
 import com.google.cloud.firestore.Firestore;
 import com.politicalreferralswa.model.User; // Asegúrate de que User.java tiene campos: id (String UUID), phone (String), telegram_chat_id (String), Y AHORA referred_by_code (String)
+import com.politicalreferralswa.service.UserDataExtractionResult;
+import com.politicalreferralswa.service.GeminiService;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Value;
 import com.google.cloud.Timestamp;
@@ -29,6 +31,7 @@ public class ChatbotService {
     private final TelegramApiService telegramApiService;
     private final AIBotService aiBotService;
     private final UserDataExtractor userDataExtractor;
+    private final GeminiService geminiService;
     private final NameValidationService nameValidationService;
     private final TribalAnalysisService tribalAnalysisService;
     private final AnalyticsService analyticsService;
@@ -141,13 +144,15 @@ public class ChatbotService {
 
     public ChatbotService(Firestore firestore, WatiApiService watiApiService,
                           TelegramApiService telegramApiService, AIBotService aiBotService,
-                          UserDataExtractor userDataExtractor, NameValidationService nameValidationService,
+                          UserDataExtractor userDataExtractor, GeminiService geminiService,
+                          NameValidationService nameValidationService,
                           TribalAnalysisService tribalAnalysisService, AnalyticsService analyticsService) {
         this.firestore = firestore;
         this.watiApiService = watiApiService;
         this.telegramApiService = telegramApiService;
         this.aiBotService = aiBotService;
         this.userDataExtractor = userDataExtractor;
+        this.geminiService = geminiService;
         this.nameValidationService = nameValidationService;
         this.tribalAnalysisService = tribalAnalysisService;
         this.analyticsService = analyticsService;
@@ -509,12 +514,41 @@ public class ChatbotService {
                 String finalMessage = extractionResult.getMessage() + "\n\n" + PRIVACY_MESSAGE;
                 return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + finalMessage, "WAITING_TERMS_ACCEPTANCE");
             } else {
-                // Si se extrajo parcialmente, usar el mensaje de extracción sin incluir política de privacidad
-                System.out.println("DEBUG handleNewUserIntro: Usando extracción inteligente - Parcial, sin política de privacidad");
-                
-                // Preparar múltiples mensajes para extracción parcial
-                System.out.println("⚠️  WARNING: Generando mensaje de bienvenida en extracción inteligente parcial");
-                return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + extractionResult.getMessage(), extractionResult.getNextState());
+                // Si se extrajo parcialmente, verificar si hay código de referido para usar mensaje personalizado
+                if (user.getReferred_by_code() != null && user.getReferred_by_phone() != null) {
+                    System.out.println("DEBUG handleNewUserIntro: 🔍 Código de referido detectado por IA, usando mensaje personalizado");
+                    
+                    // Buscar usuario referente para obtener su nombre
+                    Optional<User> referrerUser = getUserByReferralCode(user.getReferred_by_code());
+                    String personalizedGreeting = "";
+                    
+                    if (referrerUser.isPresent()) {
+                        String referrerName = referrerUser.get().getName();
+                        if (referrerName != null && !referrerName.trim().isEmpty()) {
+                            personalizedGreeting = "Te ha referido " + referrerName.trim() + ". ";
+                        } else {
+                            personalizedGreeting = "Te ha referido un amigo. ";
+                        }
+                    } else {
+                        personalizedGreeting = "Te ha referido un amigo. ";
+                    }
+                    
+                    if (user.getName() != null && !user.getName().trim().isEmpty()) {
+                        personalizedGreeting += "¡Hola " + user.getName().trim() + "! ";
+                    }
+                    
+                    // Usar mensaje personalizado en lugar del mensaje genérico de la IA
+                    String finalMessage = personalizedGreeting + "¿Me confirmas si tu nombre es el que aparece en WhatsApp " + user.getName().trim() + " o me dices cómo te llamas para guardarte en mis contactos?";
+                    System.out.println("⚠️  WARNING: Generando mensaje personalizado con código de referido detectado por IA");
+                    return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + finalMessage, "WAITING_NAME");
+                } else {
+                    // Si no hay código de referido, usar el mensaje de extracción de la IA
+                    System.out.println("DEBUG handleNewUserIntro: Usando extracción inteligente - Parcial, sin política de privacidad");
+                    
+                    // Preparar múltiples mensajes para extracción parcial
+                    System.out.println("⚠️  WARNING: Generando mensaje de bienvenida en extracción inteligente parcial");
+                    return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + extractionResult.getMessage(), extractionResult.getNextState());
+                }
             }
         }
         
@@ -881,29 +915,72 @@ public class ChatbotService {
                 }
                 break;
             case "WAITING_NAME":
-                // En WAITING_NAME solo procesamos confirmación del nombre, NO aceptación de términos
-                System.out.println("DEBUG: Procesando confirmación de nombre en estado WAITING_NAME");
+                // En WAITING_NAME usamos IA para detectar si es confirmación o nuevo nombre
+                System.out.println("DEBUG: Procesando confirmación de nombre en estado WAITING_NAME con IA");
                 
-                // Verificar si es una confirmación del nombre (Sí, es correcto, etc.)
-                String lowerNameMessage = messageText.toLowerCase().trim();
-                System.out.println("DEBUG: Mensaje en minúsculas: '" + lowerNameMessage + "'");
-                
-                if (lowerNameMessage.equals("si") || lowerNameMessage.equals("sí") || 
-                    lowerNameMessage.equals("correcto") || lowerNameMessage.equals("es correcto") ||
-                    lowerNameMessage.contains("si es") || lowerNameMessage.contains("sí es")) {
+                try {
+                    // Usar IA para detectar si es confirmación o nuevo nombre
+                    UserDataExtractionResult extraction = geminiService.extractUserData(messageText, null, "WAITING_NAME");
                     
-                    // Usuario confirma el nombre existente
-                    System.out.println("DEBUG: Usuario confirmó el nombre existente: " + user.getName());
+                    if (extraction.isSuccessful() && extraction.getIsConfirmation() != null) {
+                        if (extraction.getIsConfirmation()) {
+                            // Usuario confirma el nombre existente
+                            System.out.println("DEBUG: IA detectó confirmación del nombre existente: " + user.getName());
+                            responseMessage = "¿Cuál es tu apellido?";
+                            nextChatbotState = "WAITING_LASTNAME";
+                        } else {
+                            // Usuario proporciona un nombre diferente
+                            String newName = extraction.getName() != null ? extraction.getName() : messageText.trim();
+                            user.setName(newName);
+                            System.out.println("DEBUG: IA detectó nuevo nombre: " + newName);
+                            responseMessage = "¿Cuál es tu apellido?";
+                            nextChatbotState = "WAITING_LASTNAME";
+                        }
+                    } else {
+                        // Fallback: usar lógica tradicional si la IA falla
+                        System.out.println("DEBUG: IA falló, usando lógica tradicional");
+                        String lowerNameMessage = messageText.toLowerCase().trim();
+                        
+                        if (lowerNameMessage.equals("si") || lowerNameMessage.equals("sí") || 
+                            lowerNameMessage.equals("correcto") || lowerNameMessage.equals("es correcto") ||
+                            lowerNameMessage.contains("si es") || lowerNameMessage.contains("sí es") ||
+                            lowerNameMessage.contains("si,") || lowerNameMessage.contains("sí,") ||
+                            lowerNameMessage.contains(", es correcto") || lowerNameMessage.contains(",es correcto")) {
+                            
+                            // Usuario confirma el nombre existente
+                            System.out.println("DEBUG: Usuario confirmó el nombre existente: " + user.getName());
+                            responseMessage = "¿Cuál es tu apellido?";
+                            nextChatbotState = "WAITING_LASTNAME";
+                        } else {
+                            // Usuario proporciona un nombre diferente
+                            user.setName(messageText.trim());
+                            System.out.println("DEBUG: Usuario proporcionó nuevo nombre: " + messageText.trim());
+                            responseMessage = "¿Cuál es tu apellido?";
+                            nextChatbotState = "WAITING_LASTNAME";
+                        }
+                    }
+                } catch (Exception e) {
+                    System.err.println("ERROR: Fallo en extracción IA para WAITING_NAME: " + e.getMessage());
+                    // Fallback: usar lógica tradicional
+                    String lowerNameMessage = messageText.toLowerCase().trim();
                     
-                    // Preguntar apellido
-                    responseMessage = "¿Cuál es tu apellido?";
-                    nextChatbotState = "WAITING_LASTNAME";
-                } else {
-                    // Usuario proporciona un nombre diferente
-                    user.setName(messageText.trim());
-                    System.out.println("DEBUG: Usuario proporcionó nuevo nombre: " + messageText.trim());
-                    responseMessage = "¿Cuál es tu apellido?";
-                    nextChatbotState = "WAITING_LASTNAME";
+                    if (lowerNameMessage.equals("si") || lowerNameMessage.equals("sí") || 
+                        lowerNameMessage.equals("correcto") || lowerNameMessage.equals("es correcto") ||
+                        lowerNameMessage.contains("si es") || lowerNameMessage.contains("sí es") ||
+                        lowerNameMessage.contains("si,") || lowerNameMessage.contains("sí,") ||
+                        lowerNameMessage.contains(", es correcto") || lowerNameMessage.contains(",es correcto")) {
+                        
+                        // Usuario confirma el nombre existente
+                        System.out.println("DEBUG: Usuario confirmó el nombre existente: " + user.getName());
+                        responseMessage = "¿Cuál es tu apellido?";
+                        nextChatbotState = "WAITING_LASTNAME";
+                    } else {
+                        // Usuario proporciona un nombre diferente
+                        user.setName(messageText.trim());
+                        System.out.println("DEBUG: Usuario proporcionó nuevo nombre: " + messageText.trim());
+                        responseMessage = "¿Cuál es tu apellido?";
+                        nextChatbotState = "WAITING_LASTNAME";
+                    }
                 }
                 break;
             case "WAITING_LASTNAME":
