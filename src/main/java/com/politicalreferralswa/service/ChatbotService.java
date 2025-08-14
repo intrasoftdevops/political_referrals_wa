@@ -934,8 +934,10 @@ public class ChatbotService {
                         fullName += " " + user.getLastname();
                     }
                     
-                    // Ir directamente a la política de privacidad sin confirmar datos
-                    responseMessage = "Perfecto " + fullName + ". Ahora necesito que aceptes nuestra política de privacidad para continuar. ¿Aceptas los términos y condiciones? (Sí/No)";
+                    // Enviar mensaje completo de la política de privacidad
+                    responseMessage = "Perfecto " + fullName + ". Ahora necesito que aceptes nuestra política de privacidad para continuar.\n\n" +
+                        "Respetamos la ley y cuidamos tu información, vamos a mantenerla de forma confidencial, esta es nuestra política de seguridad https://danielquintero.com/privacidad. Si continuas esta conversación estás de acuerdo con ella.\n\n" +
+                        "Acompáñame hacia una Colombia más justa, equitativa y próspera para todos. ¿Aceptas el reto de resetear la política? (Sí/No)";
                     nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
                 } else {
                     responseMessage = "Por favor, ingresa una ciudad válida.";
