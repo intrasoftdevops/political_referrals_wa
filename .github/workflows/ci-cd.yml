@@ -157,8 +157,7 @@ jobs:
           --memory 2Gi \
           --cpu 2 \
           --max-instances 10 \
-          --set-env-vars SPRING_PROFILES_ACTIVE=prod \
-          --set-env-vars PORT=8080
+          --set-env-vars SPRING_PROFILES_ACTIVE=prod
           
     - name: Get service URL
       run: |
