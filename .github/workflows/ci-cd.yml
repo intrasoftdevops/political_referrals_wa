@@ -116,6 +116,30 @@ jobs:
     - name: Set up Cloud SDK
       uses: google-github-actions/setup-gcloud@v2
       
+    - name: Read GCP Secrets
+      run: |
+        echo "Leyendo secretos de GCP Secret Manager..."
+        
+        # Leer secretos de GCP y exportarlos como variables de entorno
+        export WEBHOOK_VERIFY_TOKEN=$(gcloud secrets versions access latest --secret="webhook-verify-token" --project="${{ env.PROJECT_ID }}")
+        export TELEGRAM_BOT_TOKEN=$(gcloud secrets versions access latest --secret="telegram-bot-token" --project="${{ env.PROJECT_ID }}")
+        export TELEGRAM_BOT_USERNAME=$(gcloud secrets versions access latest --secret="telegram-bot-username" --project="${{ env.PROJECT_ID }}")
+        export WATI_API_TOKEN=$(gcloud secrets versions access latest --secret="wati-api-token" --project="${{ env.PROJECT_ID }}")
+        export WATI_TENANT_ID=$(gcloud secrets versions access latest --secret="wati-tenant-id" --project="${{ env.PROJECT_ID }}")
+        export GEMINI_API_KEY=$(gcloud secrets versions access latest --secret="gemini-api-key" --project="${{ env.PROJECT_ID }}")
+        export ANALYTICS_JWT_SECRET=$(gcloud secrets versions access latest --secret="analytics-jwt-secret" --project="${{ env.PROJECT_ID }}")
+        export WATI_API_ENDPOINT_BASE=$(gcloud secrets versions access latest --secret="wati-api-endpoint-base" --project="${{ env.PROJECT_ID }}")
+        export AI_BOT_ENDPOINT=$(gcloud secrets versions access latest --secret="ai-bot-endpoint" --project="${{ env.PROJECT_ID }}")
+        export GEMINI_API_URL=$(gcloud secrets versions access latest --secret="gemini-api-url" --project="${{ env.PROJECT_ID }}")
+        export CHATBOT_IA_URL=$(gcloud secrets versions access latest --secret="chatbot-ia-url" --project="${{ env.PROJECT_ID }}")
+        export ANALYTICS_ENDPOINT_URL=$(gcloud secrets versions access latest --secret="analytics-endpoint-url" --project="${{ env.PROJECT_ID }}")
+        export WELCOME_VIDEO_URL=$(gcloud secrets versions access latest --secret="welcome-video-url" --project="${{ env.PROJECT_ID }}")
+        export WATI_NOTIFICATION_ENABLED=$(gcloud secrets versions access latest --secret="wati-notification-enabled" --project="${{ env.PROJECT_ID }}")
+        export WATI_NOTIFICATION_GROUP_ID=$(gcloud secrets versions access latest --secret="wati-notification-group-id" --project="${{ env.PROJECT_ID }}")
+        export WATI_NOTIFICATION_PHONES=$(gcloud secrets versions access latest --secret="wati-notification-phones" --project="${{ env.PROJECT_ID }}")
+        
+        echo "Secretos leidos exitosamente desde GCP"
+        
     - name: Deploy to Cloud Run
       run: |
         gcloud run deploy ${{ env.SERVICE_NAME }} \
@@ -127,23 +151,23 @@ jobs:
           --memory 2Gi \
           --cpu 2 \
           --max-instances 10 \
-          --set-env-vars SPRING_PROFILES_ACTIVE=prod,SPRING_CLOUD_GCP_PROJECT_ID=${{ env.PROJECT_ID }} \
-          --set-env-vars WEBHOOK_VERIFY_TOKEN=${{ secrets.WEBHOOK_VERIFY_TOKEN }} \
-          --set-env-vars TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }} \
-          --set-env-vars TELEGRAM_BOT_USERNAME=${{ secrets.TELEGRAM_BOT_USERNAME }} \
-          --set-env-vars WATI_API_TOKEN=${{ secrets.WATI_API_TOKEN }} \
-          --set-env-vars WATI_TENANT_ID=${{ secrets.WATI_TENANT_ID }} \
-          --set-env-vars GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }} \
-          --set-env-vars ANALYTICS_JWT_SECRET=${{ secrets.ANALYTICS_JWT_SECRET }} \
-          --set-env-vars WATI_API_ENDPOINT_BASE=${{ secrets.WATI_API_ENDPOINT_BASE }} \
-          --set-env-vars AI_BOT_ENDPOINT=${{ secrets.AI_BOT_ENDPOINT }} \
-          --set-env-vars GEMINI_API_URL=${{ secrets.GEMINI_API_URL }} \
-          --set-env-vars CHATBOT_IA_URL=${{ secrets.CHATBOT_IA_URL }} \
-          --set-env-vars ANALYTICS_ENDPOINT_URL=${{ secrets.ANALYTICS_ENDPOINT_URL }} \
-          --set-env-vars WELCOME_VIDEO_URL=${{ secrets.WELCOME_VIDEO_URL }} \
-          --set-env-vars WATI_NOTIFICATION_ENABLED=${{ secrets.WATI_NOTIFICATION_ENABLED }} \
-          --set-env-vars WATI_NOTIFICATION_GROUP_ID=${{ secrets.WATI_NOTIFICATION_GROUP_ID }} \
-          --set-env-vars WATI_NOTIFICATION_PHONES=${{ secrets.WATI_NOTIFICATION_PHONES }}
+          --set-env-vars SPRING_PROFILES_ACTIVE=prod \
+          --set-env-vars WEBHOOK_VERIFY_TOKEN="$WEBHOOK_VERIFY_TOKEN" \
+          --set-env-vars TELEGRAM_BOT_TOKEN="$TELEGRAM_BOT_TOKEN" \
+          --set-env-vars TELEGRAM_BOT_USERNAME="$TELEGRAM_BOT_USERNAME" \
+          --set-env-vars WATI_API_TOKEN="$WATI_API_TOKEN" \
+          --set-env-vars WATI_TENANT_ID="$WATI_TENANT_ID" \
+          --set-env-vars GEMINI_API_KEY="$GEMINI_API_KEY" \
+          --set-env-vars ANALYTICS_JWT_SECRET="$ANALYTICS_JWT_SECRET" \
+          --set-env-vars WATI_API_ENDPOINT_BASE="$WATI_API_ENDPOINT_BASE" \
+          --set-env-vars AI_BOT_ENDPOINT="$AI_BOT_ENDPOINT" \
+          --set-env-vars GEMINI_API_URL="$GEMINI_API_URL" \
+          --set-env-vars CHATBOT_IA_URL="$CHATBOT_IA_URL" \
+          --set-env-vars ANALYTICS_ENDPOINT_URL="$ANALYTICS_ENDPOINT_URL" \
+          --set-env-vars WELCOME_VIDEO_URL="$WELCOME_VIDEO_URL" \
+          --set-env-vars WATI_NOTIFICATION_ENABLED="$WATI_NOTIFICATION_ENABLED" \
+          --set-env-vars WATI_NOTIFICATION_GROUP_ID="$WATI_NOTIFICATION_GROUP_ID" \
+          --set-env-vars WATI_NOTIFICATION_PHONES="$WATI_NOTIFICATION_PHONES"
           
     - name: Get service URL
       run: |
