@@ -3,9 +3,16 @@
 # ================================================
 # 
 # Este archivo es un template. Para usar:
-# 1. LOCAL: Copiar a application-local.properties y ajustar valores
-# 2. PRODUCCIÓN: Usar application-prod.properties con variables de entorno
-# 3. CLOUD RUN: Las variables se configuran automáticamente
+# 1. BASE: Crear application.properties con spring.profiles.active=prod
+# 2. LOCAL: Copiar a application-local.properties y ajustar valores
+# 3. PRODUCCIÓN: Usar application-prod.properties con variables de entorno
+# 4. CLOUD RUN: Las variables se configuran automáticamente
+
+# ================================================
+# CONFIGURACIÓN BASE REQUERIDA
+# ================================================
+# IMPORTANTE: Debes crear un archivo application.properties con:
+# spring.profiles.active=prod
 
 spring.application.name=political_referrals_wa
 
@@ -134,3 +141,25 @@ logging.level.org.springframework.boot=INFO
 #    gcloud secrets list
 #
 # 4. Para producción, usar application-prod.properties con variables de entorno
+
+# ================================================
+# INSTRUCCIONES DE CONFIGURACIÓN
+# ================================================
+# 
+# PASO 1: Crear archivo base (REQUERIDO)
+# Crear src/main/resources/application.properties con:
+# spring.profiles.active=prod
+#
+# PASO 2: Configurar perfil local (OPCIONAL)
+# Copiar este archivo a application-local.properties
+# Reemplazar valores con credenciales reales
+#
+# PASO 3: Configurar perfil producción (OPCIONAL)
+# Usar application-prod.properties con variables de entorno
+# Las credenciales se configuran via GCP Secret Manager
+#
+# PASO 4: Ejecutar aplicación
+# mvn clean install -DskipTests
+# java -jar target/political_referrals_wa-0.0.1-SNAPSHOT.jar
+#
+# NOTA: El perfil 'prod' se activa automáticamente desde application.properties

@@ -98,63 +98,157 @@ mvn spring-boot:run -Dspring.profiles.active=local
 
 #### **Para Producción (Cloud Run):**
 ```bash
-# El perfil 'prod' se configura automáticamente
-# Las credenciales se configuran via variables de entorno en Cloud Run
+# El perfil prod se activa automáticamente
+mvn spring-boot:run
+
+# O explícitamente
+mvn spring-boot:run -Dspring.profiles.active=prod
 ```
 
-### 3. Configurar Variables de Entorno
-Ver `docs/CONFIGURATION_GUIDE.md` para la lista completa de variables requeridas.
+#### **Configuración de Perfiles:**
+- **`local`**: Desarrollo local con credenciales hardcodeadas
+- **`prod`**: Producción con variables de entorno (por defecto)
+- **Perfil dinámico**: Se puede cambiar con `-Dspring.profiles.active=<perfil>`
+
+### 3. Variables de Entorno (Opcional)
+```bash
+# Configurar perfil específico
+export SPRING_PROFILES_ACTIVE=local
+
+# Ejecutar (usará el perfil configurado)
+mvn spring-boot:run
+```
+
+### 4. Credenciales de Firebase
+El perfil `prod` incluye automáticamente las credenciales de Firebase desde:
+- **Local**: `src/main/resources/political-referrals-wa-key.json`
+- **Cloud Run**: Service account configurado en el entorno
 
 ## 📚 Documentación
 
-Toda la documentación detallada se encuentra en la carpeta `docs/`:
+### **Archivos Principales**
+- **`README.md`**: Esta guía completa (incluye configuración, despliegue y troubleshooting)
+- **`docs/MAIN_GUIDE.md`**: Guía principal del proyecto con detalles técnicos
+- **`docs/PROJECT_STATUS.md`**: Estado actual del proyecto y roadmap
 
-- **`docs/MAIN_GUIDE.md`** - 🚀 Guía completa unificada (configuración, despliegue, seguridad)
-- **`docs/PROJECT_STATUS.md`** - 📊 Estado del proyecto, funcionalidades y roadmap
+### **Configuración**
+- **`src/main/resources/application-local.properties`**: Perfil de desarrollo local
+- **`src/main/resources/application-prod.properties`**: Perfil de producción (por defecto)
+- **`src/main/resources/application.properties.example`**: Template con comandos para crear secrets
+
+### **Despliegue**
+- **`.github/workflows/ci-cd.yml`**: Pipeline de CI/CD automático
+- **`deploy/cloud-run.yaml`**: Configuración de Cloud Run
+- **`Dockerfile`**: Imagen Docker optimizada para Cloud Run
 
 ## 🚀 Despliegue
 
-### **Desarrollo Local**
+### **Despliegue Automático (Recomendado)**
+El proyecto incluye **CI/CD automático** con GitHub Actions:
+
+1. **Push a `main`** → Despliegue automático a Cloud Run
+2. **Configuración automática** de variables de entorno
+3. **Health checks** configurados automáticamente
+4. **Rollback automático** si falla el despliegue
+
+### **Configuración de Secrets en GitHub**
 ```bash
-# Usar perfil local
-mvn spring-boot:run -Dspring.profiles.active=local
+# Los secrets se configuran automáticamente desde application.properties.example
+# No se requieren scripts adicionales
 ```
 
-### **Cloud Run (Automático)**
-- El CI/CD de GitHub Actions se encarga del despliegue automático
-- Usa el perfil `prod` por defecto
-- Las credenciales se configuran via secretos de GCP
+### **Despliegue Manual (Opcional)**
+```bash
+# Build de la imagen
+mvn clean package
 
-#### **Archivos de Configuración de Despliegue:**
-- **`deploy/cloud-run.yaml`** - Configuración de Cloud Run
-- **`src/main/resources/application.properties.example`** - Template con comandos de GCP para crear secretos
+# Despliegue a Cloud Run
+gcloud run deploy political-referrals-wa \
+  --image gcr.io/PROJECT_ID/political-referrals-wa \
+  --platform managed \
+  --region us-central1 \
+  --allow-unauthenticated
+```
 
 ## 🔒 Seguridad
 
-- ✅ **Perfiles separados** para desarrollo y producción
-- ✅ **Credenciales nunca** en el repositorio
-- ✅ **Variables de entorno** para producción
-- ✅ **Secretos de GCP** para credenciales sensibles
+### **Credenciales y Secrets**
+- ✅ **Nunca committear** archivos con credenciales reales
+- ✅ **Usar variables de entorno** en Cloud Run
+- ✅ **Archivos de ejemplo** con placeholders seguros
+- ✅ **Service accounts** de GCP para producción
+
+### **Archivos Sensibles (.gitignore)**
+```
+# Credenciales
+src/main/resources/political-referrals-wa-key.json
+application-local.properties
+application-prod.properties
+
+# Service accounts
+political-referrals-wa-sa*.json
+```
+
+## 🚨 Troubleshooting
+
+### **Problemas Comunes**
+
+#### **1. Perfil no se activa**
+```bash
+# Verificar perfil activo
+mvn spring-boot:run -Dspring.profiles.active=prod
+
+# O configurar variable de entorno
+export SPRING_PROFILES_ACTIVE=prod
+mvn spring-boot:run
+```
+
+#### **2. Error de credenciales de Firebase**
+```bash
+# Verificar que el archivo existe
+ls -la src/main/resources/political-referrals-wa-key.json
+
+# O usar perfil local que no requiere Firebase
+mvn spring-boot:run -Dspring.profiles.active=local
+```
+
+#### **3. Puerto ocupado**
+```bash
+# Cambiar puerto en application.properties
+server.port=8081
+
+# O usar variable de entorno
+export SERVER_PORT=8081
+mvn spring-boot:run
+```
+
+### **Logs y Debugging**
+```bash
+# Habilitar debug
+export LOGGING_LEVEL_COM_POLITICALREFERRALSWA=DEBUG
+mvn spring-boot:run
+
+# Ver logs detallados
+mvn spring-boot:run -Dspring-boot.run.arguments="--logging.level.root=DEBUG"
+```
 
 ## 📁 Estructura del Proyecto
 
 ```
 political_referrals_wa/
 ├── src/main/resources/
-│   ├── application.properties.example    # Template base
+│   ├── application.properties.example    # Template base con comandos GCP
 │   ├── application-local.properties      # Desarrollo local (NO en repo)
-│   └── application-prod.properties      # Producción (NO en repo)
+│   └── application-prod.properties      # Producción (por defecto)
 ├── docs/                                # 📚 Documentación completa
-│   ├── CONFIGURATION_GUIDE.md           # Guía de configuración
-│   ├── DEPLOYMENT_GUIDE.md              # Guía de despliegue
-│   ├── SECURITY_SETUP.md                # Configuración de seguridad
-│   ├── GITHUB_SECRETS_SETUP.md          # Secretos de GitHub
-│   └── planning.md                      # Planificación del proyecto
+│   ├── MAIN_GUIDE.md                    # Guía principal unificada
+│   └── PROJECT_STATUS.md                # Estado del proyecto
 ├── deploy/                              # ⚙️ Archivos de despliegue
-│   ├── cloud-run.yaml                   # Configuración de Cloud Run
-│   └── secrets-example.yaml             # Ejemplo de secretos
+│   └── cloud-run.yaml                   # Configuración de Cloud Run
 ├── .github/workflows/                   # CI/CD automático
-└── README.md                            # Este archivo
+│   └── ci-cd.yml                       # Pipeline de despliegue
+├── pom.xml                             # Configuración Maven con perfil dinámico
+└── README.md                           # Esta guía completa
 ```
 
 ## 🤝 Contribución
