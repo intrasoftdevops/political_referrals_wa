@@ -157,7 +157,7 @@ jobs:
           --memory 2Gi \
           --cpu 2 \
           --max-instances 10 \
-          --set-env-vars PORT=8080,SPRING_PROFILES_ACTIVE=prod \
+          --set-env-vars SPRING_PROFILES_ACTIVE=prod \
           --timeout 300 \
           --concurrency 80
           

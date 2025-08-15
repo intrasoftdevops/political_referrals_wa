@@ -109,11 +109,8 @@ Ver `docs/CONFIGURATION_GUIDE.md` para la lista completa de variables requeridas
 
 Toda la documentación detallada se encuentra en la carpeta `docs/`:
 
-- **`docs/CONFIGURATION_GUIDE.md`** - Guía completa de configuración y perfiles
-- **`docs/DEPLOYMENT_GUIDE.md`** - Guía de despliegue a Cloud Run
-- **`docs/SECURITY_SETUP.md`** - Configuración de seguridad
-- **`docs/GITHUB_SECRETS_SETUP.md`** - Configuración de secretos de GitHub
-- **`docs/planning.md`** - Planificación del proyecto
+- **`docs/MAIN_GUIDE.md`** - 🚀 Guía completa unificada (configuración, despliegue, seguridad)
+- **`docs/PROJECT_STATUS.md`** - 📊 Estado del proyecto, funcionalidades y roadmap
 
 ## 🚀 Despliegue
 
