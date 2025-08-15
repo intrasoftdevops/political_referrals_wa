@@ -148,11 +148,18 @@ jobs:
       
     - name: Deploy to Cloud Run
       run: |
-        # Actualizar la imagen en el YAML
-        sed -i "s|gcr.io/PROJECT_ID/political-referrals-wa:latest|gcr.io/${{ env.PROJECT_ID }}/${{ env.IMAGE_NAME }}:${{ github.sha }}|g" deploy/cloud-run.yaml
-        
-        # Deploy usando el YAML
-        gcloud run services replace deploy/cloud-run.yaml --region=${{ env.REGION }}
+        # Deploy directo sin usar YAML para evitar conflictos de políticas
+        gcloud run deploy ${{ env.SERVICE_NAME }} \
+          --image gcr.io/${{ env.PROJECT_ID }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+          --region ${{ env.REGION }} \
+          --platform managed \
+          --allow-unauthenticated \
+          --memory 2Gi \
+          --cpu 2 \
+          --max-instances 10 \
+          --set-env-vars SPRING_PROFILES_ACTIVE=prod \
+          --timeout 300 \
+          --concurrency 80
           
     - name: Get service URL
       run: |
