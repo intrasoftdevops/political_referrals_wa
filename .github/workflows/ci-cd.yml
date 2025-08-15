@@ -214,29 +214,29 @@ jobs:
                   value: "prod"
                 - name: SPRING_CLOUD_GCP_PROJECT_ID
                   value: "${{ env.PROJECT_ID }}"
-        EOF
+EOF
         
         # Agregar variables desde GCP Secret Manager
         echo "📝 Agregando variables desde GCP Secret Manager..."
         
-        # Leer secretos de GCP y agregar al YAML
+        # Leer secretos de GCP y agregar directamente al YAML
         secrets=(
-          "webhook-verify-token:webhook.verify-token"
-          "telegram-bot-token:telegram.bot.token"
-          "telegram-bot-username:telegram.bot.username"
-          "wati-api-token:wati.api.token"
-          "wati-tenant-id:wati.api.tenant-id"
-          "gemini-api-key:gemini.api.key"
-          "analytics-jwt-secret:analytics.jwt.secret"
-          "wati-api-endpoint-base:wati.api.endpoint.base"
-          "ai-bot-endpoint:ai.bot.endpoint"
-          "gemini-api-url:gemini.api.url"
-          "chatbot-ia-url:chatbot.ia.url"
-          "analytics-endpoint-url:analytics.endpoint.url"
-          "welcome-video-url:welcome.video.url"
-          "wati-notification-enabled:wati.notification.enabled"
-          "wati-notification-group-id:wati.notification.group.id"
-          "wati-notification-phones:wati.notification.phones"
+          "webhook-verify-token:WEBHOOK_VERIFY_TOKEN"
+          "telegram-bot-token:TELEGRAM_BOT_TOKEN"
+          "telegram-bot-username:TELEGRAM_BOT_USERNAME"
+          "wati-api-token:WATI_API_TOKEN"
+          "wati-tenant-id:WATI_TENANT_ID"
+          "gemini-api-key:GEMINI_API_KEY"
+          "analytics-jwt-secret:ANALYTICS_JWT_SECRET"
+          "wati-api-endpoint-base:WATI_API_ENDPOINT_BASE"
+          "ai-bot-endpoint:AI_BOT_ENDPOINT"
+          "gemini-api-url:GEMINI_API_URL"
+          "chatbot-ia-url:CHATBOT_IA_URL"
+          "analytics-endpoint-url:ANALYTICS_ENDPOINT_URL"
+          "welcome-video-url:WELCOME_VIDEO_URL"
+          "wati-notification-enabled:WATI_NOTIFICATION_ENABLED"
+          "wati-notification-group-id:WATI_NOTIFICATION_GROUP_ID"
+          "wati-notification-phones:WATI_NOTIFICATION_PHONES"
         )
         
         for secret_pair in "${secrets[@]}"; do
