@@ -13,6 +13,7 @@ spring.application.name=political_referrals_wa
 server.port=${PORT:8080}
 
 # Google Cloud Project ID
+# Para crear en GCP: gcloud secrets create gcp-project-id --data-file=<(echo -n "tu-project-id")
 spring.cloud.gcp.project-id=${SPRING_CLOUD_GCP_PROJECT_ID:your-project-id}
 
 # Configuración de Actuator para Health Checks
@@ -42,23 +43,29 @@ springdoc.swagger-ui.filter=true
 # ================================================
 
 # Webhook verification token
+# Para crear en GCP: gcloud secrets create webhook-verify-token --data-file=<(echo -n "tu-webhook-token")
 webhook.verify-token=${WEBHOOK_VERIFY_TOKEN:your-webhook-token}
 
 # Telegram Bot Configuration
+# Para crear en GCP: gcloud secrets create telegram-bot-token --data-file=<(echo -n "tu-telegram-token")
 telegram.bot.token=${TELEGRAM_BOT_TOKEN:your-telegram-token}
+# Para crear en GCP: gcloud secrets create telegram-bot-username --data-file=<(echo -n "tu-telegram-username")
 telegram.bot.username=${TELEGRAM_BOT_USERNAME:your-telegram-username}
 
 # Wati API Configuration
 wati.api.endpoint.base=https://live-mt-server.wati.io:443
+# Para crear en GCP: gcloud secrets create wati-tenant-id --data-file=<(echo -n "tu-tenant-id")
 wati.api.tenant-id=${WATI_TENANT_ID:your-tenant-id}
+# Para crear en GCP: gcloud secrets create wati-api-token --data-file=<(echo -n "tu-wati-token")
 wati.api.token=${WATI_API_TOKEN:your-wati-token}
 
 # Gemini AI Configuration
+# Para crear en GCP: gcloud secrets create gemini-api-key --data-file=<(echo -n "tu-gemini-key")
 gemini.api.key=${GEMINI_API_KEY:your-gemini-key}
 gemini.api.url=https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent
 
 # Analytics Configuration
-analytics.endpoint.url=${ANALYTICS_ENDPOINT_URL:your-analytics-url}
+# Para crear en GCP: gcloud secrets create analytics-jwt-secret --data-file=<(echo -n "tu-jwt-secret")
 analytics.jwt.secret=${ANALYTICS_JWT_SECRET:your-jwt-secret}
 analytics.jwt.expiration.minutes=60
 
@@ -83,9 +90,11 @@ welcome.video.url=${WELCOME_VIDEO_URL:your-video-url}
 wati.notification.enabled=${WATI_NOTIFICATION_ENABLED:true}
 
 # ID del grupo de WhatsApp (prioridad alta)
+# Para crear en GCP: gcloud secrets create wati-notification-group-id --data-file=<(echo -n "tu-whatsapp-group-id")
 wati.notification.group.id=${WATI_NOTIFICATION_GROUP_ID:}
 
 # Números de teléfono para notificaciones (fallback)
+# Para crear en GCP: gcloud secrets create wati-notification-phones --data-file=<(echo -n "tu-whatsapp-phones")
 wati.notification.phones=${WATI_NOTIFICATION_PHONES:your-phone-numbers}
 
 # ================================================
@@ -99,3 +108,29 @@ java.net.preferIPv4Stack=true
 logging.level.com.politicalreferralswa=INFO
 logging.level.org.springframework.web=INFO
 logging.level.org.springframework.boot=INFO
+
+# ================================================
+# COMANDOS PARA CREAR SECRETOS EN GCP
+# ================================================
+# 
+# Ejecutar estos comandos en Google Cloud Shell o local con gcloud CLI:
+#
+# 1. Configurar proyecto:
+#    gcloud config set project TU_PROJECT_ID
+#
+# 2. Crear secretos:
+#    gcloud secrets create gcp-project-id --data-file=<(echo -n "tu-project-id")
+#    gcloud secrets create webhook-verify-token --data-file=<(echo -n "tu-webhook-token")
+#    gcloud secrets create telegram-bot-token --data-file=<(echo -n "tu-telegram-token")
+#    gcloud secrets create telegram-bot-username --data-file=<(echo -n "tu-telegram-username")
+#    gcloud secrets create wati-tenant-id --data-file=<(echo -n "tu-tenant-id")
+#    gcloud secrets create wati-api-token --data-file=<(echo -n "tu-wati-token")
+#    gcloud secrets create gemini-api-key --data-file=<(echo -n "tu-gemini-key")
+#    gcloud secrets create analytics-jwt-secret --data-file=<(echo -n "tu-jwt-secret")
+#    gcloud secrets create wati-notification-group-id --data-file=<(echo -n "tu-whatsapp-group-id")
+#    gcloud secrets create wati-notification-phones --data-file=<(echo -n "tu-whatsapp-phones")
+#
+# 3. Verificar secretos creados:
+#    gcloud secrets list
+#
+# 4. Para producción, usar application-prod.properties con variables de entorno

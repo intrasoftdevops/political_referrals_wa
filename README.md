@@ -127,7 +127,7 @@ mvn spring-boot:run -Dspring.profiles.active=local
 
 #### **Archivos de Configuración de Despliegue:**
 - **`deploy/cloud-run.yaml`** - Configuración de Cloud Run
-- **`deploy/secrets-example.yaml`** - Ejemplo de configuración de secretos
+- **`src/main/resources/application.properties.example`** - Template con comandos de GCP para crear secretos
 
 ## 🔒 Seguridad
 
