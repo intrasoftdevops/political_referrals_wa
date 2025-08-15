@@ -12,8 +12,13 @@
 - **Credenciales**: Credenciales reales hardcodeadas
 - **Repositorio**: ❌ NO se sube (excluido en .gitignore)
 
-### **3. `application.properties.example` - EJEMPLO**
-- **Uso**: Documentación de configuración
+### **3. `application.properties.example` - EJEMPLO PRODUCCIÓN**
+- **Uso**: Documentación de configuración de producción
+- **Credenciales**: Placeholders sin valores reales
+- **Repositorio**: ✅ SÍ se sube
+
+### **4. `application-local.properties.example` - EJEMPLO DESARROLLO LOCAL**
+- **Uso**: Documentación de configuración para desarrollo local
 - **Credenciales**: Placeholders sin valores reales
 - **Repositorio**: ✅ SÍ se sube
 
@@ -21,10 +26,16 @@
 
 ### **Para Desarrollo Local:**
 ```bash
-# Copiar archivo local
+# 1. Copiar archivo de ejemplo local
+cp src/main/resources/application-local.properties.example src/main/resources/application-local.properties
+
+# 2. Editar con tus credenciales reales
+# (editar application-local.properties)
+
+# 3. Copiar para desarrollo
 cp src/main/resources/application-local.properties src/main/resources/application.properties
 
-# Ejecutar aplicación
+# 4. Ejecutar aplicación
 mvn spring-boot:run
 ```
 

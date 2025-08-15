@@ -1,0 +1,83 @@
+# ================================================
+# CONFIGURACIÓN PARA DESARROLLO LOCAL
+# ================================================
+# 
+# INSTRUCCIONES:
+# 1. Copia este archivo: cp application-local.properties.example application-local.properties
+# 2. Edita application-local.properties con tus credenciales reales
+# 3. Para desarrollo: cp application-local.properties application.properties
+# 4. Para producción: NO usar este archivo (usa variables de entorno)
+# ================================================
+
+spring.application.name=political_referrals_wa
+server.port=8081
+
+# Google Cloud Configuration
+spring.cloud.gcp.project-id=your-project-id-here
+# spring.cloud.gcp.credentials.location=classpath:political-referrals-wa-key.json
+
+# Webhook verification token
+webhook.verify-token=your_webhook_verify_token_here
+
+# Telegram Bot Configuration
+telegram.bot.token=your_telegram_bot_token_here
+telegram.bot.username=your_telegram_bot_username_here
+
+# Wati API Configuration
+wati.api.endpoint.base=https://live-mt-server.wati.io:443
+wati.api.tenant-id=your_tenant_id_here
+wati.api.token=your_wati_api_token_here
+
+# IPv4 Stack Configuration
+java.net.preferIPv4Stack=true
+
+# AI Bot Configuration
+ai.bot.endpoint=http://localhost:8000
+
+# Gemini AI Configuration
+gemini.api.key=your_gemini_api_key_here
+gemini.api.url=https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent
+
+# Chatbot IA Configuration (for tribal analysis)
+chatbot.ia.url=http://localhost:8000
+
+# Analytics Configuration
+analytics.endpoint.url=http://localhost:8001
+analytics.jwt.secret=your_jwt_secret_here
+analytics.jwt.expiration.minutes=60
+
+# Swagger/OpenAPI Configuration
+springdoc.api-docs.path=/api-docs
+springdoc.swagger-ui.path=/swagger-ui.html
+springdoc.swagger-ui.operationsSorter=method
+springdoc.swagger-ui.tagsSorter=alpha
+springdoc.swagger-ui.doc-expansion=list
+springdoc.swagger-ui.try-it-out-enabled=true
+springdoc.swagger-ui.filter=true
+
+# Welcome Video Configuration
+welcome.video.url=https://storage.googleapis.com/your-bucket/your-welcome-video.mp4
+
+# ================================================
+# Configuración de Notificaciones WhatsApp
+# ================================================
+
+# Habilitar/deshabilitar notificaciones
+wati.notification.enabled=true
+
+# ID del grupo de WhatsApp (prioridad alta)
+# Formato: número de teléfono del grupo (ej: 573001234567)
+wati.notification.group.id=your_group_id_here
+
+# Números de teléfono para notificaciones (fallback si no hay grupo)
+# Formato: números separados por coma (ej: 573001234567,573007654321)
+wati.notification.phones=your_phone_number_here
+
+# ================================================
+# NOTAS IMPORTANTES:
+# ================================================
+# 
+# - NUNCA subir application-local.properties al repositorio
+# - Este archivo es solo para documentar la configuración local
+# - Para producción, usar variables de entorno en Cloud Run
+# - Mantener credenciales reales solo en tu máquina local
