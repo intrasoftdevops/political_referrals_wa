@@ -11,7 +11,7 @@ COPY target/political_referrals_wa-0.0.1-SNAPSHOT.jar app.jar
 EXPOSE 8080
 
 # Configura las variables de entorno para producción
-ENV SPRING_PROFILES_ACTIVE=prod
+# No necesitamos SPRING_PROFILES_ACTIVE porque usamos application.properties por defecto
 
 # Comando para ejecutar la aplicación con puerto explícito
 ENTRYPOINT ["java", "-Dserver.port=${PORT:-8080}", "-jar", "app.jar"] 

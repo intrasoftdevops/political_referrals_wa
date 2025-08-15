@@ -54,14 +54,11 @@ build/
 .vscode/
 
 # Archivos de configuración con credenciales reales (NO subir al repo)
-src/main/resources/application.properties
-src/main/resources/application-notifications.properties
-src/main/resources/application-prod.properties
+src/main/resources/application-local.properties
+src/main/resources/political-referrals-wa-key.json
 
 # Solo subir archivos de ejemplo
 # src/main/resources/application.properties.example
-# src/main/resources/application-notifications.properties.example
-# src/main/resources/application-prod.properties.example
 political-referrals-wa-key.json
 HELP.md
 

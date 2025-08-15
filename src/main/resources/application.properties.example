@@ -50,3 +50,18 @@ springdoc.swagger-ui.filter=true
 
 # Welcome Video Configuration
 welcome.video.url=https://storage.googleapis.com/your-bucket/your-welcome-video.mp4
+
+# ================================================
+# Configuración de Notificaciones WhatsApp
+# ================================================
+
+# Habilitar/deshabilitar notificaciones
+wati.notification.enabled=true
+
+# ID del grupo de WhatsApp (prioridad alta)
+# Formato: número de teléfono del grupo (ej: 573001234567)
+wati.notification.group.id=
+
+# Números de teléfono para notificaciones (fallback si no hay grupo)
+# Formato: números separados por coma (ej: 573001234567,573007654321)
+wati.notification.phones=573227281752
