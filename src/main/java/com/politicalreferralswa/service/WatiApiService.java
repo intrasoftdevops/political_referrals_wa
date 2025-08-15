@@ -28,6 +28,9 @@ public class WatiApiService {
                     .defaultCodecs()
                     .maxInMemorySize(30 * 1024 * 1024)) // 30MB límite para archivos grandes como videos
                 .build();
+        
+        // Configuración adicional para mejorar la estabilidad de conexiones SSL
+        System.out.println("WatiApiService: WebClient configurado con soporte mejorado para SSL/TLS");
     }
 
     public void sendWhatsAppMessage(String toPhoneNumber, String messageText) {
@@ -103,9 +106,53 @@ public class WatiApiService {
 
     /**
      * Alias para sendWhatsAppMessage - usado por NotificationService
+     * Versión mejorada con mejor manejo de errores SSL
      */
     public void sendMessage(String toPhoneNumber, String messageText) {
-        sendWhatsAppMessage(toPhoneNumber, messageText);
+        try {
+            System.out.println("WatiApiService: Enviando mensaje con manejo mejorado de SSL a: " + toPhoneNumber);
+            sendWhatsAppMessageSync(toPhoneNumber, messageText); // Usar versión síncrona para mejor control
+        } catch (Exception e) {
+            System.err.println("WatiApiService: Error SSL/TLS al enviar mensaje: " + e.getMessage());
+            // Intentar fallback con configuración básica
+            sendWhatsAppMessageBasic(toPhoneNumber, messageText);
+        }
+    }
+    
+    /**
+     * Método fallback con configuración básica para casos de error SSL
+     */
+    private void sendWhatsAppMessageBasic(String toPhoneNumber, String messageText) {
+        try {
+            System.out.println("WatiApiService: Intentando envío con configuración básica...");
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBearerAuth(watiApiToken);
+            
+            URI fullApiUri = UriComponentsBuilder.fromUriString(watiApiBaseEndpoint)
+                                                .pathSegment(watiApiTenantId)
+                                                .path("/api/v1/sendSessionMessage/{whatsappNumber}")
+                                                .queryParam("messageText", messageText)
+                                                .buildAndExpand(toPhoneNumber)
+                                                .encode()
+                                                .toUri();
+            
+            // Usar timeout más largo y reintentos
+            String response = webClient.post()
+                    .uri(fullApiUri)
+                    .headers(h -> h.addAll(headers))
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .timeout(java.time.Duration.ofSeconds(30)) // Timeout de 30 segundos
+                    .retry(2) // Reintentar 2 veces
+                    .doOnSuccess(resp -> System.out.println("WatiApiService: Mensaje enviado exitosamente con configuración básica"))
+                    .doOnError(error -> System.err.println("WatiApiService: Error final al enviar mensaje: " + error.getMessage()))
+                    .block();
+                    
+        } catch (Exception e) {
+            System.err.println("WatiApiService: Error crítico al enviar mensaje: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
     
     /**

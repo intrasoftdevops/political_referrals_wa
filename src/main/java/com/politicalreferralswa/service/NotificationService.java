@@ -181,8 +181,20 @@ public class NotificationService {
             
             // Prioridad 2: Enviar a teléfono específico
             if (targetPhone != null && !targetPhone.isEmpty()) {
-                watiApiService.sendMessage(targetPhone, message);
-                logger.info("WhatsApp notification sent to phone: {}", targetPhone);
+                logger.info("Attempting to send WhatsApp notification to phone: {}", targetPhone);
+                
+                // Intentar envío con manejo de errores SSL
+                try {
+                    watiApiService.sendMessage(targetPhone, message);
+                    logger.info("WhatsApp notification sent successfully to phone: {}", targetPhone);
+                } catch (Exception sslError) {
+                    logger.warn("SSL error occurred, attempting retry: {}", sslError.getMessage());
+                    
+                    // Esperar un poco y reintentar
+                    Thread.sleep(2000);
+                    watiApiService.sendMessage(targetPhone, message);
+                    logger.info("WhatsApp notification sent successfully on retry to phone: {}", targetPhone);
+                }
                 return;
             }
             
@@ -190,6 +202,11 @@ public class NotificationService {
             
         } catch (Exception e) {
             logger.error("Failed to send target WhatsApp notification: {}", e.getMessage(), e);
+            
+            // Log adicional para debugging SSL
+            if (e.getCause() != null && e.getCause().getMessage() != null) {
+                logger.error("Root cause: {}", e.getCause().getMessage());
+            }
         }
     }
 } 
