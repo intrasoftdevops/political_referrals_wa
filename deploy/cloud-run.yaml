@@ -114,8 +114,3 @@ spec:
             secretKeyRef:
               name: welcome-video-url
               key: latest
-      scaling:
-        minScale: 0
-        maxScale: 10
-        targetCPUUtilization: 70
-        targetMemoryUtilization: 80
