@@ -41,8 +41,8 @@ pids
 
 # Spring Boot
 application-local.properties
-application-prod.properties
-application.properties
+# application-prod.properties
+# application.properties
 
 # Credentials
 *.key
@@ -51,6 +51,7 @@ application.properties
 *.jks
 gha-creds-*.json
 political-referrals-wa-sa*.json
+# political-referrals-wa-key.json
 
 # Docker
 .dockerignore

@@ -10,16 +10,15 @@ spec:
     metadata:
       annotations:
         run.googleapis.com/execution-environment: gen2
-        run.googleapis.com/cpu-throttling: "false"
-        run.googleapis.com/startup-cpu-boost: "true"
+        run.googleapis.com/cpu-throttling: false
+        run.googleapis.com/startup-cpu-boost: true
     spec:
       containerConcurrency: 80
       timeoutSeconds: 300
       containers:
       - image: gcr.io/PROJECT_ID/political-referrals-wa:latest
         ports:
-        - name: http1
-          containerPort: 8080
+        - containerPort: 8080
         resources:
           limits:
             cpu: "2"
@@ -30,7 +29,7 @@ spec:
         - name: SPRING_PROFILES_ACTIVE
           value: "prod"
         - name: SPRING_CLOUD_GCP_PROJECT_ID
-          value: "intreasoft-daniel"
+          value: "YOUR_PROJECT_ID"
         - name: WEBHOOK_VERIFY_TOKEN
           valueFrom:
             secretKeyRef:
@@ -42,9 +41,15 @@ spec:
               name: telegram-bot-token
               key: latest
         - name: TELEGRAM_BOT_USERNAME
-          value: "ResetPoliticaBot"
+          valueFrom:
+            secretKeyRef:
+              name: telegram-bot-username
+              key: latest
         - name: WATI_TENANT_ID
-          value: "473173"
+          valueFrom:
+            secretKeyRef:
+              name: wati-tenant-id
+              key: latest
         - name: WATI_API_TOKEN
           valueFrom:
             secretKeyRef:
@@ -63,35 +68,36 @@ spec:
         - name: WATI_NOTIFICATION_ENABLED
           value: "true"
         - name: WATI_NOTIFICATION_GROUP_ID
-          value: ""
+          valueFrom:
+            secretKeyRef:
+              name: wati-notification-group-id
+              key: latest
         - name: WATI_NOTIFICATION_PHONES
-          value: "573227281752"
+          valueFrom:
+            secretKeyRef:
+              name: wati-notification-phones
+              key: latest
         livenessProbe:
           httpGet:
             path: /actuator/health
             port: 8080
-          initialDelaySeconds: 120
-          periodSeconds: 30
-          timeoutSeconds: 15
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
           failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /actuator/health
             port: 8080
-          initialDelaySeconds: 90
-          periodSeconds: 20
-          timeoutSeconds: 10
+          initialDelaySeconds: 20
+          periodSeconds: 5
+          timeoutSeconds: 3
           failureThreshold: 3
         startupProbe:
           httpGet:
             path: /actuator/health
             port: 8080
-          initialDelaySeconds: 60
-          periodSeconds: 15
-          timeoutSeconds: 10
-          failureThreshold: 8
-      scaling:
-        minScale: 0
-        maxScale: 10
-        targetCPUUtilization: 70
-        targetMemoryUtilization: 80 
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 30
