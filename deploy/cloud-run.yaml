@@ -32,7 +32,7 @@ spec:
         - name: SPRING_CLOUD_GCP_PROJECT_ID
           valueFrom:
             secretKeyRef:
-              name: gcp-project-id
+              name: SPRING_CLOUD_GCP_PROJECT_ID
               key: latest
         - name: WEBHOOK_VERIFY_TOKEN
           valueFrom:
@@ -47,12 +47,12 @@ spec:
         - name: TELEGRAM_BOT_USERNAME
           valueFrom:
             secretKeyRef:
-              name: telegram-bot-username
+              name: TELEGRAM_BOT_USERNAME
               key: latest
         - name: WATI_TENANT_ID
           valueFrom:
             secretKeyRef:
-              name: wati-tenant-id
+              name: WATI_TENANT_ID
               key: latest
         - name: WATI_API_TOKEN
           valueFrom:
@@ -72,17 +72,47 @@ spec:
         - name: WATI_NOTIFICATION_ENABLED
           valueFrom:
             secretKeyRef:
-              name: wati-notification-enabled
+              name: WATI_NOTIFICATION_ENABLED
               key: latest
         - name: WATI_NOTIFICATION_GROUP_ID
           valueFrom:
             secretKeyRef:
-              name: wati-notification-group-id
+              name: WATI_NOTIFICATION_GROUP_ID
               key: latest
         - name: WATI_NOTIFICATION_PHONES
           valueFrom:
             secretKeyRef:
-              name: wati-notification-phones
+              name: WATI_NOTIFICATION_PHONES
+              key: latest
+        - name: WATI_API_ENDPOINT_BASE
+          valueFrom:
+            secretKeyRef:
+              name: wati-api-endpoint-base
+              key: latest
+        - name: AI_BOT_ENDPOINT
+          valueFrom:
+            secretKeyRef:
+              name: ai-bot-endpoint
+              key: latest
+        - name: GEMINI_API_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-api-url
+              key: latest
+        - name: CHATBOT_IA_URL
+          valueFrom:
+            secretKeyRef:
+              name: chatbot-ia-url
+              key: latest
+        - name: ANALYTICS_ENDPOINT_URL
+          valueFrom:
+            secretKeyRef:
+              name: analytics-endpoint-url
+              key: latest
+        - name: WELCOME_VIDEO_URL
+          valueFrom:
+            secretKeyRef:
+              name: welcome-video-url
               key: latest
       scaling:
         minScale: 0

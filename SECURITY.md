@@ -7,17 +7,23 @@ Este proyecto usa **GCP Secret Manager para TODAS las variables**, maximizando l
 ## 🔐 Secretos en GCP Secret Manager
 
 ### Todas las Variables (100% seguras):
-- `gcp-project-id` → ID del proyecto GCP
+- `SPRING_CLOUD_GCP_PROJECT_ID` → ID del proyecto GCP
 - `webhook-verify-token` → Token de verificación de webhook
 - `telegram-bot-token` → Token del bot de Telegram
-- `telegram-bot-username` → Username del bot
-- `wati-tenant-id` → ID del tenant de Wati
+- `TELEGRAM_BOT_USERNAME` → Username del bot
+- `WATI_TENANT_ID` → ID del tenant de Wati
 - `wati-api-token` → Token de API de Wati
 - `gemini-api-key` → Clave de API de Gemini AI
 - `analytics-jwt-secret` → Secreto JWT para analytics
-- `wati-notification-enabled` → Habilitar notificaciones
-- `wati-notification-group-id` → ID del grupo de notificaciones
-- `wati-notification-phones` → Teléfonos para notificaciones
+- `WATI_NOTIFICATION_ENABLED` → Habilitar notificaciones
+- `WATI_NOTIFICATION_GROUP_ID` → ID del grupo de notificaciones
+- `WATI_NOTIFICATION_PHONES` → Teléfonos para notificaciones
+- `wati-api-endpoint-base` → URL base de la API de Wati
+- `ai-bot-endpoint` → Endpoint del bot de IA
+- `gemini-api-url` → URL de la API de Gemini
+- `chatbot-ia-url` → URL del chatbot de IA
+- `analytics-endpoint-url` → URL del endpoint de analytics
+- `welcome-video-url` → URL del video de bienvenida
 
 ## 🚀 Para Desarrolladores
 
@@ -60,3 +66,4 @@ gcloud secrets list --project=intreasoft-daniel
 3. **Compliance** - cumple estándares empresariales
 4. **Mantenimiento** - centralizado en GCP
 5. **Rotación** - automática de credenciales
+6. **Configuración completa** - todas las variables incluidas
