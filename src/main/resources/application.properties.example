@@ -5,8 +5,7 @@
 # Este archivo es un template. Para usar:
 # 1. BASE: Crear application.properties con spring.profiles.active=prod
 # 2. LOCAL: Copiar a application-local.properties y ajustar valores
-# 3. PRODUCCIÓN: Usar application-prod.properties con variables de entorno
-# 4. CLOUD RUN: Las variables se configuran automáticamente
+# 3. CLOUD RUN: Las variables se configuran automáticamente via GCP Secret Manager
 
 # ================================================
 # CONFIGURACIÓN BASE REQUERIDA
@@ -154,12 +153,9 @@ logging.level.org.springframework.boot=INFO
 # Copiar este archivo a application-local.properties
 # Reemplazar valores con credenciales reales
 #
-# PASO 3: Configurar perfil producción (OPCIONAL)
-# Usar application-prod.properties con variables de entorno
-# Las credenciales se configuran via GCP Secret Manager
-#
-# PASO 4: Ejecutar aplicación
+# PASO 3: Ejecutar aplicación
 # mvn clean install -DskipTests
 # java -jar target/political_referrals_wa-0.0.1-SNAPSHOT.jar
 #
 # NOTA: El perfil 'prod' se activa automáticamente desde application.properties
+# NOTA: En Cloud Run, las variables se configuran via GCP Secret Manager
