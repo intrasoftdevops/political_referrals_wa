@@ -61,7 +61,6 @@ src/main/resources/political-referrals-wa-key.json
 # Solo subir archivos de ejemplo
 # src/main/resources/application.properties.example
 # src/main/resources/application-local.properties.example
-political-referrals-wa-key.json
 HELP.md
 
 # Guías de despliegue (documentación interna)
