@@ -54,6 +54,7 @@ build/
 .vscode/
 
 # Archivos de configuración con credenciales reales (NO subir al repo)
+src/main/resources/application.properties
 src/main/resources/application-local.properties
 src/main/resources/political-referrals-wa-key.json
 
