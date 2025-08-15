@@ -14,6 +14,7 @@ EXPOSE 8080
 ENTRYPOINT ["java", \
   "-Dserver.port=${PORT:-8080}", \
   "-Dspring.profiles.active=prod", \
+  "-Dspring.cloud.gcp.credentials.location=", \
   "-Xmx1g", \
   "-Xms512m", \
   "-XX:+UseG1GC", \
