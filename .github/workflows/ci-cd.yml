@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 env:
-  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  PROJECT_ID: intreasoft-daniel
   REGION: us-central1
   SERVICE_NAME: political-referrals-wa
   IMAGE_NAME: political-referrals-wa
@@ -23,10 +23,10 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Set up JDK 21
+    - name: Set up JDK 17
       uses: actions/setup-java@v4
       with:
-        java-version: '21'
+        java-version: '17'
         distribution: 'temurin'
         cache: 'maven'
         
@@ -59,41 +59,11 @@ jobs:
         name: app-jar
         path: target/*.jar
 
-  # Job de Análisis de Código
-  code-quality:
-    name: Code Quality Analysis
-    runs-on: ubuntu-latest
-    needs: build-and-test
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Set up JDK 21
-      uses: actions/setup-java@v4
-      with:
-        java-version: '21'
-        distribution: 'temurin'
-        
-    - name: Cache Maven packages
-      uses: actions/cache@v4
-      with:
-        path: ~/.m2
-        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
-        restore-keys: ${{ runner.os }}-m2
-        
-    - name: Run Basic Code Analysis
-      run: |
-        echo "🔍 Running basic code analysis..."
-        echo "✅ Code compilation successful"
-        echo "✅ Tests passed successfully"
-        echo "✅ Basic quality checks completed"
-
   # Job de Construcción de Docker
   build-docker:
     name: Build Docker Image
     runs-on: ubuntu-latest
-    needs: [build-and-test, code-quality]
+    needs: [build-and-test]
     if: github.ref == 'refs/heads/main'
     
     steps:
@@ -146,125 +116,34 @@ jobs:
     - name: Set up Cloud SDK
       uses: google-github-actions/setup-gcloud@v2
       
-    - name: Verify GCP Connection and List Secrets
-      run: |
-        echo "🔍 Verificando conexión con GCP..."
-        
-        # Verificar proyecto
-        echo "📋 Proyecto actual: $(gcloud config get-value project)"
-        
-        # Verificar autenticación
-        echo "🔐 Usuario autenticado: $(gcloud auth list --filter=status:ACTIVE --format="value(account)")"
-        
-        # Listar todos los secretos disponibles
-        echo "📚 Secretos disponibles en GCP Secret Manager:"
-        gcloud secrets list --project="${{ env.PROJECT_ID }}" --format="table(name,created)"
-        
-        # Verificar permisos del service account
-        echo "🔑 Verificando permisos del service account..."
-        gcloud projects get-iam-policy "${{ env.PROJECT_ID }}" \
-          --flatten="bindings[].members" \
-          --filter="bindings.members:$(gcloud auth list --filter=status:ACTIVE --format='value(account)')" \
-          --format="table(bindings.role)"
-        
-        echo "✅ Verificación de GCP completada"
-      
-    - name: Test Secret Access
-      run: |
-        echo "🧪 Probando acceso a secretos individuales..."
-        
-        # Probar acceso a un secreto específico
-        test_secret="webhook-verify-token"
-        echo "🔐 Probando acceso a: $test_secret"
-        
-        if secret_value=$(gcloud secrets versions access latest --secret="$test_secret" --project="${{ env.PROJECT_ID }}" 2>/dev/null); then
-          echo "✅ Secreto leído exitosamente: $test_secret"
-          echo "📝 Valor (primeros 10 caracteres): ${secret_value:0:10}..."
-        else
-          echo "❌ Error leyendo secreto: $test_secret"
-          echo "🔍 Verificando si el secreto existe..."
-          gcloud secrets describe "$test_secret" --project="${{ env.PROJECT_ID }}" || echo "❌ Secreto no existe"
-        fi
-        
-        echo "✅ Prueba de acceso completada"
-      
-    - name: Generate Cloud Run YAML from GCP Secrets
-      run: |
-        echo "🔧 Generando YAML desde GCP Secret Manager..."
-        
-        # Crear YAML temporal con variables de GCP Secret Manager
-        cat > deploy/cloud-run-generated.yaml << 'EOF'
-        apiVersion: serving.knative.dev/v1
-        kind: Service
-        metadata:
-          name: political-referrals-wa
-        spec:
-          template:
-            spec:
-              containers:
-              - image: gcr.io/${{ env.PROJECT_ID }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-                ports:
-                - containerPort: 8080
-                resources:
-                  limits:
-                    cpu: "2"
-                    memory: 2Gi
-                env:
-                - name: SPRING_PROFILES_ACTIVE
-                  value: "prod"
-                - name: SPRING_CLOUD_GCP_PROJECT_ID
-                  value: "${{ env.PROJECT_ID }}"
-EOF
-        
-        # Agregar variables desde GCP Secret Manager
-        echo "📝 Agregando variables desde GCP Secret Manager..."
-        
-        # Leer secretos de GCP y agregar directamente al YAML
-        secrets=(
-          "webhook-verify-token:WEBHOOK_VERIFY_TOKEN"
-          "telegram-bot-token:TELEGRAM_BOT_TOKEN"
-          "telegram-bot-username:TELEGRAM_BOT_USERNAME"
-          "wati-api-token:WATI_API_TOKEN"
-          "wati-tenant-id:WATI_TENANT_ID"
-          "gemini-api-key:GEMINI_API_KEY"
-          "analytics-jwt-secret:ANALYTICS_JWT_SECRET"
-          "wati-api-endpoint-base:WATI_API_ENDPOINT_BASE"
-          "ai-bot-endpoint:AI_BOT_ENDPOINT"
-          "gemini-api-url:GEMINI_API_URL"
-          "chatbot-ia-url:CHATBOT_IA_URL"
-          "analytics-endpoint-url:ANALYTICS_ENDPOINT_URL"
-          "welcome-video-url:WELCOME_VIDEO_URL"
-          "wati-notification-enabled:WATI_NOTIFICATION_ENABLED"
-          "wati-notification-group-id:WATI_NOTIFICATION_GROUP_ID"
-          "wati-notification-phones:WATI_NOTIFICATION_PHONES"
-        )
-        
-        for secret_pair in "${secrets[@]}"; do
-          IFS=':' read -r secret_name env_var <<< "$secret_pair"
-          
-          echo "🔐 Leyendo secreto: $secret_name"
-          
-          # Obtener valor del secreto
-          secret_value=$(gcloud secrets versions access latest --secret="$secret_name" --project="${{ env.PROJECT_ID }}" 2>/dev/null || echo "")
-          
-          if [ -n "$secret_value" ]; then
-            echo "                - name: $env_var" >> deploy/cloud-run-generated.yaml
-            echo "                  value: \"$secret_value\"" >> deploy/cloud-run-generated.yaml
-            echo "✅ Variable agregada: $env_var"
-          else
-            echo "⚠️  Secreto no encontrado: $secret_name"
-          fi
-        done
-        
-        echo "✅ YAML generado exitosamente!"
-        cat deploy/cloud-run-generated.yaml
-      
     - name: Deploy to Cloud Run
       run: |
-        echo "🚀 Deployando a Cloud Run..."
-        
-        # Deploy usando el YAML generado
-        gcloud run services replace deploy/cloud-run-generated.yaml --region=${{ env.REGION }}
+        gcloud run deploy ${{ env.SERVICE_NAME }} \
+          --image gcr.io/${{ env.PROJECT_ID }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+          --region ${{ env.REGION }} \
+          --platform managed \
+          --allow-unauthenticated \
+          --port 8080 \
+          --memory 2Gi \
+          --cpu 2 \
+          --max-instances 10 \
+          --set-env-vars SPRING_PROFILES_ACTIVE=prod,SPRING_CLOUD_GCP_PROJECT_ID=${{ env.PROJECT_ID }} \
+          --set-env-vars WEBHOOK_VERIFY_TOKEN=${{ secrets.WEBHOOK_VERIFY_TOKEN }} \
+          --set-env-vars TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }} \
+          --set-env-vars TELEGRAM_BOT_USERNAME=${{ secrets.TELEGRAM_BOT_USERNAME }} \
+          --set-env-vars WATI_API_TOKEN=${{ secrets.WATI_API_TOKEN }} \
+          --set-env-vars WATI_TENANT_ID=${{ secrets.WATI_TENANT_ID }} \
+          --set-env-vars GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }} \
+          --set-env-vars ANALYTICS_JWT_SECRET=${{ secrets.ANALYTICS_JWT_SECRET }} \
+          --set-env-vars WATI_API_ENDPOINT_BASE=${{ secrets.WATI_API_ENDPOINT_BASE }} \
+          --set-env-vars AI_BOT_ENDPOINT=${{ secrets.AI_BOT_ENDPOINT }} \
+          --set-env-vars GEMINI_API_URL=${{ secrets.GEMINI_API_URL }} \
+          --set-env-vars CHATBOT_IA_URL=${{ secrets.CHATBOT_IA_URL }} \
+          --set-env-vars ANALYTICS_ENDPOINT_URL=${{ secrets.ANALYTICS_ENDPOINT_URL }} \
+          --set-env-vars WELCOME_VIDEO_URL=${{ secrets.WELCOME_VIDEO_URL }} \
+          --set-env-vars WATI_NOTIFICATION_ENABLED=${{ secrets.WATI_NOTIFICATION_ENABLED }} \
+          --set-env-vars WATI_NOTIFICATION_GROUP_ID=${{ secrets.WATI_NOTIFICATION_GROUP_ID }} \
+          --set-env-vars WATI_NOTIFICATION_PHONES=${{ secrets.WATI_NOTIFICATION_PHONES }}
           
     - name: Get service URL
       run: |
@@ -295,7 +174,7 @@ EOF
     - name: Notify Success
       if: needs.deploy.result == 'success'
       run: |
-        echo "✅ Deployment successful!"
+        echo "Deployment successful!"
         echo "Service: ${{ env.SERVICE_NAME }}"
         echo "Region: ${{ env.REGION }}"
         echo "Image: gcr.io/${{ env.PROJECT_ID }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
@@ -303,22 +182,22 @@ EOF
     - name: Notify Failure
       if: needs.deploy.result == 'failure'
       run: |
-        echo "❌ Deployment failed!"
+        echo "Deployment failed!"
         echo "Check the logs for more details"
         
     - name: Send WhatsApp Notification
       if: always()
       run: |
         if [ "${{ needs.deploy.result }}" == "success" ]; then
-          echo "✅ Deployment successful! Sending WhatsApp notification..."
+          echo "Deployment successful! Sending WhatsApp notification..."
           
-          # Obtener la URL del servicio desplegado con proyecto especificado
+          # Obtener la URL del servicio desplegado
           SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region=${{ env.REGION }} --project=${{ env.PROJECT_ID }} --format='value(status.url)')
           
           if [ -n "$SERVICE_URL" ]; then
             echo "Service URL obtained: $SERVICE_URL"
             
-            # Enviar notificación de éxito usando secretos de GitHub
+            # Enviar notificacion de exito
             curl -X POST "$SERVICE_URL/api/notifications/deployment/success" \
               -H "Content-Type: application/json" \
               -d '{
@@ -331,24 +210,25 @@ EOF
                 "groupId": "${{ secrets.WHATSAPP_GROUP_ID }}"
               }' || echo "Failed to send success notification"
           else
-            echo "❌ Failed to get service URL, skipping notification"
+            echo "Failed to get service URL, skipping notification"
           fi
             
         else
-          echo "❌ Deployment failed! Sending WhatsApp notification..."
+          echo "Deployment failed! Sending WhatsApp notification..."
           
-          # Para fallos, intentar obtener la URL del servicio anterior
+          # Obtener la URL del servicio desplegado
           SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region=${{ env.REGION }} --project=${{ env.PROJECT_ID }} --format='value(status.url)')
           
           if [ -n "$SERVICE_URL" ]; then
             echo "Service URL obtained: $SERVICE_URL"
             
-            # Enviar notificación de fallo usando secretos de GitHub
+            # Enviar notificacion de fallo
             curl -X POST "$SERVICE_URL/api/notifications/deployment/failure" \
               -H "Content-Type: application/json" \
               -d '{
                 "serviceName": "${{ env.SERVICE_NAME }}",
                 "region": "${{ env.REGION }}",
+                "imageTag": "gcr.io/${{ env.PROJECT_ID }}/${{ env.IMAGE_NAME }}:${{ github.sha }}",
                 "commitSha": "${{ github.sha }}",
                 "errorDetails": "Deployment failed - check GitHub Actions logs",
                 "notificationType": "whatsapp",
@@ -356,6 +236,6 @@ EOF
                 "groupId": "${{ secrets.WHATSAPP_GROUP_ID }}"
               }' || echo "Failed to send failure notification"
           else
-            echo "❌ Failed to get service URL, cannot send failure notification"
+            echo "Failed to get service URL, cannot send failure notification"
           fi
         fi 
