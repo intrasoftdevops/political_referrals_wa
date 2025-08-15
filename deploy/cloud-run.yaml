@@ -44,16 +44,31 @@ spec:
             secretKeyRef:
               name: political-referrals-wa-secrets
               key: telegram-bot-token
+        - name: TELEGRAM_BOT_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: political-referrals-wa-secrets
+              key: telegram-bot-username
         - name: WATI_API_TOKEN
           valueFrom:
             secretKeyRef:
               name: political-referrals-wa-secrets
               key: wati-api-token
+        - name: WATI_TENANT_ID
+          valueFrom:
+            secretKeyRef:
+              name: political-referrals-wa-secrets
+              key: wati-tenant-id
         - name: WEBHOOK_VERIFY_TOKEN
           valueFrom:
             secretKeyRef:
               name: political-referrals-wa-secrets
               key: webhook-verify-token
+        - name: ANALYTICS_JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: political-referrals-wa-secrets
+              key: analytics-jwt-secret
         livenessProbe:
           httpGet:
             path: /actuator/health

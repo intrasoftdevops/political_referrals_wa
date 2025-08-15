@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Script para configurar secrets en Google Cloud para Political Referrals WA
+# Script para configurar Google Cloud Secrets para Political Referrals WA
 # Uso: ./scripts/setup-gcp-secrets.sh
 
 set -e
@@ -29,111 +29,92 @@ warning() {
     echo -e "${YELLOW}[WARNING]${NC} $1"
 }
 
-# Verificar que gcloud esté instalado
-if ! command -v gcloud &> /dev/null; then
-    error "Google Cloud CLI no está instalado"
-    error "Instala desde: https://cloud.google.com/sdk/docs/install"
+# Verificar que estamos en el directorio correcto
+if [ ! -f "pom.xml" ]; then
+    error "Este script debe ejecutarse desde el directorio raíz del proyecto"
     exit 1
 fi
 
-# Verificar autenticación
-if ! gcloud auth list --filter=status:ACTIVE --format="value(account)" | grep -q .; then
-    error "No estás autenticado en Google Cloud"
-    log "Ejecuta: gcloud auth login"
-    exit 1
-fi
-
-# Obtener proyecto actual
-PROJECT_ID=$(gcloud config get-value project 2>/dev/null)
+# Obtener el proyecto actual
+PROJECT_ID=$(gcloud config get-value project)
 if [ -z "$PROJECT_ID" ]; then
-    error "No hay un proyecto configurado"
-    log "Ejecuta: gcloud config set project PROJECT_ID"
+    error "No se pudo obtener el PROJECT_ID. Ejecuta 'gcloud config set project PROJECT_ID' primero"
     exit 1
 fi
 
-log "🔐 Configurando secrets para proyecto: $PROJECT_ID"
+log "🚀 Configurando Google Cloud Secrets para el proyecto: $PROJECT_ID"
 
-# Verificar que la API de Secret Manager esté habilitada
-log "📋 Verificando API de Secret Manager..."
-if ! gcloud services list --enabled --filter="name:secretmanager.googleapis.com" | grep -q secretmanager; then
-    log "🚀 Habilitando API de Secret Manager..."
-    gcloud services enable secretmanager.googleapis.com
-    success "✅ API habilitada"
+# Nombre del secret manager
+SECRET_NAME="political-referrals-wa-secrets"
+
+# Verificar si el secret manager ya existe
+if gcloud secrets describe "$SECRET_NAME" --project="$PROJECT_ID" >/dev/null 2>&1; then
+    warning "El secret manager '$SECRET_NAME' ya existe. Se actualizarán las versiones existentes."
 else
-    success "✅ API ya habilitada"
+    log "📝 Creando secret manager: $SECRET_NAME"
+    gcloud secrets create "$SECRET_NAME" --project="$PROJECT_ID" --replication-policy="automatic"
+    success "✅ Secret manager creado exitosamente"
 fi
 
-# Crear secrets
-SECRETS=(
-    "gcp-project-id:$PROJECT_ID"
-    "gemini-api-key:"
-    "telegram-bot-token:"
-    "wati-api-token:"
-    "webhook-verify-token:"
-    "firebase-credentials:"
-)
-
-for secret in "${SECRETS[@]}"; do
-    SECRET_NAME=$(echo $secret | cut -d: -f1)
-    SECRET_VALUE=$(echo $secret | cut -d: -f2)
+# Función para crear/actualizar un secret
+create_secret() {
+    local key=$1
+    local value=$2
+    local description=$3
     
-    log "🔑 Configurando secret: $SECRET_NAME"
+    log "🔐 Configurando secret: $key"
     
     # Verificar si el secret ya existe
-    if gcloud secrets describe "$SECRET_NAME" --project="$PROJECT_ID" >/dev/null 2>&1; then
-        warning "⚠️  El secret '$SECRET_NAME' ya existe"
-        read -p "¿Deseas actualizarlo? (y/N): " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            log "🔄 Actualizando secret..."
-            if [ -n "$SECRET_VALUE" ]; then
-                echo "$SECRET_VALUE" | gcloud secrets versions add "$SECRET_NAME" --data-file=-
-            else
-                echo "Por favor, ingresa el valor para $SECRET_NAME:"
-                read -s SECRET_INPUT
-                echo "$SECRET_INPUT" | gcloud secrets versions add "$SECRET_NAME" --data-file=-
-            fi
-            success "✅ Secret actualizado"
-        else
-            log "⏭️  Saltando actualización"
-        fi
+    if gcloud secrets versions list "$SECRET_NAME" --project="$PROJECT_ID" --filter="labels.secret=$key" --limit=1 | grep -q "$key"; then
+        log "📝 Actualizando versión existente del secret: $key"
     else
-        log "🆕 Creando nuevo secret..."
-        if [ -n "$SECRET_VALUE" ]; then
-            echo "$SECRET_VALUE" | gcloud secrets create "$SECRET_NAME" --data-file=-
-        else
-            echo "Por favor, ingresa el valor para $SECRET_NAME:"
-            read -s SECRET_INPUT
-            echo "$SECRET_INPUT" | gcloud secrets create "$SECRET_NAME" --data-file=-
-        fi
-        success "✅ Secret creado"
+        log "📝 Creando nueva versión del secret: $key"
     fi
-done
+    
+    # Crear/actualizar el secret
+    echo -n "$value" | gcloud secrets versions add "$SECRET_NAME" --project="$PROJECT_ID" --data-file=- --labels="secret=$key" --description="$description"
+    
+    if [ $? -eq 0 ]; then
+        success "✅ Secret '$key' configurado exitosamente"
+    else
+        error "❌ Error al configurar secret '$key'"
+        return 1
+    fi
+}
 
-# Crear archivo de configuración para Cloud Run
-log "📝 Creando archivo de configuración para Cloud Run..."
+# Configurar todos los secrets necesarios
+log "🔐 Configurando secrets..."
 
-# Crear directorio deploy si no existe
-mkdir -p deploy
+# Project ID
+create_secret "gcp-project-id" "$PROJECT_ID" "Google Cloud Project ID"
 
-# Actualizar el archivo cloud-run.yaml con el PROJECT_ID real
-sed "s/PROJECT_ID/$PROJECT_ID/g" deploy/cloud-run.yaml > deploy/cloud-run-configured.yaml
+# Gemini AI
+create_secret "gemini-api-key" "AIzaSyA73v4PVS8kaID6TWQcW-F31qPk2BiBNHo" "Gemini AI API Key"
 
-success "✅ Archivo de configuración creado: deploy/cloud-run-configured.yaml"
+# Telegram Bot
+create_secret "telegram-bot-token" "7350149841:AAHsujWqzvh9azw2dMlwby6iZdlEkmisSv4" "Telegram Bot Token"
 
-# Mostrar resumen
-log "📊 Resumen de configuración:"
-echo "Proyecto: $PROJECT_ID"
-echo "Secrets configurados:"
-for secret in "${SECRETS[@]}"; do
-    SECRET_NAME=$(echo $secret | cut -d: -f1)
-    echo "  - $SECRET_NAME"
-done
+# Wati API
+create_secret "wati-api-token" "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI5ZWViNzJlZi01NmVmLTQzZjUtYjBmOC00NWFjZTVjZjBiZjgiLCJ1bmlxdWVfbmFtZSI6ImludHJhc29mdGRldm9wc0BnbWFpbC5jb20iLCJuYW1laWQiOiJpbnRyYXNvZnRkZXZvcHNAZ21haWwuY29tIiwiZW1haWwiOiJpbnRyYXNvZnRkZXZvcHNAZ21haWwuY29tIiwiYXV0aF90aW1lIjoiMDcvMjUvMjAyNSAyMzo0MzowOSIsInRlbmFudF9pZCI6IjQ3MzE3MyIsImRiX25hbWUiOiJtdC1wcm9kLVRlbmFudHMiLCJodHRwOi8vc2NoZW1hcy5taWNyb3NvZnQuY29tL3dzLzIwMDgvMDYvaWRlbnRpdHkvY2xhaW1zL3JvbGUiOiJBRE1JTklTVFJBVE9SIiwiZXhwIjoyNTM0MDIzMDA4MDAsImlzcyI6IkNsYXJlX0FJIiwiYXVkIjoiQ2xhcmVfQUkifQ._mgHJCUNWWmdVueTQmoEAEtaIZS9uTkOwh28UffXFDg" "Wati API Token"
 
-# Mostrar comandos útiles
-log "🚀 Comandos útiles:"
-echo "Ver secrets: gcloud secrets list"
-echo "Ver versión de un secret: gcloud secrets versions list SECRET_NAME"
-echo "Desplegar a Cloud Run: gcloud run services replace deploy/cloud-run-configured.yaml"
+# Webhook Verify Token
+create_secret "webhook-verify-token" "qaRZjTs8tFTfo5pLt6JwyFtGFPtuxLF6JBYqu0YcXsQ" "Webhook Verify Token"
 
-success "✅ Configuración de secrets completada" 
+# Analytics JWT Secret
+create_secret "analytics-jwt-secret" "z4PiqjH5bJEUTcDLz4q//FX4MZXvrN7vQi+38KK5r1g=" "Analytics JWT Secret"
+
+# Wati Tenant ID
+create_secret "wati-tenant-id" "473173" "Wati Tenant ID"
+
+# Telegram Bot Username
+create_secret "telegram-bot-username" "ResetPoliticaBot" "Telegram Bot Username"
+
+success "🎉 Todos los secrets han sido configurados exitosamente!"
+
+log "📋 Resumen de secrets configurados:"
+gcloud secrets versions list "$SECRET_NAME" --project="$PROJECT_ID" --format="table(name,labels.secret,createTime,state)"
+
+log "🔗 Para ver los secrets en la consola de Google Cloud:"
+echo "https://console.cloud.google.com/security/secret-manager?project=$PROJECT_ID"
+
+log "📝 Para usar estos secrets en Cloud Run, asegúrate de que tu archivo cloud-run.yaml los referencie correctamente" 
