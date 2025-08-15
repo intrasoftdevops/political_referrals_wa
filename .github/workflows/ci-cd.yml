@@ -191,16 +191,35 @@ jobs:
         echo "❌ Deployment failed!"
         echo "Check the logs for more details"
         
-    - name: Send Slack Notification
+    - name: Send WhatsApp Notification
       if: always()
-      uses: 8398a7/action-slack@v3
-      with:
-        status: ${{ job.status }}
-        channel: '#deployments'
-        text: |
-          Political Referrals WA deployment ${{ job.status }}
-          Branch: ${{ github.ref_name }}
-          Commit: ${{ github.sha }}
-          Service: ${{ env.SERVICE_NAME }}
-      env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }} 
+      run: |
+        if [ "${{ needs.deploy.result }}" == "success" ]; then
+          echo "✅ Deployment successful! Sending WhatsApp notification..."
+          
+          # Obtener la URL del servicio desplegado
+          SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region=${{ env.REGION }} --format='value(status.url)')
+          
+          # Enviar notificación de éxito
+          curl -X POST "$SERVICE_URL/api/notifications/deployment/success" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "serviceName": "${{ env.SERVICE_NAME }}",
+              "region": "${{ env.REGION }}",
+              "imageTag": "gcr.io/${{ env.PROJECT_ID }}/${{ env.IMAGE_NAME }}:${{ github.sha }}",
+              "commitSha": "${{ github.sha }}"
+            }' || echo "Failed to send success notification"
+            
+        else
+          echo "❌ Deployment failed! Sending WhatsApp notification..."
+          
+          # Enviar notificación de fallo
+          curl -X POST "$SERVICE_URL/api/notifications/deployment/failure" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "serviceName": "${{ env.SERVICE_NAME }}",
+              "region": "${{ env.REGION }}",
+              "commitSha": "${{ github.sha }}",
+              "errorDetails": "Deployment failed - check GitHub Actions logs"
+            }' || echo "Failed to send failure notification"
+        fi 

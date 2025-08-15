@@ -102,6 +102,56 @@ public class WatiApiService {
     }
 
     /**
+     * Alias para sendWhatsAppMessage - usado por NotificationService
+     */
+    public void sendMessage(String toPhoneNumber, String messageText) {
+        sendWhatsAppMessage(toPhoneNumber, messageText);
+    }
+    
+    /**
+     * Envía mensaje a un grupo de WhatsApp usando la API de Wati
+     * 
+     * @param groupId El ID del grupo de WhatsApp
+     * @param messageText El texto del mensaje a enviar
+     */
+    public void sendMessageToGroup(String groupId, String messageText) {
+        System.out.println("WatiApiService: Preparando para enviar mensaje al grupo " + groupId + " a través de Wati.");
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(watiApiToken);
+
+        // Construir la URL para enviar mensaje al grupo
+        URI fullApiUri = UriComponentsBuilder.fromUriString(watiApiBaseEndpoint)
+                                            .pathSegment(watiApiTenantId)
+                                            .path("/api/v1/sendSessionMessage/{groupId}")
+                                            .queryParam("messageText", messageText)
+                                            .buildAndExpand(groupId)
+                                            .encode()
+                                            .toUri();
+
+        System.out.println("WatiApiService: URL de Wati para grupo construida: " + fullApiUri.toString());
+
+        try {
+            String response = webClient.post()
+                    .uri(fullApiUri)
+                    .headers(h -> h.addAll(headers))
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .doOnSuccess(resp -> System.out.println("WatiApiService: Mensaje al grupo enviado exitosamente. Respuesta de Wati: " + resp))
+                    .doOnError(error -> System.err.println("WatiApiService: Error al enviar mensaje al grupo a través de Wati: " + error.getMessage()))
+                    .block();
+
+            if (response != null) {
+                System.out.println("WatiApiService: Mensaje al grupo completado exitosamente");
+            }
+        } catch (Exception e) {
+            System.err.println("WatiApiService: Error en envío al grupo: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
+        }
+    }
+    
+    /**
      * Envía un video de WhatsApp usando la API de Wati.
      * Este método envía un video desde una URL.
      *
