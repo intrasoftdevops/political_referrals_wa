@@ -1,0 +1,58 @@
+# Configuración de Producción - ARCHIVO DE EJEMPLO
+# ================================================
+# Copia este archivo a application-prod.properties y configura tus valores
+
+spring.application.name=political_referrals_wa
+
+spring.cloud.gcp.project-id=intreasoft-daniel
+
+# Token para la verificación de webhooks de Meta
+webhook.verify-token=YOUR_WEBHOOK_VERIFY_TOKEN
+
+# Credenciales para la API de Telegram Bot
+telegram.bot.token=YOUR_TELEGRAM_BOT_TOKEN
+telegram.bot.username=YOUR_TELEGRAM_BOT_USERNAME
+
+# Configuración para Wati API
+wati.api.endpoint.base=https://live-mt-server.wati.io:443
+wati.api.tenant-id=YOUR_WATI_TENANT_ID
+wati.api.token=YOUR_WATI_API_TOKEN
+
+# Propiedad para forzar IPv4
+java.net.preferIPv4Stack=true
+
+# Configuración para IA - Chatbot de Política y Tribus
+ai.bot.endpoint=https://chatbotia-331919709696.us-east1.run.app
+
+# Configuración para Gemini AI
+gemini.api.key=YOUR_GEMINI_API_KEY
+gemini.api.url=https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent
+
+# Configuración para Chatbot IA (análisis de tribus)
+chatbot.ia.url=https://chatbotia-331919709696.us-east1.run.app
+
+# Configuración para Analytics - CRM Político API
+analytics.endpoint.url=https://user-referrals-api-331919709696.us-central1.run.app
+analytics.jwt.secret=YOUR_JWT_SECRET
+analytics.jwt.expiration.minutes=60
+
+# Configuración de Swagger/OpenAPI
+springdoc.api-docs.path=/api-docs
+springdoc.swagger-ui.path=/swagger-ui.html
+springdoc.swagger-ui.operationsSorter=method
+springdoc.swagger-ui.tagsSorter=alpha
+springdoc.swagger-ui.doc-expansion=list
+springdoc.swagger-ui.try-it-out-enabled=true
+springdoc.swagger-ui.filter=true
+
+# Welcome Video Configuration
+welcome.video.url=https://storage.googleapis.com/YOUR_BUCKET/VIDEO_FILE.mp4
+
+# ================================================
+# INSTRUCCIONES DE CONFIGURACIÓN:
+# ================================================
+# 1. Copia este archivo: cp application-prod.properties.example application-prod.properties
+# 2. Edita application-prod.properties con tus valores reales
+# 3. NO subas application-prod.properties al repositorio
+# 4. Para producción, usa variables de entorno en GitHub Actions
+# ================================================ 

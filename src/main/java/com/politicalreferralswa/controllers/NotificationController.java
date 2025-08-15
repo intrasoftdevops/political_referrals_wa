@@ -11,6 +11,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/notifications")
+@CrossOrigin(origins = "*") // Permitir CORS para CI/CD
 public class NotificationController {
     
     private static final Logger logger = LoggerFactory.getLogger(NotificationController.class);
@@ -19,7 +20,7 @@ public class NotificationController {
     private NotificationService notificationService;
     
     /**
-     * Endpoint para notificar despliegue exitoso
+     * Endpoint público para CI/CD - No requiere autenticación
      */
     @PostMapping("/deployment/success")
     public ResponseEntity<String> notifyDeploymentSuccess(@RequestBody Map<String, String> payload) {
@@ -48,7 +49,7 @@ public class NotificationController {
     }
     
     /**
-     * Endpoint para notificar despliegue fallido
+     * Endpoint público para CI/CD - No requiere autenticación
      */
     @PostMapping("/deployment/failure")
     public ResponseEntity<String> notifyDeploymentFailure(@RequestBody Map<String, String> payload) {
@@ -82,5 +83,14 @@ public class NotificationController {
     @GetMapping("/health")
     public ResponseEntity<String> healthCheck() {
         return ResponseEntity.ok("Notification service is healthy");
+    }
+    
+    /**
+     * Endpoint público de prueba para CI/CD
+     */
+    @PostMapping("/test")
+    public ResponseEntity<String> testNotification(@RequestBody Map<String, String> payload) {
+        logger.info("Received test notification: {}", payload);
+        return ResponseEntity.ok("Test notification received successfully");
     }
 } 
