@@ -146,13 +146,125 @@ jobs:
     - name: Set up Cloud SDK
       uses: google-github-actions/setup-gcloud@v2
       
+    - name: Verify GCP Connection and List Secrets
+      run: |
+        echo "🔍 Verificando conexión con GCP..."
+        
+        # Verificar proyecto
+        echo "📋 Proyecto actual: $(gcloud config get-value project)"
+        
+        # Verificar autenticación
+        echo "🔐 Usuario autenticado: $(gcloud auth list --filter=status:ACTIVE --format="value(account)")"
+        
+        # Listar todos los secretos disponibles
+        echo "📚 Secretos disponibles en GCP Secret Manager:"
+        gcloud secrets list --project="${{ env.PROJECT_ID }}" --format="table(name,created)"
+        
+        # Verificar permisos del service account
+        echo "🔑 Verificando permisos del service account..."
+        gcloud projects get-iam-policy "${{ env.PROJECT_ID }}" \
+          --flatten="bindings[].members" \
+          --filter="bindings.members:$(gcloud auth list --filter=status:ACTIVE --format='value(account)')" \
+          --format="table(bindings.role)"
+        
+        echo "✅ Verificación de GCP completada"
+      
+    - name: Test Secret Access
+      run: |
+        echo "🧪 Probando acceso a secretos individuales..."
+        
+        # Probar acceso a un secreto específico
+        test_secret="webhook-verify-token"
+        echo "🔐 Probando acceso a: $test_secret"
+        
+        if secret_value=$(gcloud secrets versions access latest --secret="$test_secret" --project="${{ env.PROJECT_ID }}" 2>/dev/null); then
+          echo "✅ Secreto leído exitosamente: $test_secret"
+          echo "📝 Valor (primeros 10 caracteres): ${secret_value:0:10}..."
+        else
+          echo "❌ Error leyendo secreto: $test_secret"
+          echo "🔍 Verificando si el secreto existe..."
+          gcloud secrets describe "$test_secret" --project="${{ env.PROJECT_ID }}" || echo "❌ Secreto no existe"
+        fi
+        
+        echo "✅ Prueba de acceso completada"
+      
+    - name: Generate Cloud Run YAML from GCP Secrets
+      run: |
+        echo "🔧 Generando YAML desde GCP Secret Manager..."
+        
+        # Crear YAML temporal con variables de GCP Secret Manager
+        cat > deploy/cloud-run-generated.yaml << 'EOF'
+        apiVersion: serving.knative.dev/v1
+        kind: Service
+        metadata:
+          name: political-referrals-wa
+        spec:
+          template:
+            spec:
+              containers:
+              - image: gcr.io/${{ env.PROJECT_ID }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+                ports:
+                - containerPort: 8080
+                resources:
+                  limits:
+                    cpu: "2"
+                    memory: 2Gi
+                env:
+                - name: SPRING_PROFILES_ACTIVE
+                  value: "prod"
+                - name: SPRING_CLOUD_GCP_PROJECT_ID
+                  value: "${{ env.PROJECT_ID }}"
+        EOF
+        
+        # Agregar variables desde GCP Secret Manager
+        echo "📝 Agregando variables desde GCP Secret Manager..."
+        
+        # Leer secretos de GCP y agregar al YAML
+        secrets=(
+          "webhook-verify-token:webhook.verify-token"
+          "telegram-bot-token:telegram.bot.token"
+          "telegram-bot-username:telegram.bot.username"
+          "wati-api-token:wati.api.token"
+          "wati-tenant-id:wati.api.tenant-id"
+          "gemini-api-key:gemini.api.key"
+          "analytics-jwt-secret:analytics.jwt.secret"
+          "wati-api-endpoint-base:wati.api.endpoint.base"
+          "ai-bot-endpoint:ai.bot.endpoint"
+          "gemini-api-url:gemini.api.url"
+          "chatbot-ia-url:chatbot.ia.url"
+          "analytics-endpoint-url:analytics.endpoint.url"
+          "welcome-video-url:welcome.video.url"
+          "wati-notification-enabled:wati.notification.enabled"
+          "wati-notification-group-id:wati.notification.group.id"
+          "wati-notification-phones:wati.notification.phones"
+        )
+        
+        for secret_pair in "${secrets[@]}"; do
+          IFS=':' read -r secret_name env_var <<< "$secret_pair"
+          
+          echo "🔐 Leyendo secreto: $secret_name"
+          
+          # Obtener valor del secreto
+          secret_value=$(gcloud secrets versions access latest --secret="$secret_name" --project="${{ env.PROJECT_ID }}" 2>/dev/null || echo "")
+          
+          if [ -n "$secret_value" ]; then
+            echo "                - name: $env_var" >> deploy/cloud-run-generated.yaml
+            echo "                  value: \"$secret_value\"" >> deploy/cloud-run-generated.yaml
+            echo "✅ Variable agregada: $env_var"
+          else
+            echo "⚠️  Secreto no encontrado: $secret_name"
+          fi
+        done
+        
+        echo "✅ YAML generado exitosamente!"
+        cat deploy/cloud-run-generated.yaml
+      
     - name: Deploy to Cloud Run
       run: |
-        # Actualizar la imagen en el YAML mínimo
-        sed -i "s|gcr.io/PROJECT_ID/political-referrals-wa:latest|gcr.io/${{ env.PROJECT_ID }}/${{ env.IMAGE_NAME }}:${{ github.sha }}|g" deploy/cloud-run.yaml
+        echo "🚀 Deployando a Cloud Run..."
         
-        # Deploy usando el YAML mínimo con todas las variables
-        gcloud run services replace deploy/cloud-run.yaml --region=${{ env.REGION }}
+        # Deploy usando el YAML generado
+        gcloud run services replace deploy/cloud-run-generated.yaml --region=${{ env.REGION }}
           
     - name: Get service URL
       run: |
