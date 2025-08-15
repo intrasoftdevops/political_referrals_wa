@@ -157,7 +157,7 @@ jobs:
           --memory 2Gi \
           --cpu 2 \
           --max-instances 10 \
-          --set-env-vars SPRING_PROFILES_ACTIVE=prod
+          # No se necesita SPRING_PROFILES_ACTIVE - usa application.properties por defecto
           
     - name: Get service URL
       run: |

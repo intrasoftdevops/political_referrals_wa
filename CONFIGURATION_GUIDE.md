@@ -56,6 +56,9 @@ mvn spring-boot:run
 ./scripts/setup-gcp-secrets.sh
 ```
 
+### **Scripts Disponibles:**
+- **`setup-gcp-secrets.sh`** - Configura Google Cloud Secrets para producción
+
 ### **Variables de Entorno Configuradas:**
 - `GEMINI_API_KEY`
 - `TELEGRAM_BOT_TOKEN`
