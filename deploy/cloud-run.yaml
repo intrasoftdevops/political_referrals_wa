@@ -30,7 +30,10 @@ spec:
         - name: SPRING_PROFILES_ACTIVE
           value: "prod"
         - name: SPRING_CLOUD_GCP_PROJECT_ID
-          value: "intreasoft-daniel"
+          valueFrom:
+            secretKeyRef:
+              name: gcp-project-id
+              key: latest
         - name: WEBHOOK_VERIFY_TOKEN
           valueFrom:
             secretKeyRef:
@@ -42,9 +45,15 @@ spec:
               name: telegram-bot-token
               key: latest
         - name: TELEGRAM_BOT_USERNAME
-          value: "ResetPoliticaBot"
+          valueFrom:
+            secretKeyRef:
+              name: telegram-bot-username
+              key: latest
         - name: WATI_TENANT_ID
-          value: "473173"
+          valueFrom:
+            secretKeyRef:
+              name: wati-tenant-id
+              key: latest
         - name: WATI_API_TOKEN
           valueFrom:
             secretKeyRef:
@@ -61,37 +70,22 @@ spec:
               name: analytics-jwt-secret
               key: latest
         - name: WATI_NOTIFICATION_ENABLED
-          value: "true"
+          valueFrom:
+            secretKeyRef:
+              name: wati-notification-enabled
+              key: latest
         - name: WATI_NOTIFICATION_GROUP_ID
-          value: ""
+          valueFrom:
+            secretKeyRef:
+              name: wati-notification-group-id
+              key: latest
         - name: WATI_NOTIFICATION_PHONES
-          value: "573227281752"
-        livenessProbe:
-          httpGet:
-            path: /actuator/health
-            port: 8080
-          initialDelaySeconds: 180
-          periodSeconds: 30
-          timeoutSeconds: 15
-          failureThreshold: 3
-        readinessProbe:
-          httpGet:
-            path: /actuator/health
-            port: 8080
-          initialDelaySeconds: 120
-          periodSeconds: 20
-          timeoutSeconds: 10
-          failureThreshold: 3
-        startupProbe:
-          httpGet:
-            path: /actuator/health
-            port: 8080
-          initialDelaySeconds: 90
-          periodSeconds: 15
-          timeoutSeconds: 10
-          failureThreshold: 5
-      scaling:
-        minScale: 0
-        maxScale: 10
-        targetCPUUtilization: 70
-        targetMemoryUtilization: 80 
+          valueFrom:
+            secretKeyRef:
+              name: wati-notification-phones
+              key: latest
+        scaling:
+          minScale: 0
+          maxScale: 10
+          targetCPUUtilization: 70
+          targetMemoryUtilization: 80 

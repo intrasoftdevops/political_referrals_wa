@@ -2,24 +2,22 @@
 
 ## 📋 Resumen
 
-Este proyecto usa **GCP Secret Manager** para credenciales sensibles y **variables hardcodeadas** para configuración general.
+Este proyecto usa **GCP Secret Manager para TODAS las variables**, maximizando la seguridad y siguiendo las mejores prácticas empresariales.
 
 ## 🔐 Secretos en GCP Secret Manager
 
-### Credenciales Sensibles:
-- `webhook-verify-token`
-- `telegram-bot-token`
-- `wati-api-token`
-- `gemini-api-key`
-- `analytics-jwt-secret`
-
-### Variables de Configuración (cloud-run.yaml):
-- `SPRING_CLOUD_GCP_PROJECT_ID`
-- `TELEGRAM_BOT_USERNAME`
-- `WATI_TENANT_ID`
-- `WATI_NOTIFICATION_ENABLED`
-- `WATI_NOTIFICATION_GROUP_ID`
-- `WATI_NOTIFICATION_PHONES`
+### Todas las Variables (100% seguras):
+- `gcp-project-id` → ID del proyecto GCP
+- `webhook-verify-token` → Token de verificación de webhook
+- `telegram-bot-token` → Token del bot de Telegram
+- `telegram-bot-username` → Username del bot
+- `wati-tenant-id` → ID del tenant de Wati
+- `wati-api-token` → Token de API de Wati
+- `gemini-api-key` → Clave de API de Gemini AI
+- `analytics-jwt-secret` → Secreto JWT para analytics
+- `wati-notification-enabled` → Habilitar notificaciones
+- `wati-notification-group-id` → ID del grupo de notificaciones
+- `wati-notification-phones` → Teléfonos para notificaciones
 
 ## 🚀 Para Desarrolladores
 
@@ -33,7 +31,7 @@ git push origin main → ✅ Deploy automático
 
 ### Crear Secretos:
 ```bash
-echo "tu-token" | gcloud secrets create webhook-verify-token --data-file=- --project=intreasoft-daniel
+echo "tu-valor" | gcloud secrets create nombre-del-secreto --data-file=- --project=intreasoft-daniel
 ```
 
 ### Listar Secretos:
@@ -43,13 +41,22 @@ gcloud secrets list --project=intreasoft-daniel
 
 ## 📁 Archivos
 
-- `deploy/cloud-run.yaml` → Configuración de producción
+- `deploy/cloud-run.yaml` → Configuración de producción (solo referencias a secretos)
 - `deploy/cloud-run.example.yaml` → Template de ejemplo
 - `.gitignore` → Protege credenciales locales
 
 ## ⚠️ Importante
 
-- **NO subir credenciales** al repositorio
-- **NO hardcodear** tokens sensibles
-- **Usar Secret Manager** para credenciales
-- **Variables de entorno** para configuración general
+- **NO hay credenciales** en el repositorio
+- **TODAS las variables** están en GCP Secret Manager
+- **Máxima seguridad** para producción
+- **Rotación automática** de secretos
+- **Auditoría completa** de acceso
+
+## 🏆 Beneficios
+
+1. **Seguridad máxima** - nada expuesto en el repo
+2. **Escalabilidad** - fácil agregar nuevas variables
+3. **Compliance** - cumple estándares empresariales
+4. **Mantenimiento** - centralizado en GCP
+5. **Rotación** - automática de credenciales
