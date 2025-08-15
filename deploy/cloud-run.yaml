@@ -118,4 +118,4 @@ spec:
         minScale: 0
         maxScale: 10
         targetCPUUtilization: 70
-        targetMemoryUtilization: 80 
+        targetMemoryUtilization: 80
