@@ -55,6 +55,7 @@ build/
 
 src/main/resources/application.properties
 src/main/resources/application-notifications.properties
+
 src/main/resources/application-prod.properties
 political-referrals-wa-key.json
 HELP.md

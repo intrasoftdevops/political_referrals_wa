@@ -20,7 +20,7 @@ import java.util.Map;
 public class MetricsController {
 
     private final MetricsService metricsService;
-
+    
     @Autowired
     public MetricsController(MetricsService metricsService) {
         this.metricsService = metricsService;
