@@ -6,7 +6,7 @@ spec:
   template:
     spec:
       containers:
-      - image: gcr.io/PROJECT_ID/political-referrals-wa:latest
+      - image: gcr.io/intreasoft-daniel/political-referrals-wa:latest
         ports:
         - containerPort: 8080
         resources:
