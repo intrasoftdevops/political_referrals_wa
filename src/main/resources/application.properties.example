@@ -1,45 +1,34 @@
+# ================================================
+# TEMPLATE DE CONFIGURACIÓN - NO USAR DIRECTAMENTE
+# ================================================
+# 
+# Este archivo es un template. Para usar:
+# 1. LOCAL: Copiar a application-local.properties y ajustar valores
+# 2. PRODUCCIÓN: Usar application-prod.properties con variables de entorno
+# 3. CLOUD RUN: Las variables se configuran automáticamente
+
 spring.application.name=political_referrals_wa
-server.port=8081
 
-# Google Cloud Configuration
-spring.cloud.gcp.project-id=your-project-id
-spring.cloud.gcp.credentials.location=classpath:political-referrals-wa-key.json
+# Puerto de la aplicación
+server.port=${PORT:8080}
 
-# WhatsApp Business Cloud API Configuration (DEPRECATED - No longer used)
-# whatsapp.api.phone-number-id=your_phone_number_id
-# whatsapp.api.access-token=your_whatsapp_access_token
+# Google Cloud Project ID
+spring.cloud.gcp.project-id=${SPRING_CLOUD_GCP_PROJECT_ID:your-project-id}
 
-# Webhook verification token
-webhook.verify-token=your_webhook_verify_token
+# Configuración de Actuator para Health Checks
+management.endpoints.web.exposure.include=health,info
+management.endpoint.health.show-details=always
+management.health.defaults.enabled=true
+management.endpoints.web.base-path=/actuator
 
-# Telegram Bot Configuration
-telegram.bot.token=your_telegram_bot_token
-telegram.bot.username=your_telegram_bot_username
+# Configuración de Tomcat
+spring.main.web-application-type=servlet
+server.tomcat.threads.max=200
+server.tomcat.threads.min-spare=10
+server.tomcat.connection-timeout=20000
+server.tomcat.max-connections=8192
 
-# Wati API Configuration
-wati.api.endpoint.base=https://live-mt-server.wati.io:443
-wati.api.tenant-id=your_tenant_id
-wati.api.token=your_wati_api_token
-
-# IPv4 Stack Configuration
-java.net.preferIPv4Stack=true
-
-# AI Bot Configuration
-ai.bot.endpoint=http://localhost:8000
-
-# Gemini AI Configuration
-gemini.api.key=your_gemini_api_key
-gemini.api.url=https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent
-
-# Chatbot IA Configuration (for tribal analysis)
-chatbot.ia.url=http://localhost:8000
-
-# Analytics Configuration
-analytics.endpoint.url=http://localhost:8001
-analytics.jwt.secret=your_secret_key_here_change_in_production_use_underscores_instead_of_dashes
-analytics.jwt.expiration.minutes=60
-
-# Swagger/OpenAPI Configuration
+# Configuración de Swagger/OpenAPI
 springdoc.api-docs.path=/api-docs
 springdoc.swagger-ui.path=/swagger-ui.html
 springdoc.swagger-ui.operationsSorter=method
@@ -48,20 +37,65 @@ springdoc.swagger-ui.doc-expansion=list
 springdoc.swagger-ui.try-it-out-enabled=true
 springdoc.swagger-ui.filter=true
 
-# Welcome Video Configuration
-welcome.video.url=https://storage.googleapis.com/your-bucket/your-welcome-video.mp4
+# ================================================
+# CREDENCIALES Y TOKENS (CONFIGURAR SEGÚN PERFIL)
+# ================================================
+
+# Webhook verification token
+webhook.verify-token=${WEBHOOK_VERIFY_TOKEN:your-webhook-token}
+
+# Telegram Bot Configuration
+telegram.bot.token=${TELEGRAM_BOT_TOKEN:your-telegram-token}
+telegram.bot.username=${TELEGRAM_BOT_USERNAME:your-telegram-username}
+
+# Wati API Configuration
+wati.api.endpoint.base=https://live-mt-server.wati.io:443
+wati.api.tenant-id=${WATI_TENANT_ID:your-tenant-id}
+wati.api.token=${WATI_API_TOKEN:your-wati-token}
+
+# Gemini AI Configuration
+gemini.api.key=${GEMINI_API_KEY:your-gemini-key}
+gemini.api.url=https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent
+
+# Analytics Configuration
+analytics.endpoint.url=${ANALYTICS_ENDPOINT_URL:your-analytics-url}
+analytics.jwt.secret=${ANALYTICS_JWT_SECRET:your-jwt-secret}
+analytics.jwt.expiration.minutes=60
 
 # ================================================
-# Configuración de Notificaciones WhatsApp
+# URLs DE SERVICIOS (CONFIGURAR SEGÚN PERFIL)
+# ================================================
+
+# AI Bot endpoint
+ai.bot.endpoint=${AI_BOT_ENDPOINT:your-ai-bot-url}
+
+# Chatbot IA URL
+chatbot.ia.url=${CHATBOT_IA_URL:your-chatbot-url}
+
+# Welcome video URL
+welcome.video.url=${WELCOME_VIDEO_URL:your-video-url}
+
+# ================================================
+# CONFIGURACIÓN DE NOTIFICACIONES WHATSAPP
 # ================================================
 
 # Habilitar/deshabilitar notificaciones
-wati.notification.enabled=true
+wati.notification.enabled=${WATI_NOTIFICATION_ENABLED:true}
 
 # ID del grupo de WhatsApp (prioridad alta)
-# Formato: número de teléfono del grupo (ej: 573001234567)
-wati.notification.group.id=
+wati.notification.group.id=${WATI_NOTIFICATION_GROUP_ID:}
 
-# Números de teléfono para notificaciones (fallback si no hay grupo)
-# Formato: números separados por coma (ej: 573001234567,573007654321)
-wati.notification.phones=573227281752
+# Números de teléfono para notificaciones (fallback)
+wati.notification.phones=${WATI_NOTIFICATION_PHONES:your-phone-numbers}
+
+# ================================================
+# CONFIGURACIONES AVANZADAS
+# ================================================
+
+# Forzar IPv4 (útil para Cloud Run)
+java.net.preferIPv4Stack=true
+
+# Configuración de logging (ajustar según perfil)
+logging.level.com.politicalreferralswa=INFO
+logging.level.org.springframework.web=INFO
+logging.level.org.springframework.boot=INFO

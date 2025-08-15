@@ -84,193 +84,96 @@ git clone <repository-url>
 cd political_referrals_wa
 ```
 
-### 2. Configurar Variables de Entorno
-Copiar `application.properties.example` a `application.properties` y configurar:
+### 2. Configurar Perfiles de Spring Boot
 
-```properties
-# Google Cloud Configuration
-spring.cloud.gcp.project-id=your-project-id
-spring.cloud.gcp.credentials.location=classpath:political-referrals-wa-key.json
+#### **Para Desarrollo Local:**
+```bash
+# Copiar el archivo de ejemplo local
+cp src/main/resources/application-local.properties.example src/main/resources/application-local.properties
 
-# Webhook verification token
-webhook.verify-token=your_webhook_verify_token
-
-# Telegram Bot Configuration
-telegram.bot.token=your_telegram_bot_token
-telegram.bot.username=your_telegram_bot_username
-
-# Wati API Configuration
-wati.api.tenant-id=your_tenant_id
-wati.api.token=your_wati_api_token
-
-# Gemini AI Configuration
-gemini.api.key=your_gemini_api_key
-
-# Analytics Configuration
-analytics.jwt.secret=your_secret_key_here_change_in_production
+# Editar con tus credenciales reales
+# Luego ejecutar con el perfil local
+mvn spring-boot:run -Dspring.profiles.active=local
 ```
 
-### 3. Configurar Firebase
-- Colocar `political-referrals-wa-key.json` en `src/main/resources/`
-- **⚠️ IMPORTANTE**: Este archivo contiene credenciales sensibles, no lo subas al repositorio
+#### **Para Producción (Cloud Run):**
+```bash
+# El perfil 'prod' se configura automáticamente
+# Las credenciales se configuran via variables de entorno en Cloud Run
+```
+
+### 3. Configurar Variables de Entorno
+Ver `docs/CONFIGURATION_GUIDE.md` para la lista completa de variables requeridas.
+
+## 📚 Documentación
+
+Toda la documentación detallada se encuentra en la carpeta `docs/`:
+
+- **`docs/CONFIGURATION_GUIDE.md`** - Guía completa de configuración y perfiles
+- **`docs/DEPLOYMENT_GUIDE.md`** - Guía de despliegue a Cloud Run
+- **`docs/SECURITY_SETUP.md`** - Configuración de seguridad
+- **`docs/GITHUB_SECRETS_SETUP.md`** - Configuración de secretos de GitHub
+- **`docs/planning.md`** - Planificación del proyecto
+
+## 🚀 Despliegue
+
+### **Desarrollo Local**
+```bash
+# Usar perfil local
+mvn spring-boot:run -Dspring.profiles.active=local
+```
+
+### **Cloud Run (Automático)**
+- El CI/CD de GitHub Actions se encarga del despliegue automático
+- Usa el perfil `prod` por defecto
+- Las credenciales se configuran via secretos de GCP
+
+#### **Archivos de Configuración de Despliegue:**
+- **`deploy/cloud-run.yaml`** - Configuración de Cloud Run
+- **`deploy/secrets-example.yaml`** - Ejemplo de configuración de secretos
 
 ## 🔒 Seguridad
 
-### **Archivos Sensibles**
-- ✅ **`application.properties`**: Incluido en `.gitignore` para proteger credenciales
-- ✅ **`political-referrals-wa-key.json`**: Credenciales de Google Cloud (no subir al repo)
-- ✅ **Variables de Entorno**: Todas las credenciales movidas a variables de entorno
-
-### **Configuración Segura**
-```bash
-# Copiar archivo de ejemplo
-cp src/main/resources/application.properties.example src/main/resources/application.properties
-
-# Editar con tus credenciales
-nano src/main/resources/application.properties
-```
-
-### **⚠️ Credenciales Expuestas**
-Si encuentras credenciales reales en el repositorio:
-1. **Revoca inmediatamente** las credenciales expuestas
-2. **Genera nuevas credenciales**
-3. **Actualiza tu configuración local**
-
-## 🚀 Ejecución
-
-### Desarrollo Local
-```bash
-mvn clean install -DskipTests
-java -jar target/political_referrals_wa-0.0.1-SNAPSHOT.jar
-```
-
-### Con Maven
-```bash
-mvn spring-boot:run
-```
-
-## 🧪 Testing
-
-### Tests Automatizados
-```bash
-# Ejecutar tests de Gemini
-./test_gemini_integration.sh
-
-# Ejecutar tests extendidos (nombre + apellido)
-./test_gemini_extended_integration.sh
-
-# Ejecutar tests de correcciones
-./test_corrections_integration.sh
-```
-
-### Tests Manuales con cURL
-```bash
-# Test de extracción completa
-curl -X POST http://localhost:8081/api/wati-webhook \
-  -H "Content-Type: application/json" \
-  -d '{
-    "eventType": "message",
-    "type": "text", 
-    "waId": "+573001234567",
-    "senderName": "Miguel",
-    "text": "Hola! Soy Dr. Miguel Rodríguez de Barranquilla, acepto sus términos"
-  }'
-
-# Test de corrección
-curl -X POST http://localhost:8081/api/wati-webhook \
-  -H "Content-Type: application/json" \
-  -d '{
-    "eventType": "message",
-    "type": "text", 
-    "waId": "+573001234567",
-    "text": "Me equivoqué, no soy de Medellín sino de Envigado"
-  }'
-
-# Consultar métricas
-curl http://localhost:8081/api/metrics/gemini
-```
-
-## 📊 Métricas y Monitoreo
-
-### Endpoint de Métricas
-```
-GET /api/metrics/gemini
-```
-
-### Respuesta de Métricas
-```json
-{
-  "totalExtractions": 150,
-  "successfulExtractions": 142,
-  "precision": 0.946,
-  "averageResponseTimeMs": 1250.5,
-  "averageConfidence": 0.87,
-  "fieldExtractions": {
-    "name": 120,
-    "city": 95,
-    "acceptsTerms": 80,
-    "lastname": 85,
-    "state": 90
-  }
-}
-```
-
-## 🔄 Flujos de Conversación
-
-### Escenario 1: Registro Completo
-```
-Usuario: "Hola! Soy Dr. Miguel Rodríguez de Barranquilla, acepto sus términos"
-Bot: "¡Hola Miguel! 👋 ¿Te llamas Miguel cierto?
-
-¡Hola! 👋 Soy el bot de Reset a la Política...
-¡Perfecto! Confirmamos tus datos: Miguel Rodríguez, de Barranquilla. ¿Es correcto? (Sí/No)"
-```
-
-### Escenario 2: Corrección Natural
-```
-Usuario: "Me equivoqué, no soy de Medellín sino de Envigado"
-Bot: "Perfecto, actualicé tu ciudad de 'Medellín' a 'Envigado'. 
-¡Perfecto! Confirmamos tus datos: Miguel Rodríguez, de Envigado. ¿Es correcto? (Sí/No)"
-```
-
-### Escenario 3: Ambigüedad Geográfica
-```
-Usuario: "Soy de Armenia"
-Bot: "Hay varias Armenia en Colombia: Quindío, Antioquia, Bello. ¿Cuál es la tuya?"
-```
+- ✅ **Perfiles separados** para desarrollo y producción
+- ✅ **Credenciales nunca** en el repositorio
+- ✅ **Variables de entorno** para producción
+- ✅ **Secretos de GCP** para credenciales sensibles
 
 ## 📁 Estructura del Proyecto
 
 ```
 political_referrals_wa/
-├── src/main/java/com/politicalreferralswa/
-│   ├── service/
-│   │   ├── GeminiService.java              # Integración con Gemini AI
-│   │   ├── UserDataExtractor.java          # Coordinador de extracción
-│   │   ├── UserDataExtractionResult.java   # Modelo de resultados
-│   │   ├── MetricsService.java             # Sistema de métricas
-│   │   └── ChatbotService.java             # Lógica principal del chatbot
-│   ├── controllers/
-│   │   ├── WatiWebhookController.java      # Webhook de WhatsApp
-│   │   ├── TelegramWebhookController.java  # Webhook de Telegram
-│   │   └── MetricsController.java          # Endpoint de métricas
-│   └── model/
-│       └── User.java                       # Modelo de usuario
-├── src/test/java/
-│   └── GeminiServiceTest.java              # Tests unitarios
-├── test_gemini_integration.sh              # Scripts de testing
-├── test_gemini_extended_integration.sh
-└── test_corrections_integration.sh
+├── src/main/resources/
+│   ├── application.properties.example    # Template base
+│   ├── application-local.properties      # Desarrollo local (NO en repo)
+│   └── application-prod.properties      # Producción (NO en repo)
+├── docs/                                # 📚 Documentación completa
+│   ├── CONFIGURATION_GUIDE.md           # Guía de configuración
+│   ├── DEPLOYMENT_GUIDE.md              # Guía de despliegue
+│   ├── SECURITY_SETUP.md                # Configuración de seguridad
+│   ├── GITHUB_SECRETS_SETUP.md          # Secretos de GitHub
+│   └── planning.md                      # Planificación del proyecto
+├── deploy/                              # ⚙️ Archivos de despliegue
+│   ├── cloud-run.yaml                   # Configuración de Cloud Run
+│   └── secrets-example.yaml             # Ejemplo de secretos
+├── .github/workflows/                   # CI/CD automático
+└── README.md                            # Este archivo
 ```
 
-## 🎉 **Funcionalidades Principales**
+## 🤝 Contribución
 
-**El proyecto incluye las siguientes funcionalidades:**
+1. **Fork** el repositorio
+2. **Crear** una rama para tu feature (`git checkout -b feature/AmazingFeature`)
+3. **Commit** tus cambios (`git commit -m 'Add some AmazingFeature'`)
+4. **Push** a la rama (`git push origin feature/AmazingFeature`)
+5. **Abrir** un Pull Request
 
-- ✅ **Inputs inteligentes** para recibir información
-- ✅ **Captura del nombre de WhatsApp** para personalización
-- ✅ **Manejo de correcciones naturales** 
-- ✅ **Sistema de métricas** para monitoreo
-- ✅ **Flujo conversacional inteligente**
+## 📄 Licencia
 
-**¡Listo para producción!** 🚀 # Pipeline CI/CD activado - Thu Aug 14 18:41:28 -05 2025
+Este proyecto está bajo la Licencia MIT. Ver el archivo `LICENSE` para más detalles.
+
+## 📞 Soporte
+
+Para soporte técnico o preguntas:
+- 📧 Email: [tu-email@dominio.com]
+- 💬 Issues: [GitHub Issues del proyecto]

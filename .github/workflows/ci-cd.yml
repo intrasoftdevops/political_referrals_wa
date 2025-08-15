@@ -157,7 +157,9 @@ jobs:
           --memory 2Gi \
           --cpu 2 \
           --max-instances 10 \
-          # No se necesita SPRING_PROFILES_ACTIVE - usa application.properties por defecto
+          --set-env-vars PORT=8080,SPRING_PROFILES_ACTIVE=prod \
+          --timeout 300 \
+          --concurrency 80
           
     - name: Get service URL
       run: |

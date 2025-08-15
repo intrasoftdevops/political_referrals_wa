@@ -1,8 +1,4 @@
-# Credenciales
-*.json
-src/main/resources/political-referrals-wa-key.json
-
-# Archivos de compilación de Maven
+# Maven
 target/
 pom.xml.tag
 pom.xml.releaseBackup
@@ -12,56 +8,62 @@ release.properties
 dependency-reduced-pom.xml
 buildNumber.properties
 .mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
 
-# Archivos de registro
-*.log
-app.log
-ngrok.log
-
-# Directorios temporales
-target/
-target 2/
-
-# Archivos de IDE
+# IDE
 .idea/
-*.iml
-*.iws
-.project
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
-.sts4-cache
-
-### IntelliJ IDEA ###
-.idea
 *.iws
 *.iml
 *.ipr
-
-### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
-build/
-!**/src/main/**/build/
-!**/src/test/**/build/
-
-### VS Code ###
 .vscode/
+*.swp
+*.swo
+*~
 
-# Archivos de configuración con credenciales reales (NO subir al repo)
-src/main/resources/application.properties
-src/main/resources/application-local.properties
-src/main/resources/political-referrals-wa-key.json
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 
-# Solo subir archivos de ejemplo
-# src/main/resources/application.properties.example
-# src/main/resources/application-local.properties.example
-HELP.md
+# Logs
+*.log
+logs/
 
-# Guías de despliegue (documentación interna)
-DEPLOYMENT_GUIDE.md
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Spring Boot
+application-local.properties
+application-prod.properties
+application.properties
+
+# Credentials
+*.key
+*.pem
+*.p12
+*.jks
+gha-creds-*.json
+political-referrals-wa-sa*.json
+
+# Docker
+.dockerignore
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# Cloud Run (archivos de ejemplo en docs/)
+# docs/cloud-run.yaml
+# docs/secrets-example.yaml
+
+# Secrets
+secrets/
+*.secret
