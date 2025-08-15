@@ -83,8 +83,8 @@ spec:
             secretKeyRef:
               name: wati-notification-phones
               key: latest
-                  scaling:
-                    minScale: 0
-                    maxScale: 10
-                    targetCPUUtilization: 70
-                    targetMemoryUtilization: 80
+      scaling:
+        minScale: 0
+        maxScale: 10
+        targetCPUUtilization: 70
+        targetMemoryUtilization: 80
