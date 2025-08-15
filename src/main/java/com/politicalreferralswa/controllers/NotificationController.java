@@ -28,10 +28,17 @@ public class NotificationController {
             String region = payload.get("region");
             String imageTag = payload.get("imageTag");
             String commitSha = payload.get("commitSha");
+            String targetPhone = payload.get("targetPhone");
+            String groupId = payload.get("groupId");
             
             logger.info("Received deployment success notification for service: {}", serviceName);
             
-            notificationService.sendDeploymentSuccess(serviceName, region, imageTag, commitSha);
+            // Usar configuración del payload o fallback a configuración local
+            if (targetPhone != null && !targetPhone.isEmpty()) {
+                notificationService.sendDeploymentSuccessToTarget(serviceName, region, imageTag, commitSha, targetPhone, groupId);
+            } else {
+                notificationService.sendDeploymentSuccess(serviceName, region, imageTag, commitSha);
+            }
             
             return ResponseEntity.ok("Notification sent successfully");
         } catch (Exception e) {
@@ -50,10 +57,17 @@ public class NotificationController {
             String region = payload.get("region");
             String commitSha = payload.get("commitSha");
             String errorDetails = payload.get("errorDetails");
+            String targetPhone = payload.get("targetPhone");
+            String groupId = payload.get("groupId");
             
             logger.info("Received deployment failure notification for service: {}", serviceName);
             
-            notificationService.sendDeploymentFailure(serviceName, region, commitSha, errorDetails);
+            // Usar configuración del payload o fallback a configuración local
+            if (targetPhone != null && !targetPhone.isEmpty()) {
+                notificationService.sendDeploymentFailureToTarget(serviceName, region, commitSha, errorDetails, targetPhone, groupId);
+            } else {
+                notificationService.sendDeploymentFailure(serviceName, region, commitSha, errorDetails);
+            }
             
             return ResponseEntity.ok("Notification sent successfully");
         } catch (Exception e) {

@@ -200,26 +200,32 @@ jobs:
           # Obtener la URL del servicio desplegado
           SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region=${{ env.REGION }} --format='value(status.url)')
           
-          # Enviar notificación de éxito
+          # Enviar notificación de éxito usando secretos de GitHub
           curl -X POST "$SERVICE_URL/api/notifications/deployment/success" \
             -H "Content-Type: application/json" \
             -d '{
               "serviceName": "${{ env.SERVICE_NAME }}",
               "region": "${{ env.REGION }}",
               "imageTag": "gcr.io/${{ env.PROJECT_ID }}/${{ env.IMAGE_NAME }}:${{ github.sha }}",
-              "commitSha": "${{ github.sha }}"
+              "commitSha": "${{ github.sha }}",
+              "notificationType": "whatsapp",
+              "targetPhone": "${{ secrets.WHATSAPP_NOTIFICATION_PHONE }}",
+              "groupId": "${{ secrets.WHATSAPP_GROUP_ID }}"
             }' || echo "Failed to send success notification"
             
         else
           echo "❌ Deployment failed! Sending WhatsApp notification..."
           
-          # Enviar notificación de fallo
+          # Enviar notificación de fallo usando secretos de GitHub
           curl -X POST "$SERVICE_URL/api/notifications/deployment/failure" \
             -H "Content-Type: application/json" \
             -d '{
               "serviceName": "${{ env.SERVICE_NAME }}",
               "region": "${{ env.REGION }}",
               "commitSha": "${{ github.sha }}",
-              "errorDetails": "Deployment failed - check GitHub Actions logs"
+              "errorDetails": "Deployment failed - check GitHub Actions logs",
+              "notificationType": "whatsapp",
+              "targetPhone": "${{ secrets.WHATSAPP_NOTIFICATION_PHONE }}",
+              "groupId": "${{ secrets.WHATSAPP_GROUP_ID }}"
             }' || echo "Failed to send failure notification"
         fi 
