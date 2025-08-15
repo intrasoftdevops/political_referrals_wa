@@ -197,35 +197,50 @@ jobs:
         if [ "${{ needs.deploy.result }}" == "success" ]; then
           echo "✅ Deployment successful! Sending WhatsApp notification..."
           
-          # Obtener la URL del servicio desplegado
-          SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region=${{ env.REGION }} --format='value(status.url)')
+          # Obtener la URL del servicio desplegado con proyecto especificado
+          SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region=${{ env.REGION }} --project=${{ env.PROJECT_ID }} --format='value(status.url)')
           
-          # Enviar notificación de éxito usando secretos de GitHub
-          curl -X POST "$SERVICE_URL/api/notifications/deployment/success" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "serviceName": "${{ env.SERVICE_NAME }}",
-              "region": "${{ env.REGION }}",
-              "imageTag": "gcr.io/${{ env.PROJECT_ID }}/${{ env.IMAGE_NAME }}:${{ github.sha }}",
-              "commitSha": "${{ github.sha }}",
-              "notificationType": "whatsapp",
-              "targetPhone": "${{ secrets.WHATSAPP_NOTIFICATION_PHONE }}",
-              "groupId": "${{ secrets.WHATSAPP_GROUP_ID }}"
-            }' || echo "Failed to send success notification"
+          if [ -n "$SERVICE_URL" ]; then
+            echo "Service URL obtained: $SERVICE_URL"
+            
+            # Enviar notificación de éxito usando secretos de GitHub
+            curl -X POST "$SERVICE_URL/api/notifications/deployment/success" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "serviceName": "${{ env.SERVICE_NAME }}",
+                "region": "${{ env.REGION }}",
+                "imageTag": "gcr.io/${{ env.PROJECT_ID }}/${{ env.IMAGE_NAME }}:${{ github.sha }}",
+                "commitSha": "${{ github.sha }}",
+                "notificationType": "whatsapp",
+                "targetPhone": "${{ secrets.WHATSAPP_NOTIFICATION_PHONE }}",
+                "groupId": "${{ secrets.WHATSAPP_GROUP_ID }}"
+              }' || echo "Failed to send success notification"
+          else
+            echo "❌ Failed to get service URL, skipping notification"
+          fi
             
         else
           echo "❌ Deployment failed! Sending WhatsApp notification..."
           
-          # Enviar notificación de fallo usando secretos de GitHub
-          curl -X POST "$SERVICE_URL/api/notifications/deployment/failure" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "serviceName": "${{ env.SERVICE_NAME }}",
-              "region": "${{ env.REGION }}",
-              "commitSha": "${{ github.sha }}",
-              "errorDetails": "Deployment failed - check GitHub Actions logs",
-              "notificationType": "whatsapp",
-              "targetPhone": "${{ secrets.WHATSAPP_NOTIFICATION_PHONE }}",
-              "groupId": "${{ secrets.WHATSAPP_GROUP_ID }}"
-            }' || echo "Failed to send failure notification"
+          # Para fallos, intentar obtener la URL del servicio anterior
+          SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region=${{ env.REGION }} --project=${{ env.PROJECT_ID }} --format='value(status.url)')
+          
+          if [ -n "$SERVICE_URL" ]; then
+            echo "Service URL obtained: $SERVICE_URL"
+            
+            # Enviar notificación de fallo usando secretos de GitHub
+            curl -X POST "$SERVICE_URL/api/notifications/deployment/failure" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "serviceName": "${{ env.SERVICE_NAME }}",
+                "region": "${{ env.REGION }}",
+                "commitSha": "${{ github.sha }}",
+                "errorDetails": "Deployment failed - check GitHub Actions logs",
+                "notificationType": "whatsapp",
+                "targetPhone": "${{ secrets.WHATSAPP_NOTIFICATION_PHONE }}",
+                "groupId": "${{ secrets.WHATSAPP_GROUP_ID }}"
+              }' || echo "Failed to send failure notification"
+          else
+            echo "❌ Failed to get service URL, cannot send failure notification"
+          fi
         fi 
