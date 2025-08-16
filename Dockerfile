@@ -19,4 +19,4 @@ ENTRYPOINT ["java", \
   "-XX:+UseG1GC", \
   "-XX:MaxGCPauseMillis=200", \
   "-jar", \
-  "app.jar"]
+  "app.jar"] 
