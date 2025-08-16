@@ -61,15 +61,15 @@ public class AIBotService {
 
             System.out.println("AIBotService: URL de AI Bot construida: " + fullApiUri.toString()); // Log la URL final para verificación
 
-            // Realizar la llamada POST al bot de IA con reintentos y timeouts
+            // Realizar la llamada POST al bot de IA con timeouts optimizados para respuestas rápidas
             String jsonResponse = webClient.post()
                 .uri(fullApiUri)
                 .headers(h -> h.addAll(headers))
                 .bodyValue(requestBody)
                 .retrieve()
                 .bodyToMono(String.class)
-                .timeout(Duration.ofSeconds(60)) // Timeout de 60 segundos
-                .retryWhen(reactor.util.retry.Retry.backoff(3, Duration.ofSeconds(2))) // 3 reintentos con backoff exponencial
+                .timeout(Duration.ofSeconds(15)) // Timeout de 15 segundos para respuestas rápidas
+                .retryWhen(reactor.util.retry.Retry.backoff(2, Duration.ofSeconds(1))) // 2 reintentos con backoff rápido
                 .doOnError(error -> System.err.println("AIBotService: Error en llamada al AI Bot: " + error.getMessage()))
                 .doOnSuccess(response -> System.out.println("AIBotService: Llamada al AI Bot exitosa"))
                 .block(); // Bloquear para obtener el resultado de forma síncrona
@@ -125,8 +125,8 @@ public class AIBotService {
                 .bodyValue(requestBody)
                 .retrieve()
                 .bodyToMono(String.class)
-                .timeout(Duration.ofSeconds(60)) // Timeout de 60 segundos
-                .retryWhen(reactor.util.retry.Retry.backoff(3, Duration.ofSeconds(2))) // 3 reintentos con backoff exponencial
+                .timeout(Duration.ofSeconds(15)) // Timeout de 15 segundos para respuestas rápidas
+                .retryWhen(reactor.util.retry.Retry.backoff(2, Duration.ofSeconds(1))) // 2 reintentos con backoff rápido
                 .doOnError(error -> System.err.println("AIBotService: Error en llamada al AI Bot con analytics: " + error.getMessage()))
                 .doOnSuccess(response -> System.out.println("AIBotService: Llamada al AI Bot con analytics exitosa"))
                 .block();

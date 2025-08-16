@@ -26,16 +26,17 @@ public class WebClientConfig {
                 .pendingAcquireTimeout(Duration.ofSeconds(30))
                 .build();
 
-        // Configurar HttpClient con timeouts y reintentos
+        // Configurar HttpClient con timeouts optimizados para respuestas rápidas
         HttpClient httpClient = HttpClient.create(connectionProvider)
-                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 30000) // 30 segundos timeout de conexión
-                .responseTimeout(Duration.ofSeconds(60)) // 60 segundos timeout de respuesta
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000) // 10 segundos timeout de conexión
+                .responseTimeout(Duration.ofSeconds(15)) // 15 segundos timeout de respuesta
                 .doOnConnected(conn -> 
-                    conn.addHandlerLast(new ReadTimeoutHandler(60, TimeUnit.SECONDS)) // 60 segundos timeout de lectura
-                        .addHandlerLast(new WriteTimeoutHandler(60, TimeUnit.SECONDS)) // 60 segundos timeout de escritura
+                    conn.addHandlerLast(new ReadTimeoutHandler(15, TimeUnit.SECONDS)) // 15 segundos timeout de lectura
+                        .addHandlerLast(new WriteTimeoutHandler(15, TimeUnit.SECONDS)) // 15 segundos timeout de escritura
                 )
                 .keepAlive(true)
-                .compress(true);
+                .compress(true)
+                .metrics(true, uri -> uri); // Habilitar métricas para monitoreo
 
         // Crear WebClient.Builder con la configuración personalizada
         return WebClient.builder()

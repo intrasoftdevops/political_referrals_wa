@@ -56,8 +56,8 @@ public class WatiApiService {
                 .headers(h -> h.addAll(headers))
                 .retrieve()
                 .bodyToMono(String.class)
-                .timeout(Duration.ofSeconds(60)) // Timeout de 60 segundos
-                .retryWhen(reactor.util.retry.Retry.backoff(3, Duration.ofSeconds(2))) // 3 reintentos con backoff exponencial
+                .timeout(Duration.ofSeconds(15)) // Timeout de 15 segundos para respuestas rápidas
+                .retryWhen(reactor.util.retry.Retry.backoff(2, Duration.ofSeconds(1))) // 2 reintentos con backoff rápido
                 .doOnSuccess(response -> System.out.println("WatiApiService: Mensaje enviado exitosamente. Respuesta de Wati: " + response))
                 .doOnError(error -> System.err.println("WatiApiService: Error al enviar mensaje a Wati: " + error.getMessage()))
                 .subscribe(); // Ejecuta la llamada reactiva
@@ -94,8 +94,8 @@ public class WatiApiService {
                     .headers(h -> h.addAll(headers))
                     .retrieve()
                     .bodyToMono(String.class)
-                    .timeout(Duration.ofSeconds(60)) // Timeout de 60 segundos
-                    .retryWhen(reactor.util.retry.Retry.backoff(3, Duration.ofSeconds(2))) // 3 reintentos con backoff exponencial
+                    .timeout(Duration.ofSeconds(15)) // Timeout de 15 segundos para respuestas rápidas
+                    .retryWhen(reactor.util.retry.Retry.backoff(2, Duration.ofSeconds(1))) // 2 reintentos con backoff rápido
                     .doOnSuccess(resp -> System.out.println("WatiApiService: Mensaje síncrono enviado exitosamente. Respuesta de Wati: " + resp))
                     .doOnError(error -> System.err.println("WatiApiService: Error al enviar mensaje síncrono a Wati: " + error.getMessage()))
                     .block(); // Bloquea hasta que se complete la llamada
