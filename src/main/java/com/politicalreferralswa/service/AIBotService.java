@@ -126,7 +126,7 @@ public class AIBotService {
                 .retrieve()
                 .bodyToMono(String.class)
                 .timeout(Duration.ofSeconds(60)) // Timeout de 60 segundos
-                .retryWhen(reactor.util.retry.Retry.backoff(3, Duration.ofSeconds(2))) // 3 reintentos con backoff exponencial
+                .retryWhen(reactor.util.retry.Retry.backoff(3, Duration.ofSeconds(2)) // 3 reintentos con backoff exponencial
                 .doOnError(error -> System.err.println("AIBotService: Error en llamada al AI Bot con analytics: " + error.getMessage()))
                 .doOnSuccess(response -> System.out.println("AIBotService: Llamada al AI Bot con analytics exitosa"))
                 .block();
