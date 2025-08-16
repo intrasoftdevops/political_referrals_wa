@@ -10,7 +10,6 @@ on:
 env:
   PROJECT_ID: intreasoft-daniel
   REGION: us-central1
-  SERVICE_NAME: political-referrals-wa
   IMAGE_NAME: political-referrals-wa
 
 jobs:
@@ -160,11 +159,25 @@ jobs:
           
     - name: Get service URL
       run: |
-        echo "Service URL: $(gcloud run services describe ${{ env.SERVICE_NAME }} --region=${{ env.REGION }} --format='value(status.url)')"
+        # Determinar el nombre del servicio según la rama
+        if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+          SERVICE_NAME="political-referrals-wa-prod"
+        else
+          SERVICE_NAME="political-referrals-wa-dev"
+        fi
+        
+        echo "Service URL: $(gcloud run services describe $SERVICE_NAME --region=${{ env.REGION }} --format='value(status.url)')"
         
     - name: Health Check
       run: |
-        SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region=${{ env.REGION }} --format='value(status.url)')
+        # Determinar el nombre del servicio según la rama
+        if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+          SERVICE_NAME="political-referrals-wa-prod"
+        else
+          SERVICE_NAME="political-referrals-wa-dev"
+        fi
+        
+        SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --region=${{ env.REGION }} --format='value(status.url)')
         echo "Performing health check on: $SERVICE_URL"
         curl -f "$SERVICE_URL/actuator/health" || echo "Health check failed"
 
@@ -201,11 +214,18 @@ jobs:
     - name: Send WhatsApp Notification
       if: always()
       run: |
+        # Determinar el nombre del servicio según la rama
+        if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+          SERVICE_NAME="political-referrals-wa-prod"
+        else
+          SERVICE_NAME="political-referrals-wa-dev"
+        fi
+        
         if [ "${{ needs.deploy.result }}" == "success" ]; then
           echo "Deployment successful! Sending WhatsApp notification..."
           
           # Obtener la URL del servicio desplegado
-          SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region=${{ env.REGION }} --project=${{ env.PROJECT_ID }} --format='value(status.url)')
+          SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --region=${{ env.REGION }} --project=${{ env.PROJECT_ID }} --format='value(status.url)')
           
           if [ -n "$SERVICE_URL" ]; then
             echo "Service URL obtained: $SERVICE_URL"
@@ -230,7 +250,7 @@ jobs:
           echo "Deployment failed! Sending WhatsApp notification..."
           
           # Obtener la URL del servicio desplegado
-          SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region=${{ env.REGION }} --project=${{ env.PROJECT_ID }} --format='value(status.url)')
+          SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --region=${{ env.REGION }} --project=${{ env.PROJECT_ID }} --format='value(status.url)')
           
           if [ -n "$SERVICE_URL" ]; then
             echo "Service URL obtained: $SERVICE_URL"
