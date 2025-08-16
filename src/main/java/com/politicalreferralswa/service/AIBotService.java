@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.JsonNode; // Para parsear la respuesta JSO
 import org.springframework.web.util.UriComponentsBuilder; // Para construir la URL
 
 import java.net.URI; // Importación necesaria para java.net.URI
+import java.time.Duration; // Importación para timeouts
 import java.util.HashMap;
 import java.util.Map;
 
@@ -60,15 +61,17 @@ public class AIBotService {
 
             System.out.println("AIBotService: URL de AI Bot construida: " + fullApiUri.toString()); // Log la URL final para verificación
 
-            // Realizar la llamada POST al bot de IA
-            // Se usa .block() para convertir el Mono reactivo a un String síncrono,
-            // lo que es apropiado si ChatbotService no es reactivo.
+            // Realizar la llamada POST al bot de IA con reintentos y timeouts
             String jsonResponse = webClient.post()
-                .uri(fullApiUri) // <<--- ¡PASAMOS EL OBJETO URI ABSOLUTO DIRECTAMENTE!
+                .uri(fullApiUri)
                 .headers(h -> h.addAll(headers))
-                .bodyValue(requestBody) // Enviar el cuerpo JSON con la consulta y sesión
+                .bodyValue(requestBody)
                 .retrieve()
-                .bodyToMono(String.class) // Esperar la respuesta como String JSON
+                .bodyToMono(String.class)
+                .timeout(Duration.ofSeconds(60)) // Timeout de 60 segundos
+                .retryWhen(reactor.util.retry.Retry.backoff(3, Duration.ofSeconds(2)) // 3 reintentos con backoff exponencial
+                .doOnError(error -> System.err.println("AIBotService: Error en llamada al AI Bot: " + error.getMessage()))
+                .doOnSuccess(response -> System.out.println("AIBotService: Llamada al AI Bot exitosa"))
                 .block(); // Bloquear para obtener el resultado de forma síncrona
 
             // Parsear la respuesta JSON para extraer el mensaje del bot
@@ -122,6 +125,10 @@ public class AIBotService {
                 .bodyValue(requestBody)
                 .retrieve()
                 .bodyToMono(String.class)
+                .timeout(Duration.ofSeconds(60)) // Timeout de 60 segundos
+                .retryWhen(reactor.util.retry.Retry.backoff(3, Duration.ofSeconds(2))) // 3 reintentos con backoff exponencial
+                .doOnError(error -> System.err.println("AIBotService: Error en llamada al AI Bot con analytics: " + error.getMessage()))
+                .doOnSuccess(response -> System.out.println("AIBotService: Llamada al AI Bot con analytics exitosa"))
                 .block();
 
             JsonNode rootNode = objectMapper.readTree(jsonResponse);
