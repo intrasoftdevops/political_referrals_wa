@@ -22,6 +22,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 @Service
 public class ChatbotService {
@@ -382,6 +385,14 @@ public class ChatbotService {
                 System.out.println("   UserState: " + (user != null ? user.getChatbot_state() : "null"));
                 System.out.println("   NextState: " + chatResponse.getNextChatbotState());
                 System.out.println("   Message: " + primaryMessage.substring(0, Math.min(100, primaryMessage.length())) + "...");
+            }
+
+            // RESPUESTA RÁPIDA OPTIMIZADA: Solo para usuarios COMPLETED y solo si es necesario
+            if (user != null && "COMPLETED".equals(user.getChatbot_state()) && 
+                "WHATSAPP".equalsIgnoreCase(channelType)) {
+                // Enviar respuesta inmediata solo si el procesamiento será lento
+                // Por ahora, no enviar mensaje intermedio para evitar confusión
+                System.out.println("ChatbotService: Usuario COMPLETED detectado, procesando directamente");
             }
 
             // Enviar mensaje principal de forma síncrona para garantizar el orden
@@ -1262,12 +1273,33 @@ public class ChatbotService {
                                     responseMessage = result.getAiResponse() + "\n\nLo siento, tuve un problema al generar el link. Por favor, intenta de nuevo.";
                                     nextChatbotState = "COMPLETED";
                                 }
-                            } else {
-                                // No es solicitud de tribu, usar respuesta IA normal
-                                System.out.println("ChatbotService: IA detectó consulta normal. Procesando con AI Bot...");
-                                responseMessage = aiBotService.getAIResponse(sessionId, messageText);
+                                                    } else {
+                            // No es solicitud de tribu, usar respuesta IA normal con timeout optimizado
+                            System.out.println("ChatbotService: IA detectó consulta normal. Procesando con AI Bot...");
+                            try {
+                                // Crear variables finales para el lambda
+                                final String finalSessionId = sessionId;
+                                final String finalMessageText = messageText;
+                                
+                                // Usar CompletableFuture con timeout para evitar bloqueos largos
+                                CompletableFuture<String> aiResponseFuture = CompletableFuture.supplyAsync(() -> 
+                                    aiBotService.getAIResponse(finalSessionId, finalMessageText)
+                                );
+                                
+                                // Timeout de 20 segundos para respuestas realistas de ChatbotIA
+                                responseMessage = aiResponseFuture.get(20, TimeUnit.SECONDS);
+                                nextChatbotState = "COMPLETED";
+                                System.out.println("ChatbotService: Respuesta de AI Bot obtenida exitosamente");
+                            } catch (TimeoutException e) {
+                                System.err.println("ChatbotService: Timeout en AI Bot después de 20 segundos, usando fallback");
+                                responseMessage = "Lo siento, tuve un problema al conectar con la inteligencia artificial. Por favor, intenta de nuevo más tarde.";
+                                nextChatbotState = "COMPLETED";
+                            } catch (Exception e) {
+                                System.err.println("ChatbotService: Error en AI Bot: " + e.getMessage());
+                                responseMessage = "Lo siento, tuve un problema al conectar con la inteligencia artificial. Por favor, intenta de nuevo más tarde.";
                                 nextChatbotState = "COMPLETED";
                             }
+                        }
                         } else {
                             // Fallback si el análisis falla
                             System.err.println("ChatbotService: Fallback - Análisis de IA falló, usando detección tradicional");

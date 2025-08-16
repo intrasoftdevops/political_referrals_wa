@@ -7,6 +7,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI; // <<--- ¡IMPORTACIÓN CLAVE!
+import java.time.Duration; // Importación para timeouts
 
 @Service
 public class WatiApiService {
@@ -51,10 +52,12 @@ public class WatiApiService {
         System.out.println("WatiApiService: URL de Wati construida: " + fullApiUri.toString()); // Log la URL final para verificar
 
         webClient.post()
-                .uri(fullApiUri) // <<--- ¡PASAMOS EL OBJETO URI ABSOLUTO DIRECTAMENTE!
+                .uri(fullApiUri)
                 .headers(h -> h.addAll(headers))
                 .retrieve()
-                .bodyToMono(String.class) // Espera una respuesta de String
+                .bodyToMono(String.class)
+                .timeout(Duration.ofSeconds(25)) // Timeout de 8 segundos para respuestas ultra-rápidas
+                .retryWhen(reactor.util.retry.Retry.backoff(1, Duration.ofMillis(500))) // 1 reintento con backoff ultra-rápido
                 .doOnSuccess(response -> System.out.println("WatiApiService: Mensaje enviado exitosamente. Respuesta de Wati: " + response))
                 .doOnError(error -> System.err.println("WatiApiService: Error al enviar mensaje a Wati: " + error.getMessage()))
                 .subscribe(); // Ejecuta la llamada reactiva
@@ -85,12 +88,14 @@ public class WatiApiService {
         System.out.println("WatiApiService: URL de Wati construida: " + fullApiUri.toString());
 
         try {
-            // Usar block() para hacer la llamada síncrona
+            // Usar block() para hacer la llamada síncrona con timeouts y reintentos
             String response = webClient.post()
                     .uri(fullApiUri)
                     .headers(h -> h.addAll(headers))
                     .retrieve()
                     .bodyToMono(String.class)
+                    .timeout(Duration.ofSeconds(25)) // Timeout de 8 segundos para respuestas ultra-rápidas
+                    .retryWhen(reactor.util.retry.Retry.backoff(1, Duration.ofMillis(500))) // 1 reintento con backoff ultra-rápido
                     .doOnSuccess(resp -> System.out.println("WatiApiService: Mensaje síncrono enviado exitosamente. Respuesta de Wati: " + resp))
                     .doOnError(error -> System.err.println("WatiApiService: Error al enviar mensaje síncrono a Wati: " + error.getMessage()))
                     .block(); // Bloquea hasta que se complete la llamada
