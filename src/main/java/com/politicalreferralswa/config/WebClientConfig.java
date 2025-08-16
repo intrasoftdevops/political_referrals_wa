@@ -26,13 +26,13 @@ public class WebClientConfig {
                 .pendingAcquireTimeout(Duration.ofSeconds(30))
                 .build();
 
-        // Configurar HttpClient con timeouts ultra-optimizados para respuestas instantáneas
+        // Configurar HttpClient con timeouts optimizados para respuestas rápidas pero realistas
         HttpClient httpClient = HttpClient.create(connectionProvider)
-                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 5000) // 5 segundos timeout de conexión
-                .responseTimeout(Duration.ofSeconds(8)) // 8 segundos timeout de respuesta
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 8000) // 8 segundos timeout de conexión
+                .responseTimeout(Duration.ofSeconds(15)) // 15 segundos timeout de respuesta
                 .doOnConnected(conn -> 
-                    conn.addHandlerLast(new ReadTimeoutHandler(8, TimeUnit.SECONDS)) // 8 segundos timeout de lectura
-                        .addHandlerLast(new WriteTimeoutHandler(8, TimeUnit.SECONDS)) // 8 segundos timeout de escritura
+                    conn.addHandlerLast(new ReadTimeoutHandler(15, TimeUnit.SECONDS)) // 15 segundos timeout de lectura
+                        .addHandlerLast(new WriteTimeoutHandler(15, TimeUnit.SECONDS)) // 15 segundos timeout de escritura
                 )
                 .keepAlive(true)
                 .compress(true)

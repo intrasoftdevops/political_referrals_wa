@@ -68,7 +68,7 @@ public class AIBotService {
                 .bodyValue(requestBody)
                 .retrieve()
                 .bodyToMono(String.class)
-                .timeout(Duration.ofSeconds(8)) // Timeout de 8 segundos para respuestas ultra-rápidas
+                .timeout(Duration.ofSeconds(15)) // Timeout de 8 segundos para respuestas ultra-rápidas
                 .retryWhen(reactor.util.retry.Retry.backoff(1, Duration.ofMillis(500))) // 1 reintento con backoff ultra-rápido
                 .doOnError(error -> System.err.println("AIBotService: Error en llamada al AI Bot: " + error.getMessage()))
                 .doOnSuccess(response -> System.out.println("AIBotService: Llamada al AI Bot exitosa"))
@@ -125,7 +125,7 @@ public class AIBotService {
                 .bodyValue(requestBody)
                 .retrieve()
                 .bodyToMono(String.class)
-                .timeout(Duration.ofSeconds(8)) // Timeout de 8 segundos para respuestas ultra-rápidas
+                .timeout(Duration.ofSeconds(15)) // Timeout de 8 segundos para respuestas ultra-rápidas
                 .retryWhen(reactor.util.retry.Retry.backoff(1, Duration.ofMillis(500))) // 1 reintento con backoff ultra-rápido
                 .doOnError(error -> System.err.println("AIBotService: Error en llamada al AI Bot con analytics: " + error.getMessage()))
                 .doOnSuccess(response -> System.out.println("AIBotService: Llamada al AI Bot con analytics exitosa"))
