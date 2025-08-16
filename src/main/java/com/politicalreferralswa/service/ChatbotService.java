@@ -387,14 +387,12 @@ public class ChatbotService {
                 System.out.println("   Message: " + primaryMessage.substring(0, Math.min(100, primaryMessage.length())) + "...");
             }
 
-            // IMPLEMENTAR RESPUESTA RÁPIDA para usuarios COMPLETED
-            if (user != null && "COMPLETED".equals(user.getChatbot_state())) {
-                // Enviar respuesta inmediata de confirmación
-                String quickResponse = "🤔 Analizando tu consulta... ⏳";
-                if ("WHATSAPP".equalsIgnoreCase(channelType)) {
-                    sendWhatsAppMessageSync(fromId, quickResponse);
-                    System.out.println("ChatbotService: Respuesta rápida enviada: " + quickResponse);
-                }
+            // RESPUESTA RÁPIDA OPTIMIZADA: Solo para usuarios COMPLETED y solo si es necesario
+            if (user != null && "COMPLETED".equals(user.getChatbot_state()) && 
+                "WHATSAPP".equalsIgnoreCase(channelType)) {
+                // Enviar respuesta inmediata solo si el procesamiento será lento
+                // Por ahora, no enviar mensaje intermedio para evitar confusión
+                System.out.println("ChatbotService: Usuario COMPLETED detectado, procesando directamente");
             }
 
             // Enviar mensaje principal de forma síncrona para garantizar el orden
@@ -1288,12 +1286,12 @@ public class ChatbotService {
                                     aiBotService.getAIResponse(finalSessionId, finalMessageText)
                                 );
                                 
-                                // Timeout de 10 segundos para respuestas rápidas
-                                responseMessage = aiResponseFuture.get(10, TimeUnit.SECONDS);
+                                // Timeout de 5 segundos para respuestas ultra-rápidas
+                                responseMessage = aiResponseFuture.get(5, TimeUnit.SECONDS);
                                 nextChatbotState = "COMPLETED";
                                 System.out.println("ChatbotService: Respuesta de AI Bot obtenida exitosamente");
                             } catch (TimeoutException e) {
-                                System.err.println("ChatbotService: Timeout en AI Bot después de 10 segundos, usando fallback");
+                                System.err.println("ChatbotService: Timeout en AI Bot después de 5 segundos, usando fallback");
                                 responseMessage = "Lo siento, tuve un problema al conectar con la inteligencia artificial. Por favor, intenta de nuevo más tarde.";
                                 nextChatbotState = "COMPLETED";
                             } catch (Exception e) {
