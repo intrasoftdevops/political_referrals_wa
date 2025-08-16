@@ -1279,9 +1279,13 @@ public class ChatbotService {
                             // No es solicitud de tribu, usar respuesta IA normal con timeout optimizado
                             System.out.println("ChatbotService: IA detectó consulta normal. Procesando con AI Bot...");
                             try {
+                                // Crear variables finales para el lambda
+                                final String finalSessionId = sessionId;
+                                final String finalMessageText = messageText;
+                                
                                 // Usar CompletableFuture con timeout para evitar bloqueos largos
                                 CompletableFuture<String> aiResponseFuture = CompletableFuture.supplyAsync(() -> 
-                                    aiBotService.getAIResponse(sessionId, messageText)
+                                    aiBotService.getAIResponse(finalSessionId, finalMessageText)
                                 );
                                 
                                 // Timeout de 10 segundos para respuestas rápidas
