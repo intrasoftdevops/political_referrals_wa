@@ -26,13 +26,13 @@ public class WebClientConfig {
                 .pendingAcquireTimeout(Duration.ofSeconds(30))
                 .build();
 
-        // Configurar HttpClient con timeouts optimizados para respuestas rápidas pero realistas
+        // Configurar HttpClient con timeouts realistas para ChatbotIA
         HttpClient httpClient = HttpClient.create(connectionProvider)
-                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 8000) // 8 segundos timeout de conexión
-                .responseTimeout(Duration.ofSeconds(15)) // 15 segundos timeout de respuesta
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000) // 10 segundos timeout de conexión
+                .responseTimeout(Duration.ofSeconds(25)) // 25 segundos timeout de respuesta
                 .doOnConnected(conn -> 
-                    conn.addHandlerLast(new ReadTimeoutHandler(15, TimeUnit.SECONDS)) // 15 segundos timeout de lectura
-                        .addHandlerLast(new WriteTimeoutHandler(15, TimeUnit.SECONDS)) // 15 segundos timeout de escritura
+                    conn.addHandlerLast(new ReadTimeoutHandler(25, TimeUnit.SECONDS)) // 25 segundos timeout de lectura
+                        .addHandlerLast(new WriteTimeoutHandler(25, TimeUnit.SECONDS)) // 25 segundos timeout de escritura
                 )
                 .keepAlive(true)
                 .compress(true)

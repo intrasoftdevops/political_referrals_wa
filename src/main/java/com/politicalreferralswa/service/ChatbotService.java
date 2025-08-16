@@ -1286,12 +1286,12 @@ public class ChatbotService {
                                     aiBotService.getAIResponse(finalSessionId, finalMessageText)
                                 );
                                 
-                                // Timeout de 12 segundos para respuestas rápidas pero realistas
-                                responseMessage = aiResponseFuture.get(12, TimeUnit.SECONDS);
+                                // Timeout de 20 segundos para respuestas realistas de ChatbotIA
+                                responseMessage = aiResponseFuture.get(20, TimeUnit.SECONDS);
                                 nextChatbotState = "COMPLETED";
                                 System.out.println("ChatbotService: Respuesta de AI Bot obtenida exitosamente");
                             } catch (TimeoutException e) {
-                                System.err.println("ChatbotService: Timeout en AI Bot después de 12 segundos, usando fallback");
+                                System.err.println("ChatbotService: Timeout en AI Bot después de 20 segundos, usando fallback");
                                 responseMessage = "Lo siento, tuve un problema al conectar con la inteligencia artificial. Por favor, intenta de nuevo más tarde.";
                                 nextChatbotState = "COMPLETED";
                             } catch (Exception e) {
