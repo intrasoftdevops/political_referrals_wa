@@ -18,15 +18,17 @@ public class WebClientConfig {
 
     @Bean
     public WebClient.Builder webClientBuilder() {
-        // Configurar el proveedor de conexiones con timeouts
+        // Configurar el proveedor de conexiones con timeouts y configuración robusta
         ConnectionProvider connectionProvider = ConnectionProvider.builder("custom-connection-provider")
                 .maxConnections(100)
                 .maxIdleTime(Duration.ofSeconds(60))
                 .maxLifeTime(Duration.ofSeconds(300))
                 .pendingAcquireTimeout(Duration.ofSeconds(30))
+                .pendingAcquireMaxCount(500) // Máximo de conexiones pendientes
+                .evictInBackground(Duration.ofSeconds(120)) // Limpiar conexiones en background
                 .build();
 
-        // Configurar HttpClient con timeouts realistas para ChatbotIA
+        // Configurar HttpClient con timeouts realistas y configuración SSL/TLS optimizada
         HttpClient httpClient = HttpClient.create(connectionProvider)
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000) // 10 segundos timeout de conexión
                 .responseTimeout(Duration.ofSeconds(25)) // 25 segundos timeout de respuesta
@@ -36,7 +38,12 @@ public class WebClientConfig {
                 )
                 .keepAlive(true)
                 .compress(true)
-                .metrics(true, uri -> uri); // Habilitar métricas para monitoreo
+                .metrics(true, uri -> uri) // Habilitar métricas para monitoreo
+                // Configuración SSL/TLS optimizada para evitar errores de conexión
+                .secure() // Habilitar SSL/TLS
+                .option(ChannelOption.SO_KEEPALIVE, true) // Mantener conexiones activas
+                .option(ChannelOption.TCP_NODELAY, true) // Optimizar latencia TCP
+                .option(ChannelOption.SO_REUSEADDR, true); // Reutilizar direcciones
 
         // Crear WebClient.Builder con la configuración personalizada
         return WebClient.builder()
