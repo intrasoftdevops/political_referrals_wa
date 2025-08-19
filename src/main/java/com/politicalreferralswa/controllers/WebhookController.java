@@ -18,7 +18,7 @@ public class WebhookController {
 
     private final ChatbotService chatbotService;
 
-    @Value("${webhook.verify-token}") 
+    @Value("${WEBHOOK_VERIFY_TOKEN}") 
     private String webhookVerifyToken;
 
     @Autowired

@@ -14,10 +14,10 @@ import java.util.Map;
 @Service
 public class JWTService {
     
-    @Value("${analytics.jwt.secret:your-secret-key}")
+    @Value("${ANALYTICS_JWT_SECRET:your-secret-key}")
     private String jwtSecret;
     
-    @Value("${analytics.jwt.expiration.minutes:60}")
+    @Value("${ANALYTICS_JWT_EXPIRATION_MINUTES:60}")
     private int expirationMinutes;
     
     /**

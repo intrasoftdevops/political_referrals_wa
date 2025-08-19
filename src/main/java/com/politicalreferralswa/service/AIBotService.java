@@ -18,8 +18,8 @@ import java.util.Map;
 @Service
 public class AIBotService {
 
-    @Value("${ai.bot.endpoint}")
-    private String aiBotEndpoint; // La URL base de tu bot de IA de FastAPI (del application.properties)
+    @Value("${AI_BOT_ENDPOINT}")
+    private String aiBotEndpoint; // La URL base de tu bot de IA de FastAPI (desde environment variable)
 
     private final WebClient webClient;
     private final ObjectMapper objectMapper; // Para parsear la respuesta JSON de la IA
