@@ -16,51 +16,41 @@ import java.io.IOException;
 @Configuration
 public class FirebaseConfig {
 
-    @Value("${spring.cloud.gcp.credentials.location:}")
-    private String credentialsLocation;
-
     @Bean
     public Firestore firestore() throws IOException {
         // Cargar credenciales
         GoogleCredentials credentials;
         
-        // Primero intentar cargar desde archivo local (para desarrollo)
-        try {
-            var inputStream = getClass().getResourceAsStream("/political-referrals-wa-key.json");
-            if (inputStream != null) {
-                credentials = GoogleCredentials.fromStream(inputStream);
-                System.out.println("INFO: Credenciales cargadas desde archivo local para desarrollo");
-            } else {
-                throw new RuntimeException("No se encontró el archivo de credenciales local");
+        // Verificar si estamos en Cloud Run o entorno de producción
+        boolean isCloudRun = System.getenv("K_SERVICE") != null || 
+                           System.getenv("PORT") != null ||
+                           System.getProperty("spring.profiles.active", "").contains("prod");
+        
+        if (isCloudRun) {
+            // En Cloud Run, usar credenciales por defecto directamente
+            try {
+                credentials = GoogleCredentials.getApplicationDefault();
+                System.out.println("INFO: Usando credenciales por defecto de Google Cloud (Cloud Run)");
+            } catch (IOException e) {
+                throw new RuntimeException("No se pudieron obtener credenciales de Firebase en Cloud Run", e);
             }
-        } catch (Exception localEx) {
-            System.out.println("WARN: No se pudieron cargar credenciales locales: " + localEx.getMessage());
-            
-            // Si no hay archivo local, intentar con la configuración especificada
-            if (credentialsLocation != null && !credentialsLocation.trim().isEmpty()) {
-                if (credentialsLocation.startsWith("classpath:")) {
-                    // Si es un classpath, cargar desde resources
-                    String resourcePath = credentialsLocation.substring("classpath:".length());
-                    var inputStream = getClass().getResourceAsStream("/" + resourcePath);
-                    if (inputStream != null) {
-                        credentials = GoogleCredentials.fromStream(inputStream);
-                        System.out.println("INFO: Credenciales cargadas desde classpath");
-                    } else {
-                        throw new RuntimeException("No se pudo encontrar el archivo de credenciales: " + credentialsLocation);
-                    }
+        } else {
+            // Solo en desarrollo local, intentar cargar desde archivo local
+            try {
+                var inputStream = getClass().getResourceAsStream("/political-referrals-wa-key.json");
+                if (inputStream != null) {
+                    credentials = GoogleCredentials.fromStream(inputStream);
+                    System.out.println("INFO: Credenciales cargadas desde archivo local para desarrollo");
                 } else {
-                    // Si es una ruta de archivo, cargar directamente
-                    credentials = GoogleCredentials.fromStream(new java.io.FileInputStream(credentialsLocation));
-                    System.out.println("INFO: Credenciales cargadas desde archivo: " + credentialsLocation);
-                }
-            } else {
-                // En Cloud Run o entornos sin archivo de credenciales, usar credenciales por defecto
-                try {
+                    // Si no hay archivo local, usar credenciales por defecto
                     credentials = GoogleCredentials.getApplicationDefault();
-                    System.out.println("INFO: Usando credenciales por defecto de Google Cloud (Cloud Run)");
-                } catch (IOException e) {
-                    throw new RuntimeException("No se pudieron obtener credenciales de Firebase. Para desarrollo local, asegúrate de tener political-referrals-wa-key.json en src/main/resources/", e);
+                    System.out.println("INFO: Usando credenciales por defecto de Google Cloud (desarrollo)");
                 }
+            } catch (Exception e) {
+                System.out.println("WARN: No se pudieron cargar credenciales locales: " + e.getMessage());
+                // Usar credenciales por defecto como fallback
+                credentials = GoogleCredentials.getApplicationDefault();
+                System.out.println("INFO: Usando credenciales por defecto de Google Cloud (fallback)");
             }
         }
 
