@@ -29,7 +29,7 @@ public class TelegramWebhookController {
     private final ChatbotService chatbotService;
     private final TelegramApiService telegramApiService; // Mantenemos la inyección si se usa en otros lugares, aunque no para el envío principal aquí
 
-    @Value("${telegram.bot.username}")
+    @Value("${TELEGRAM_BOT_USERNAME}")
     private String botUsername; // El username del bot
 
     @Autowired

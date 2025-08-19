@@ -17,7 +17,7 @@ import java.util.Optional;
 @Service
 public class TribalAnalysisService {
     
-    @Value("${chatbot.ia.url:http://localhost:8000}")
+    @Value("${CHATBOT_IA_URL:http://localhost:8000}")
     private String chatbotIaUrl;
     
     private final WebClient webClient;
