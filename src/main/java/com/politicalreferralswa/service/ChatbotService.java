@@ -1389,21 +1389,27 @@ public class ChatbotService {
      */
     private Optional<User> findUserByPhoneNumberField(String phoneNumber) {
         try {
+            System.out.println("DEBUG: Iniciando búsqueda en Firestore por campo 'phone': " + phoneNumber);
             ApiFuture<QuerySnapshot> future = firestore.collection("users")
                     .whereEqualTo("phone", phoneNumber)
                     .limit(1)
                     .get();
+            System.out.println("DEBUG: Consulta Firestore enviada, esperando respuesta...");
             QuerySnapshot querySnapshot = future.get();
+            System.out.println("DEBUG: Respuesta de Firestore recibida, procesando...");
 
             if (!querySnapshot.isEmpty()) {
                 DocumentSnapshot document = querySnapshot.getDocuments().get(0);
+                System.out.println("DEBUG: Documento encontrado en Firestore, convirtiendo a objeto User...");
                 return Optional.ofNullable(document.toObject(User.class));
             } else {
+                System.out.println("DEBUG: No se encontraron documentos en Firestore para el teléfono: " + phoneNumber);
                 return Optional.empty();
             }
         } catch (Exception e) {
             System.err.println(
                     "ERROR al buscar usuario por campo 'phone' en Firestore (" + phoneNumber + "): " + e.getMessage());
+            e.printStackTrace();
             return Optional.empty();
         }
     }
@@ -1475,7 +1481,9 @@ public class ChatbotService {
         System.out.println("DEBUG findUserByAnyIdentifier: fromId='" + fromId + "', cleanedFromId='" + cleanedFromId + "', phoneNumberToSearch='" + phoneNumberToSearch + "'");
 
         if (!phoneNumberToSearch.isEmpty() && STRICT_PHONE_NUMBER_PATTERN.matcher(phoneNumberToSearch).matches()) {
+            System.out.println("DEBUG: Buscando usuario por campo 'phone': " + phoneNumberToSearch);
             user = findUserByPhoneNumberField(phoneNumberToSearch);
+            System.out.println("DEBUG: Búsqueda por 'phone' completada, resultado: " + (user.isPresent() ? "ENCONTRADO" : "NO ENCONTRADO"));
             if (user.isPresent()) {
                 System.out.println("DEBUG: Usuario encontrado por campo 'phone': " + phoneNumberToSearch);
                 return user;
@@ -1487,9 +1495,12 @@ public class ChatbotService {
                     + "' no es un formato de teléfono válido para búsqueda por 'phone'.");
         }
 
+        System.out.println("DEBUG: Continuando con búsqueda por ID de documento...");
 
         if (!user.isPresent()) {
+            System.out.println("DEBUG: Buscando usuario por ID de documento: " + fromId);
             user = findUserByDocumentId(fromId);
+            System.out.println("DEBUG: Búsqueda por ID de documento completada, resultado: " + (user.isPresent() ? "ENCONTRADO" : "NO ENCONTRADO"));
             if (user.isPresent()) {
                 System.out.println("DEBUG: Usuario encontrado por ID de documento: " + fromId);
                 return user;
@@ -1498,9 +1509,12 @@ public class ChatbotService {
             }
         }
 
+        System.out.println("DEBUG: Continuando con búsqueda por Telegram Chat ID...");
 
         if (!user.isPresent() && "TELEGRAM".equalsIgnoreCase(channelType)) {
+            System.out.println("DEBUG: Buscando usuario por campo 'telegram_chat_id': " + fromId);
             user = findUserByTelegramChatIdField(fromId);
+            System.out.println("DEBUG: Búsqueda por 'telegram_chat_id' completada, resultado: " + (user.isPresent() ? "ENCONTRADO" : "NO ENCONTRADO"));
             if (user.isPresent()) {
                 System.out.println("DEBUG: Usuario encontrado por campo 'telegram_chat_id': " + fromId);
                 return user;
