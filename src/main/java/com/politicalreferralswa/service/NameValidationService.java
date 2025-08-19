@@ -12,10 +12,10 @@ import java.util.concurrent.CompletableFuture;
 @Service
 public class NameValidationService {
 
-    @Value("${gemini.api.key}")
+        @Value("${GEMINI_API_KEY}")
     private String geminiApiKey;
-
-    @Value("${gemini.api.url}")
+    
+    @Value("${GEMINI_API_URL}")
     private String geminiApiUrl;
 
     private final WebClient webClient;

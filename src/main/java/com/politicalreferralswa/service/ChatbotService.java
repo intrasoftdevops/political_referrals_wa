@@ -39,7 +39,7 @@ public class ChatbotService {
     private final TribalAnalysisService tribalAnalysisService;
     private final AnalyticsService analyticsService;
 
-    @Value("${welcome.video.url}")
+    @Value("${WELCOME_VIDEO_URL}")
     private String welcomeVideoUrl;
 
     private static final Pattern REFERRAL_MESSAGE_PATTERN = Pattern

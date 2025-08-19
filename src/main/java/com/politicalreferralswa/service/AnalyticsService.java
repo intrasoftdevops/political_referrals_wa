@@ -17,10 +17,10 @@ import java.util.Optional;
 @Service
 public class AnalyticsService {
     
-    @Value("${analytics.endpoint.url:http://localhost:8001}")
+    @Value("${ANALYTICS_ENDPOINT_URL:http://localhost:8001}")
     private String analyticsEndpointUrl;
     
-    @Value("${analytics.jwt.secret:your-secret-key}")
+    @Value("${ANALYTICS_JWT_SECRET:your-secret-key}")
     private String jwtSecret;
     
     private final WebClient webClient;

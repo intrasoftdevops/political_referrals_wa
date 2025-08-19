@@ -18,13 +18,13 @@ public class NotificationService {
     @Autowired
     private WatiApiService watiApiService;
     
-    @Value("${wati.notification.group.id:}")
+    @Value("${WATI_NOTIFICATION_GROUP_ID:}")
     private String notificationGroupId;
     
-    @Value("${wati.notification.phones:}")
+    @Value("${WATI_NOTIFICATION_PHONES:}")
     private String notificationPhones;
     
-    @Value("${wati.notification.enabled:false}")
+    @Value("${WATI_NOTIFICATION_ENABLED:false}")
     private boolean notificationsEnabled;
     
     /**
