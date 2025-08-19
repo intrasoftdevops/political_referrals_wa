@@ -6,7 +6,11 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 
-@SpringBootApplication
+@SpringBootApplication(exclude = {
+    com.google.cloud.spring.autoconfigure.firestore.GcpFirestoreAutoConfiguration.class,
+    com.google.cloud.spring.autoconfigure.core.GcpContextAutoConfiguration.class,
+    com.google.cloud.spring.autoconfigure.core.GcpCoreAutoConfiguration.class
+})
 public class PoliticalReferralsWaApplication {
 
     public static void main(String[] args) {
