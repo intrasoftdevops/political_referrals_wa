@@ -8,8 +8,7 @@ import org.springframework.context.annotation.Bean;
 
 @SpringBootApplication(exclude = {
     com.google.cloud.spring.autoconfigure.firestore.GcpFirestoreAutoConfiguration.class,
-    com.google.cloud.spring.autoconfigure.core.GcpContextAutoConfiguration.class,
-    com.google.cloud.spring.autoconfigure.core.GcpCoreAutoConfiguration.class
+    com.google.cloud.spring.autoconfigure.core.GcpContextAutoConfiguration.class
 })
 public class PoliticalReferralsWaApplication {
 
