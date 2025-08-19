@@ -12,11 +12,11 @@ import java.time.Duration; // Importación para timeouts
 @Service
 public class WatiApiService {
 
-    @Value("${wati.api.endpoint.base}")
+    @Value("${WATI_API_ENDPOINT_BASE}")
     private String watiApiBaseEndpoint;
-    @Value("${wati.api.tenant-id}")
+    @Value("${WATI_TENANT_ID}")
     private String watiApiTenantId;
-    @Value("${wati.api.token}")
+    @Value("${WATI_API_TOKEN}")
     private String watiApiToken;
 
     private final WebClient webClient;
