@@ -130,32 +130,66 @@ jobs:
         echo "Deploying to service: $SERVICE_NAME"
         echo "Environment: $ENVIRONMENT"
         
-        gcloud run deploy $SERVICE_NAME \
-          --image gcr.io/${{ env.PROJECT_ID }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
-          --region ${{ env.REGION }} \
-          --platform managed \
-          --allow-unauthenticated \
-          --port 8080 \
-          --memory 2Gi \
-          --cpu 2 \
-          --max-instances 10 \
-          --set-env-vars SPRING_PROFILES_ACTIVE=$ENVIRONMENT \
-          --set-secrets WEBHOOK_VERIFY_TOKEN=webhook-verify-token:latest \
-          --set-secrets TELEGRAM_BOT_TOKEN=telegram-bot-token:latest \
-          --set-secrets TELEGRAM_BOT_USERNAME=telegram-bot-username:latest \
-          --set-secrets WATI_API_TOKEN=wati-api-token:latest \
-          --set-secrets WATI_TENANT_ID=wati-tenant-id:latest \
-          --set-secrets GEMINI_API_KEY=gemini-api-key:latest \
-          --set-secrets ANALYTICS_JWT_SECRET=analytics-jwt-secret:latest \
-          --set-secrets WATI_API_ENDPOINT_BASE=wati-api-endpoint-base:latest \
-          --set-secrets AI_BOT_ENDPOINT=ai-bot-endpoint:latest \
-          --set-secrets GEMINI_API_URL=gemini-api-url:latest \
-          --set-secrets CHATBOT_IA_URL=chatbot-ia-url:latest \
-          --set-secrets ANALYTICS_ENDPOINT_URL=analytics-endpoint-url:latest \
-          --set-secrets WELCOME_VIDEO_URL=welcome-video-url:latest \
-          --set-secrets WATI_NOTIFICATION_ENABLED=wati-notification-enabled:latest \
-          --set-secrets WATI_NOTIFICATION_GROUP_ID=wati-notification-group-id:latest \
-          --set-secrets WATI_NOTIFICATION_PHONES=wati-notification-phones:latest
+        # Configurar secrets según el ambiente
+        if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+          # Secrets para PRODUCCIÓN
+          echo "Using PRODUCTION secrets..."
+          gcloud run deploy $SERVICE_NAME \
+            --image gcr.io/${{ env.PROJECT_ID }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 8080 \
+            --memory 2Gi \
+            --cpu 2 \
+            --max-instances 10 \
+            --set-env-vars SPRING_PROFILES_ACTIVE=$ENVIRONMENT \
+            --set-secrets WEBHOOK_VERIFY_TOKEN=webhook-verify-token:latest \
+            --set-secrets TELEGRAM_BOT_TOKEN=telegram-bot-token:latest \
+            --set-secrets TELEGRAM_BOT_USERNAME=telegram-bot-username:latest \
+            --set-secrets WATI_API_TOKEN=wati-api-token-prod:latest \
+            --set-secrets WATI_TENANT_ID=wati-tenant-id-prod:latest \
+            --set-secrets GEMINI_API_KEY=gemini-api-key-prod:latest \
+            --set-secrets ANALYTICS_JWT_SECRET=analytics-jwt-secret-prod:latest \
+            --set-secrets WATI_API_ENDPOINT_BASE=wati-api-endpoint-base-prod:latest \
+            --set-secrets AI_BOT_ENDPOINT=ai-bot-endpoint-prod:latest \
+            --set-secrets GEMINI_API_URL=gemini-api-url-prod:latest \
+            --set-secrets CHATBOT_IA_URL=chatbot-ia-url-prod:latest \
+            --set-secrets ANALYTICS_ENDPOINT_URL=analytics-endpoint-url-prod:latest \
+            --set-secrets WELCOME_VIDEO_URL=welcome-video-url-prod:latest \
+            --set-secrets WATI_NOTIFICATION_ENABLED=wati-notification-enabled-prod:latest \
+            --set-secrets WATI_NOTIFICATION_GROUP_ID=wati-notification-group-id-prod:latest \
+            --set-secrets WATI_NOTIFICATION_PHONES=wati-notification-phones-prod:latest
+        else
+          # Secrets para DESARROLLO
+          echo "Using DEVELOPMENT secrets..."
+          gcloud run deploy $SERVICE_NAME \
+            --image gcr.io/${{ env.PROJECT_ID }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 8080 \
+            --memory 2Gi \
+            --cpu 2 \
+            --max-instances 10 \
+            --set-env-vars SPRING_PROFILES_ACTIVE=$ENVIRONMENT \
+            --set-secrets WEBHOOK_VERIFY_TOKEN=webhook-verify-token:latest \
+            --set-secrets TELEGRAM_BOT_TOKEN=telegram-bot-token:latest \
+            --set-secrets TELEGRAM_BOT_USERNAME=telegram-bot-username:latest \
+            --set-secrets WATI_API_TOKEN=wati-api-token:latest \
+            --set-secrets WATI_TENANT_ID=wati-tenant-id:latest \
+            --set-secrets GEMINI_API_KEY=gemini-api-key:latest \
+            --set-secrets ANALYTICS_JWT_SECRET=analytics-jwt-secret:latest \
+            --set-secrets WATI_API_ENDPOINT_BASE=wati-api-endpoint-base:latest \
+            --set-secrets AI_BOT_ENDPOINT=ai-bot-endpoint:latest \
+            --set-secrets GEMINI_API_URL=gemini-api-url:latest \
+            --set-secrets CHATBOT_IA_URL=chatbot-ia-url:latest \
+            --set-secrets ANALYTICS_ENDPOINT_URL=analytics-endpoint-url:latest \
+            --set-secrets WELCOME_VIDEO_URL=welcome-video-url:latest \
+            --set-secrets WATI_NOTIFICATION_ENABLED=wati-notification-enabled:latest \
+            --set-secrets WATI_NOTIFICATION_GROUP_ID=wati-notification-group-id:latest \
+            --set-secrets WATI_NOTIFICATION_PHONES=wati-notification-phones:latest
+        fi
           
     - name: Get service URL
       run: |
