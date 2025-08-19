@@ -549,7 +549,12 @@ public class ChatbotService {
                     }
                     
                     // Usar mensaje personalizado en lugar del mensaje genérico de la IA
-                    String finalMessage = personalizedGreeting + "¿Me confirmas si tu nombre es el que aparece en WhatsApp " + user.getName().trim() + " o me dices cómo te llamas para guardarte en mis contactos?";
+                    String finalMessage;
+                    if (user.getName() != null && !user.getName().trim().isEmpty()) {
+                        finalMessage = personalizedGreeting + "¿Me confirmas si tu nombre es el que aparece en WhatsApp " + user.getName().trim() + " o me dices cómo te llamas para guardarte en mis contactos?";
+                    } else {
+                        finalMessage = personalizedGreeting + "¿Me confirmas tu nombre para guardarte en mis contactos?";
+                    }
                     System.out.println("⚠️  WARNING: Generando mensaje personalizado con código de referido detectado por IA");
                     return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + finalMessage, "WAITING_NAME");
                 } else {
@@ -606,7 +611,12 @@ public class ChatbotService {
                 }
                 
                 // Preparar múltiples mensajes para usuario con referido
-                String finalMessage = personalizedGreeting + "¿Me confirmas si tu nombre es el que aparece en WhatsApp " + user.getName().trim() + " o me dices cómo te llamas para guardarte en mis contactos?";
+                String finalMessage;
+                if (user.getName() != null && !user.getName().trim().isEmpty()) {
+                    finalMessage = personalizedGreeting + "¿Me confirmas si tu nombre es el que aparece en WhatsApp " + user.getName().trim() + " o me dices cómo te llamas para guardarte en mis contactos?";
+                } else {
+                    finalMessage = personalizedGreeting + "¿Me confirmas tu nombre para guardarte en mis contactos?";
+                }
                 System.out.println("⚠️  WARNING: Generando mensaje de bienvenida con código de referido válido");
                 return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + finalMessage, "WAITING_NAME");
             } else {
@@ -615,8 +625,14 @@ public class ChatbotService {
                                 + incomingReferralCode);
                 System.out.println("⚠️  WARNING: Generando mensaje de bienvenida con código de referido inválido");
                 // Preparar múltiples mensajes para código de referido inválido
-                String finalMessage = "Parece que el código de referido que me enviaste no es válido, pero no te preocupes, ¡podemos continuar!\n\n" +
-                    "¿Me confirmas si tu nombre es el que aparece en WhatsApp " + user.getName().trim() + " o me dices cómo te llamas para guardarte en mis contactos?";
+                String finalMessage;
+                if (user.getName() != null && !user.getName().trim().isEmpty()) {
+                    finalMessage = "Parece que el código de referido que me enviaste no es válido, pero no te preocupes, ¡podemos continuar!\n\n" +
+                        "¿Me confirmas si tu nombre es el que aparece en WhatsApp " + user.getName().trim() + " o me dices cómo te llamas para guardarte en mis contactos?";
+                } else {
+                    finalMessage = "Parece que el código de referido que me enviaste no es válido, pero no te preocupes, ¡podemos continuar!\n\n" +
+                        "¿Me confirmas tu nombre para guardarte en mis contactos?";
+                }
                 return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + finalMessage, "WAITING_NAME");
             }
         } else {
@@ -649,7 +665,12 @@ public class ChatbotService {
             } else {
                 System.out.println("⚠️  WARNING: Generando mensaje de bienvenida general (sin código de referido)");
                 // Preparar múltiples mensajes para usuario general
-                String finalMessage = "¿Me confirmas si tu nombre es el que aparece en WhatsApp " + user.getName().trim() + " o me dices cómo te llamas para guardarte en mis contactos?";
+                String finalMessage;
+                if (user.getName() != null && !user.getName().trim().isEmpty()) {
+                    finalMessage = "¿Me confirmas si tu nombre es el que aparece en WhatsApp " + user.getName().trim() + " o me dices cómo te llamas para guardarte en mis contactos?";
+                } else {
+                    finalMessage = "¿Me confirmas tu nombre para guardarte en mis contactos?";
+                }
                 System.out.println("⚠️  WARNING: Generando mensaje de bienvenida general (sin código de referido)");
                 return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + finalMessage, "WAITING_NAME");
             }
