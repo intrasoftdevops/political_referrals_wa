@@ -189,8 +189,7 @@ jobs:
             --set-secrets WATI_NOTIFICATION_ENABLED=wati-notification-enabled:latest \
             --set-secrets WATI_NOTIFICATION_GROUP_ID=wati-notification-group-id:latest \
             --set-secrets WATI_NOTIFICATION_PHONES=wati-notification-phones:latest \
-            --set-secrets SYSTEM_API_KEY=SYSTEM_API_KEY_DEV:latest \
-            --set-secrets SYSTEM_API_KEY=SYSTEM_API_KEY_PROD:latest
+            --set-secrets SYSTEM_API_KEY=SYSTEM_API_KEY_DEV:latest
         fi
           
     - name: Get service URL
