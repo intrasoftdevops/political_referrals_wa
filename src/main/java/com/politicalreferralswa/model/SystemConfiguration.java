@@ -1,22 +1,24 @@
 package com.politicalreferralswa.model;
 
-import java.time.LocalDateTime;
+import com.google.cloud.Timestamp;
+import java.util.Date;
 
 /**
  * Modelo para la configuración del sistema en Firestore
+ * Usa tipos nativos de Firestore para evitar problemas de serialización
  */
 public class SystemConfiguration {
     
     private String configKey;
     private String configValue;
     private String description;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    private Timestamp createdAt;
+    private Timestamp updatedAt;
     
     // Constructor por defecto (requerido por Firestore)
     public SystemConfiguration() {
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
+        this.createdAt = Timestamp.now();
+        this.updatedAt = Timestamp.now();
     }
     
     // Constructor con parámetros
@@ -42,7 +44,7 @@ public class SystemConfiguration {
     
     public void setConfigValue(String configValue) {
         this.configValue = configValue;
-        this.updatedAt = LocalDateTime.now();
+        this.updatedAt = Timestamp.now();
     }
     
     public String getDescription() {
@@ -53,19 +55,19 @@ public class SystemConfiguration {
         this.description = description;
     }
     
-    public LocalDateTime getCreatedAt() {
+    public Timestamp getCreatedAt() {
         return createdAt;
     }
     
-    public void setCreatedAt(LocalDateTime createdAt) {
+    public void setCreatedAt(Timestamp createdAt) {
         this.createdAt = createdAt;
     }
     
-    public LocalDateTime getUpdatedAt() {
+    public Timestamp getUpdatedAt() {
         return updatedAt;
     }
     
-    public void setUpdatedAt(LocalDateTime updatedAt) {
+    public void setUpdatedAt(Timestamp updatedAt) {
         this.updatedAt = updatedAt;
     }
 }
