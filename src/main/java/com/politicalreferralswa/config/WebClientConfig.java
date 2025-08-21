@@ -31,10 +31,10 @@ public class WebClientConfig {
         // Configurar HttpClient con timeouts realistas y configuración SSL/TLS optimizada
         HttpClient httpClient = HttpClient.create(connectionProvider)
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000) // 10 segundos timeout de conexión
-                .responseTimeout(Duration.ofSeconds(25)) // 25 segundos timeout de respuesta
+                .responseTimeout(Duration.ofSeconds(60)) // 60 segundos timeout de respuesta
                 .doOnConnected(conn -> 
-                    conn.addHandlerLast(new ReadTimeoutHandler(25, TimeUnit.SECONDS)) // 25 segundos timeout de lectura
-                        .addHandlerLast(new WriteTimeoutHandler(25, TimeUnit.SECONDS)) // 25 segundos timeout de escritura
+                    conn.addHandlerLast(new ReadTimeoutHandler(60, TimeUnit.SECONDS)) // 60 segundos timeout de lectura
+                        .addHandlerLast(new WriteTimeoutHandler(60, TimeUnit.SECONDS)) // 60 segundos timeout de escritura
                 )
                 .keepAlive(true)
                 .compress(true)
