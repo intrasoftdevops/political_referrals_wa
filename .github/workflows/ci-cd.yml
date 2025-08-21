@@ -157,9 +157,10 @@ jobs:
             --set-secrets CHATBOT_IA_URL=chatbot-ia-url-prod:latest \
             --set-secrets ANALYTICS_ENDPOINT_URL=analytics-endpoint-url-prod:latest \
             --set-secrets WELCOME_VIDEO_URL=welcome-video-url-prod:latest \
-            --set-secrets WATI_NOTIFICATION_ENABLED=wati-notification-enabled-prod:latest \
-            --set-secrets WATI_NOTIFICATION_GROUP_ID=wati-notification-group-id-prod:latest \
-            --set-secrets WATI_NOTIFICATION_PHONES=wati-notification-phones-prod:latest
+                  --set-secrets WATI_NOTIFICATION_ENABLED=wati-notification-enabled-prod:latest \
+      --set-secrets WATI_NOTIFICATION_GROUP_ID=wati-notification-group-id-prod:latest \
+      --set-secrets WATI_NOTIFICATION_PHONES=wati-notification-phones-prod:latest \
+      --set-secrets SYSTEM_API_KEY=SYSTEM_API_KEY_PROD:latest
         else
           # Secrets para DESARROLLO
           echo "Using DEVELOPMENT secrets..."
@@ -186,25 +187,13 @@ jobs:
             --set-secrets CHATBOT_IA_URL=chatbot-ia-url:latest \
             --set-secrets ANALYTICS_ENDPOINT_URL=analytics-endpoint-url:latest \
             --set-secrets WELCOME_VIDEO_URL=welcome-video-url:latest \
-            --set-secrets WATI_NOTIFICATION_ENABLED=wati-notification-enabled:latest \
-            --set-secrets WATI_NOTIFICATION_GROUP_ID=wati-notification-group-id:latest \
-            --set-secrets WATI_NOTIFICATION_PHONES=wati-notification-phones:latest
+                  --set-secrets WATI_NOTIFICATION_ENABLED=wati-notification-enabled:latest \
+      --set-secrets WATI_NOTIFICATION_GROUP_ID=wati-notification-group-id:latest \
+      --set-secrets WATI_NOTIFICATION_PHONES=wati-notification-phones:latest \
+      --set-secrets SYSTEM_API_KEY=SYSTEM_API_KEY_DEV:latest
         fi
         
-        # Configurar SYSTEM_API_KEY según el entorno
-        if [ "${{ github.ref }}" = "refs/heads/main" ]; then
-          # PRODUCCIÓN
-          echo "Configurando SYSTEM_API_KEY para PRODUCCIÓN..."
-          gcloud run services update $SERVICE_NAME \
-            --region=${{ env.REGION }} \
-            --set-secrets SYSTEM_API_KEY=SYSTEM_API_KEY_PROD:latest
-        else
-          # DESARROLLO
-          echo "Configurando SYSTEM_API_KEY para DESARROLLO..."
-          gcloud run services update $SERVICE_NAME \
-            --region=${{ env.REGION }} \
-            --set-secrets SYSTEM_API_KEY=SYSTEM_API_KEY_DEV:latest
-        fi
+
           
     - name: Get service URL
       run: |
