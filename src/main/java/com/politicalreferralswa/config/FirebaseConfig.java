@@ -19,7 +19,7 @@ public class FirebaseConfig {
     @Value("${firestore.project.id:intreasoft-daniel}")
     private String projectId;
 
-    @Value("${firestore.database.id:(default)}")
+    @Value("${FIRESTORE_DATABASE_ID:}")
     private String databaseId;
 
     @Bean
@@ -62,14 +62,21 @@ public class FirebaseConfig {
 
         try {
             // Configurar Firestore directamente con timeouts aumentados
-            FirestoreOptions firestoreOptions = FirestoreOptions.newBuilder()
+            FirestoreOptions.Builder firestoreOptionsBuilder = FirestoreOptions.newBuilder()
                 .setCredentials(credentials)
-                .setProjectId(projectId)
-                .setDatabaseId(databaseId)
-                .build();
+                .setProjectId(projectId);
             
+            // Solo agregar databaseId si está especificado, no está vacío y no es solo espacios
+            if (databaseId != null && !databaseId.trim().isEmpty()) {
+                firestoreOptionsBuilder.setDatabaseId(databaseId.trim());
+                System.out.println("INFO: Usando base de datos específica con ID: '" + databaseId.trim() + "'");
+            } else {
+                System.out.println("INFO: No se especificó databaseId, usando base de datos por defecto del proyecto");
+            }
+            
+            FirestoreOptions firestoreOptions = firestoreOptionsBuilder.build();
             Firestore firestore = firestoreOptions.getService();
-            System.out.println("INFO: Conectado exitosamente a Firebase Firestore en el proyecto: " + projectId + " con base de datos: " + databaseId + " (conexión directa)");
+            System.out.println("INFO: Conectado exitosamente a Firebase Firestore en el proyecto: " + projectId + " (conexión directa)");
             return firestore;
             
         } catch (Exception e) {
@@ -88,7 +95,7 @@ public class FirebaseConfig {
                 firebaseApp = FirebaseApp.getInstance(); // Obtiene la instancia existente si ya fue inicializada.
             }
                 
-            System.out.println("INFO: Conectado exitosamente a Firebase Firestore en el proyecto: " + firebaseApp.getOptions().getProjectId() + " con base de datos: " + databaseId + " (fallback)");
+            System.out.println("INFO: Conectado exitosamente a Firebase Firestore en el proyecto: " + firebaseApp.getOptions().getProjectId() + " (fallback)");
             return FirestoreClient.getFirestore(firebaseApp);
         }
     }
