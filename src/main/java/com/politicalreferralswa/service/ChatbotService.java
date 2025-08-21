@@ -10,6 +10,9 @@ import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.QuerySnapshot;
 import com.google.api.core.ApiFuture;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
@@ -39,9 +42,16 @@ public class ChatbotService {
     private final TribalAnalysisService tribalAnalysisService;
     private final AnalyticsService analyticsService;
     private final SystemConfigService systemConfigService;
+    private final RestTemplate restTemplate;
 
     @Value("${WELCOME_VIDEO_URL}")
     private String welcomeVideoUrl;
+
+    @Value("${server.port:8080}")
+    private String serverPort;
+
+    @Value("${server.servlet.context-path:}")
+    private String contextPath;
 
     private static final Pattern REFERRAL_MESSAGE_PATTERN = Pattern
             .compile("Hola, vengo referido por:\\s*([A-Za-z0-9]{8})");
@@ -86,7 +96,7 @@ public class ChatbotService {
         "cómo ingreso a mi tribu",
         "no encuentro el link de mi tribu",
         "perdí el link de la tribu",
-        "ayúdame con el link de la tribu",
+        "ayúdame con el link de mi tribu",
         "me puedes enviar el link de mi grupo",
         "necesito volver a entrar a mi tribu",
         "como es que invito gente?",
@@ -146,12 +156,18 @@ public class ChatbotService {
         "enlace de mi parche"
     );
 
+    // Patrones para detectar solicitudes de eliminación
+    private static final List<String> DELETE_REQUEST_PATTERNS = List.of(
+        "eliminarme 2026",
+        "eliminar mi tribu 2026"
+    );
+
     public ChatbotService(Firestore firestore, WatiApiService watiApiService,
                           TelegramApiService telegramApiService, AIBotService aiBotService,
                           UserDataExtractor userDataExtractor, GeminiService geminiService,
                           NameValidationService nameValidationService,
                           TribalAnalysisService tribalAnalysisService, AnalyticsService analyticsService,
-                          SystemConfigService systemConfigService) {
+                          SystemConfigService systemConfigService, RestTemplate restTemplate) {
         this.firestore = firestore;
         this.watiApiService = watiApiService;
         this.telegramApiService = telegramApiService;
@@ -162,14 +178,15 @@ public class ChatbotService {
         this.tribalAnalysisService = tribalAnalysisService;
         this.analyticsService = analyticsService;
         this.systemConfigService = systemConfigService;
+        this.restTemplate = restTemplate;
     }
 
     /**
-     * MÉTODO DE UTILIDAD PARA CREAR UN USUARIO REFERENTE DE PRUEBA
+     * MÉTODO DE UTILIDAD PARA CREAR UN USUARIO REFERENTE DE PRUEBA Y USUARIOS REFERIDOS
      */
     public void createTestReferrerUser() {
         String testPhoneNumber = "+573100000001";
-        String testReferralCode = "TESTCODE";
+        String testReferralCode = generateUniqueReferralCode(); // Generar código único en lugar de usar "TESTCODE"
 
         Optional<User> existingUser = findUserByAnyIdentifier(testPhoneNumber, "WHATSAPP");
         if (existingUser.isPresent()) {
@@ -190,14 +207,64 @@ public class ChatbotService {
         testUser.setCreated_at(Timestamp.now());
         testUser.setUpdated_at(Timestamp.now());
         testUser.setReferred_by_phone(null);
-        testUser.setReferred_by_code(null); // Asegúrate de inicializarlo si no lo haces en el constructor de User
+        testUser.setReferred_by_code(null);
 
         try {
             saveUser(testUser);
             System.out.println("DEBUG: Usuario referente de prueba '" + testUser.getName() + "' con código '"
                     + testUser.getReferral_code() + "' creado exitosamente en Firestore.");
+            
+            // Crear usuarios de prueba referidos para comprobar la funcionalidad de eliminación de tribu
+            createTestReferredUsers(testReferralCode);
+            
         } catch (Exception e) {
             System.err.println("ERROR DEBUG: No se pudo crear el usuario de prueba en Firestore: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * MÉTODO DE UTILIDAD PARA CREAR USUARIOS REFERIDOS DE PRUEBA
+     */
+    private void createTestReferredUsers(String referralCode) {
+        try {
+            // Crear 3 usuarios de prueba referidos
+            String[] testNames = {"Usuario Referido 1", "Usuario Referido 2", "Usuario Referido 3"};
+            String[] testCities = {"Medellin", "Cali", "Barranquilla"};
+            String[] testPhones = {"+573100000002", "+573100000003", "+573100000004"};
+            
+            for (int i = 0; i < testNames.length; i++) {
+                String phoneNumber = testPhones[i];
+                
+                // Verificar si ya existe
+                Optional<User> existingUser = findUserByAnyIdentifier(phoneNumber, "WHATSAPP");
+                if (existingUser.isPresent()) {
+                    System.out.println("DEBUG: Usuario referido de prueba '" + phoneNumber + "' ya existe. No se creará de nuevo.");
+                    continue;
+                }
+                
+                User referredUser = new User();
+                referredUser.setId(UUID.randomUUID().toString());
+                referredUser.setPhone_code("+57");
+                referredUser.setPhone(phoneNumber);
+                referredUser.setName(testNames[i]);
+                referredUser.setCity(testCities[i]);
+                referredUser.setChatbot_state("COMPLETED");
+                referredUser.setAceptaTerminos(true);
+                referredUser.setReferral_code(generateUniqueReferralCode());
+                referredUser.setCreated_at(Timestamp.now());
+                referredUser.setUpdated_at(Timestamp.now());
+                referredUser.setReferred_by_phone("3100000001"); // Sin el +, teléfono del usuario principal
+                referredUser.setReferred_by_code(referralCode); // Usar el código de referido del usuario principal
+                
+                saveUser(referredUser);
+                System.out.println("DEBUG: Usuario referido de prueba '" + referredUser.getName() + "' creado exitosamente. Referido por código: " + referralCode + " y teléfono: 3100000001");
+            }
+            
+            System.out.println("DEBUG: Usuarios referidos de prueba creados exitosamente para el código: " + referralCode);
+            
+        } catch (Exception e) {
+            System.err.println("ERROR DEBUG: No se pudieron crear los usuarios referidos de prueba: " + e.getMessage());
             e.printStackTrace();
         }
     }
@@ -889,16 +956,8 @@ public class ChatbotService {
                                 additionalMessages.add(friendsInviteMessage);
 
                                 // Enviar el video de bienvenida ANTES del mensaje de IA
-                                try { 
-                                    // Enviar el video real usando la URL configurada
-                                    watiApiService.sendVideoMessage(user.getPhone(), welcomeVideoUrl, "Video de bienvenida a la campaña");
-                                    System.out.println("DEBUG: Video de bienvenida enviado a: " + user.getPhone());
-                                } catch (Exception e) {
-                                    System.err.println("ERROR: No se pudo enviar el video de bienvenida: " + e.getMessage());
-                                    // Fallback: enviar el enlace si falla el envío del video
-                                    String welcomeVideoMessage = "🎥 Video de bienvenida: " + welcomeVideoUrl;
-                                    additionalMessages.add(welcomeVideoMessage);
-                                }
+                                watiApiService.sendVideoMessage(user.getPhone(), welcomeVideoUrl, "Video de bienvenida a la campaña");
+                                System.out.println("DEBUG: Video de bienvenida enviado a: " + user.getPhone());
 
                                 String aiBotIntroMessage = """
                                         ¡Atención! Ahora entrarás en conversación con una inteligencia artificial.
@@ -1095,16 +1154,8 @@ public class ChatbotService {
                         additionalMessages.add(friendsInviteMessage);
 
                         // Enviar el video de bienvenida ANTES del mensaje de IA
-                        try {
-                            // Enviar el video real usando la URL configurada
-                            watiApiService.sendVideoMessage(user.getPhone(), welcomeVideoUrl, "Video de bienvenida a la campaña");
-                            System.out.println("DEBUG: Video de bienvenida enviado a: " + user.getPhone());
-                        } catch (Exception e) {
-                            System.err.println("ERROR: No se pudo enviar el video de bienvenida: " + e.getMessage());
-                            // Fallback: enviar el enlace si falla el envío del video
-                            String welcomeVideoMessage = "🎥 Video de bienvenida: " + welcomeVideoUrl;
-                            additionalMessages.add(welcomeVideoMessage);
-                        }
+                        watiApiService.sendVideoMessage(user.getPhone(), welcomeVideoUrl, "Video de bienvenida a la campaña");
+                        System.out.println("DEBUG: Video de bienvenida enviado a: " + user.getPhone());
 
                         String aiBotIntroMessage = """
                                 ¡Atención! Ahora entrarás en conversación con una inteligencia artificial.
@@ -1243,6 +1294,75 @@ public class ChatbotService {
                 }
 
                 if (sessionId != null && !sessionId.isEmpty()) {
+                    // Primero verificar si es una solicitud de eliminación
+                    DeleteRequestResult deleteResult = isDeleteRequest(messageText);
+                    if (deleteResult.isDeleteRequest()) {
+                        System.out.println("ChatbotService: Detectada solicitud de eliminación tipo: " + deleteResult.getDeleteType());
+                        
+                        // Construir la URL del endpoint de reset usando la configuración del servidor
+                        String baseUrl = "http://localhost:" + serverPort;
+                        if (contextPath != null && !contextPath.isEmpty()) {
+                            baseUrl += contextPath;
+                        }
+                        
+                        try {
+                            if ("PERSONAL".equals(deleteResult.getDeleteType())) {
+                                // Eliminación personal - solo resetear el usuario
+                                String resetUrl = baseUrl + "/api/admin/reset/" + user.getPhone().substring(1);
+                                System.out.println("ChatbotService: Llamando al endpoint de reset personal: " + resetUrl);
+                                
+                                ResponseEntity<Map> resetResponse = restTemplate.exchange(resetUrl, org.springframework.http.HttpMethod.DELETE, null, Map.class);
+                                
+                                if (resetResponse.getStatusCode() == HttpStatus.OK) {
+                                    // Actualizar el estado del usuario en la sesión actual para que no continúe como COMPLETED
+                                    user.setChatbot_state("NEW");
+                                    user.setAceptaTerminos(false);
+                                    user.setUpdated_at(Timestamp.now());
+                                    
+                                    responseMessage = "Tu solicitud de eliminación ha sido procesada exitosamente. Tu cuenta ha sido reseteada y puedes volver a comenzar el proceso cuando quieras.";
+                                    nextChatbotState = "NEW";
+                                    System.out.println("ChatbotService: Usuario eliminado/reseteado exitosamente, estado cambiado a NEW");
+                                } else {
+                                    responseMessage = "Lo siento, hubo un problema al procesar tu solicitud de eliminación. Por favor, intenta de nuevo más tarde.";
+                                    nextChatbotState = "COMPLETED";
+                                    System.out.println("ChatbotService: Error al eliminar/resetear usuario");
+                                }
+                            } else if ("TRIBU".equals(deleteResult.getDeleteType())) {
+                                // Eliminación de tribu - resetear usuario y todos sus referidos
+                                System.out.println("ChatbotService: Procesando eliminación de tribu completa...");
+                                
+                                // Primero resetear al usuario principal
+                                String resetUrl = baseUrl + "/api/admin/reset/" + user.getPhone().substring(1);
+                                ResponseEntity<Map> resetResponse = restTemplate.exchange(resetUrl, org.springframework.http.HttpMethod.DELETE, null, Map.class);
+                                
+                                if (resetResponse.getStatusCode() == HttpStatus.OK) {
+                                    // Buscar y resetear todos los usuarios referidos
+                                    int referredUsersReset = resetReferredUsers(user.getReferral_code());
+                                    System.out.println("ChatbotService: Usuarios referidos reseteados: " + referredUsersReset);
+                                    
+                                    // Actualizar el estado del usuario en la sesión actual
+                                    user.setChatbot_state("NEW");
+                                    user.setAceptaTerminos(false);
+                                    user.setUpdated_at(Timestamp.now());
+                                    
+                                    responseMessage = "Tu solicitud de eliminación de tribu ha sido procesada exitosamente. Tu cuenta y la de " + referredUsersReset + " usuarios referidos han sido reseteadas.";
+                                    nextChatbotState = "NEW";
+                                    System.out.println("ChatbotService: Tribu eliminada exitosamente, " + referredUsersReset + " usuarios referidos reseteados");
+                                } else {
+                                    responseMessage = "Lo siento, hubo un problema al procesar tu solicitud de eliminación de tribu. Por favor, intenta de nuevo más tarde.";
+                                    nextChatbotState = "COMPLETED";
+                                    System.out.println("ChatbotService: Error al eliminar tribu");
+                                }
+                            }
+                        } catch (Exception e) {
+                            System.err.println("ERROR: Error al llamar al endpoint de reset: " + e.getMessage());
+                            responseMessage = "Lo siento, hubo un problema al procesar tu solicitud de eliminación. Por favor, intenta de nuevo más tarde.";
+                            nextChatbotState = "COMPLETED";
+                        }
+                        
+                        return new ChatResponse(responseMessage, nextChatbotState, secondaryMessage);
+                    }
+                    
                     // Primero verificar si es una pregunta de analytics
                     if (analyticsService.isAnalyticsQuestion(messageText)) {
                         System.out.println("ChatbotService: Detectada pregunta de analytics. Obteniendo métricas...");
@@ -1753,6 +1873,57 @@ public class ChatbotService {
     }
 
     /**
+     * Verifica si el mensaje del usuario es una solicitud de eliminación.
+     * Compara el mensaje exactamente con los patrones predefinidos, sin distinguir mayúsculas o minúsculas.
+     *
+     * @param messageText El mensaje del usuario
+     * @return DeleteRequestResult con información sobre el tipo de eliminación solicitada
+     */
+    private DeleteRequestResult isDeleteRequest(String messageText) {
+        if (messageText == null || messageText.trim().isEmpty()) {
+            return new DeleteRequestResult(false, null);
+        }
+        
+        // Normalizar el mensaje para comparación
+        String normalizedMessage = messageText.trim().toLowerCase();
+        
+        // Verificar "eliminarme 2026"
+        if (normalizedMessage.equals("eliminarme 2026")) {
+            System.out.println("ChatbotService: Coincidencia exacta encontrada con patrón de eliminación personal: 'eliminarme 2026'");
+            return new DeleteRequestResult(true, "PERSONAL");
+        }
+        
+        // Verificar "eliminar mi tribu 2026"
+        if (normalizedMessage.equals("eliminar mi tribu 2026")) {
+            System.out.println("ChatbotService: Coincidencia exacta encontrada con patrón de eliminación de tribu: 'eliminar mi tribu 2026'");
+            return new DeleteRequestResult(true, "TRIBU");
+        }
+        
+        return new DeleteRequestResult(false, null);
+    }
+
+    /**
+     * Clase interna para representar el resultado de la verificación de eliminación
+     */
+    private static class DeleteRequestResult {
+        private final boolean isDeleteRequest;
+        private final String deleteType; // "PERSONAL" o "TRIBU"
+
+        public DeleteRequestResult(boolean isDeleteRequest, String deleteType) {
+            this.isDeleteRequest = isDeleteRequest;
+            this.deleteType = deleteType;
+        }
+
+        public boolean isDeleteRequest() {
+            return isDeleteRequest;
+        }
+
+        public String getDeleteType() {
+            return deleteType;
+        }
+    }
+
+    /**
      * Normaliza el texto removiendo acentos y convirtiendo a minúsculas.
      *
      * @param text El texto a normalizar
@@ -1801,4 +1972,70 @@ public class ChatbotService {
             System.err.println("ERROR: Error al enviar mensaje WhatsApp de forma síncrona: " + e.getMessage());
         }
     }
+
+    /**
+     * Resetea todos los usuarios que fueron referidos por un código de referido específico.
+     * Llama al endpoint de reset para cada usuario referido encontrado.
+     *
+     * @param referralCode El código de referido del usuario principal
+     * @return El número de usuarios referidos que fueron reseteados exitosamente
+     */
+    private int resetReferredUsers(String referralCode) {
+        if (referralCode == null || referralCode.isEmpty()) {
+            System.out.println("ChatbotService: No hay código de referido para resetear usuarios referidos");
+            return 0;
+        }
+
+        try {
+            // Buscar todos los usuarios que tienen este referralCode en referred_by_code
+            ApiFuture<QuerySnapshot> future = firestore.collection("users")
+                    .whereEqualTo("referred_by_code", referralCode)
+                    .get();
+            
+            QuerySnapshot querySnapshot = future.get();
+            int resetCount = 0;
+
+            if (!querySnapshot.isEmpty()) {
+                System.out.println("ChatbotService: Encontrados " + querySnapshot.size() + " usuarios referidos para resetear");
+                
+                for (DocumentSnapshot document : querySnapshot.getDocuments()) {
+                    try {
+                        User referredUser = document.toObject(User.class);
+                        if (referredUser != null && referredUser.getPhone() != null) {
+                            // Construir URL para resetear este usuario referido
+                            String baseUrl = "http://localhost:" + serverPort;
+                            if (contextPath != null && !contextPath.isEmpty()) {
+                                baseUrl += contextPath;
+                            }
+                            String resetUrl = baseUrl + "/api/admin/reset/" + referredUser.getPhone().substring(1);
+                            
+                            System.out.println("ChatbotService: Reseteando usuario referido: " + referredUser.getPhone());
+                            
+                            // Llamar al endpoint de reset para este usuario referido
+                            ResponseEntity<Map> resetResponse = restTemplate.exchange(resetUrl, org.springframework.http.HttpMethod.DELETE, null, Map.class);
+                            
+                            if (resetResponse.getStatusCode() == HttpStatus.OK) {
+                                resetCount++;
+                                System.out.println("ChatbotService: Usuario referido reseteado exitosamente: " + referredUser.getPhone());
+                            } else {
+                                System.err.println("ChatbotService: Error al resetear usuario referido: " + referredUser.getPhone());
+                            }
+                        }
+                    } catch (Exception e) {
+                        System.err.println("ERROR: Error al resetear usuario referido: " + e.getMessage());
+                    }
+                }
+            } else {
+                System.out.println("ChatbotService: No se encontraron usuarios referidos para el código: " + referralCode);
+            }
+
+            return resetCount;
+            
+        } catch (Exception e) {
+            System.err.println("ERROR: Error al buscar usuarios referidos: " + e.getMessage());
+            return 0;
+        }
+    }
+
+
 }
