@@ -66,12 +66,12 @@ public class FirebaseConfig {
                 .setCredentials(credentials)
                 .setProjectId(projectId);
             
-            // Solo agregar databaseId si está especificado y no está vacío
+            // Solo agregar databaseId si está especificado, no está vacío y no es solo espacios
             if (databaseId != null && !databaseId.trim().isEmpty()) {
-                firestoreOptionsBuilder.setDatabaseId(databaseId);
-                System.out.println("INFO: Usando base de datos específica: " + databaseId);
+                firestoreOptionsBuilder.setDatabaseId(databaseId.trim());
+                System.out.println("INFO: Usando base de datos específica con ID: '" + databaseId.trim() + "'");
             } else {
-                System.out.println("INFO: Usando base de datos por defecto del proyecto");
+                System.out.println("INFO: No se especificó databaseId, usando base de datos por defecto del proyecto");
             }
             
             FirestoreOptions firestoreOptions = firestoreOptionsBuilder.build();
