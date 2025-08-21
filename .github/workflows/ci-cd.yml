@@ -187,10 +187,10 @@ jobs:
             --set-secrets CHATBOT_IA_URL=chatbot-ia-url:latest \
             --set-secrets ANALYTICS_ENDPOINT_URL=analytics-endpoint-url:latest \
             --set-secrets WELCOME_VIDEO_URL=welcome-video-url:latest \
-                  --set-secrets WATI_NOTIFICATION_ENABLED=wati-notification-enabled:latest \
-      --set-secrets WATI_NOTIFICATION_GROUP_ID=wati-notification-group-id:latest \
-      --set-secrets WATI_NOTIFICATION_PHONES=wati-notification-phones:latest \
-      --set-secrets SYSTEM_API_KEY=SYSTEM_API_KEY_DEV:latest
+            --set-secrets WATI_NOTIFICATION_ENABLED=wati-notification-enabled:latest \
+            --set-secrets WATI_NOTIFICATION_GROUP_ID=wati-notification-group-id:latest \
+            --set-secrets WATI_NOTIFICATION_PHONES=wati-notification-phones:latest \
+            --set-secrets SYSTEM_API_KEY=SYSTEM_API_KEY_DEV:latest
         fi
         
 
