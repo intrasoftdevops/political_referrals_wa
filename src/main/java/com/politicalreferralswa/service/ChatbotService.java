@@ -38,6 +38,7 @@ public class ChatbotService {
     private final NameValidationService nameValidationService;
     private final TribalAnalysisService tribalAnalysisService;
     private final AnalyticsService analyticsService;
+    private final SystemConfigService systemConfigService;
 
     @Value("${WELCOME_VIDEO_URL}")
     private String welcomeVideoUrl;
@@ -149,7 +150,8 @@ public class ChatbotService {
                           TelegramApiService telegramApiService, AIBotService aiBotService,
                           UserDataExtractor userDataExtractor, GeminiService geminiService,
                           NameValidationService nameValidationService,
-                          TribalAnalysisService tribalAnalysisService, AnalyticsService analyticsService) {
+                          TribalAnalysisService tribalAnalysisService, AnalyticsService analyticsService,
+                          SystemConfigService systemConfigService) {
         this.firestore = firestore;
         this.watiApiService = watiApiService;
         this.telegramApiService = telegramApiService;
@@ -159,6 +161,7 @@ public class ChatbotService {
         this.nameValidationService = nameValidationService;
         this.tribalAnalysisService = tribalAnalysisService;
         this.analyticsService = analyticsService;
+        this.systemConfigService = systemConfigService;
     }
 
     /**
@@ -1210,7 +1213,21 @@ public class ChatbotService {
                 }
                 break;
             case "COMPLETED":
-                System.out.println("ChatbotService: Usuario COMPLETED. Analizando consulta...");
+                System.out.println("ChatbotService: Usuario COMPLETED. Verificando configuración del sistema...");
+                
+                // Verificar si la IA está habilitada globalmente en el sistema
+                if (!systemConfigService.isAIEnabled()) {
+                    System.out.println("ChatbotService: IA del sistema DESHABILITADA. Redirigiendo a agente humano...");
+                    
+                    // No enviar mensaje automático, el agente responderá directamente
+                    nextChatbotState = "COMPLETED";
+                    
+                    // Aquí podrías implementar la lógica para enviar el mensaje a WATI para que lo vean los agentes humanos
+                    // Retornar sin mensaje para que el agente responda
+                    return new ChatResponse("", nextChatbotState, secondaryMessage);
+                }
+                
+                System.out.println("ChatbotService: IA del sistema HABILITADA. Procesando con IA...");
 
                 // Obtener session ID para el análisis
                 String sessionId = user.getPhone();
