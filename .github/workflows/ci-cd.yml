@@ -158,7 +158,8 @@ jobs:
             --set-secrets WATI_NOTIFICATION_ENABLED=wati-notification-enabled-prod:latest \
             --set-secrets WATI_NOTIFICATION_GROUP_ID=wati-notification-group-id-prod:latest \
             --set-secrets WATI_NOTIFICATION_PHONES=wati-notification-phones-prod:latest \
-            --set-secrets SYSTEM_API_KEY=SYSTEM_API_KEY_PROD:latest
+            --set-secrets SYSTEM_API_KEY=SYSTEM_API_KEY_PROD:latest \
+            --set-secrets FIRESTORE_DATABASE_ID=firestore-database-id-prod:latest
         else
           # Secrets para DESARROLLO
           echo "Using DEVELOPMENT secrets..."
@@ -188,7 +189,8 @@ jobs:
             --set-secrets WATI_NOTIFICATION_ENABLED=wati-notification-enabled:latest \
             --set-secrets WATI_NOTIFICATION_GROUP_ID=wati-notification-group-id:latest \
             --set-secrets WATI_NOTIFICATION_PHONES=wati-notification-phones:latest \
-            --set-secrets SYSTEM_API_KEY=SYSTEM_API_KEY_DEV:latest
+            --set-secrets SYSTEM_API_KEY=SYSTEM_API_KEY_DEV:latest \
+            --set-secrets FIRESTORE_DATABASE_ID=firestore-database-id-dev:latest
         fi
         
 

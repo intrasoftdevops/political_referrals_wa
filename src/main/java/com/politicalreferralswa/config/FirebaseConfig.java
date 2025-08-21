@@ -16,6 +16,12 @@ import java.io.IOException;
 @Configuration
 public class FirebaseConfig {
 
+    @Value("${firestore.project.id:intreasoft-daniel}")
+    private String projectId;
+
+    @Value("${firestore.database.id:(default)}")
+    private String databaseId;
+
     @Bean
     public Firestore firestore() throws IOException {
         // Cargar credenciales
@@ -58,11 +64,12 @@ public class FirebaseConfig {
             // Configurar Firestore directamente con timeouts aumentados
             FirestoreOptions firestoreOptions = FirestoreOptions.newBuilder()
                 .setCredentials(credentials)
-                .setProjectId("intreasoft-daniel")
+                .setProjectId(projectId)
+                .setDatabaseId(databaseId)
                 .build();
             
             Firestore firestore = firestoreOptions.getService();
-            System.out.println("INFO: Conectado exitosamente a Firebase Firestore en el proyecto: intreasoft-daniel (conexión directa)");
+            System.out.println("INFO: Conectado exitosamente a Firebase Firestore en el proyecto: " + projectId + " con base de datos: " + databaseId + " (conexión directa)");
             return firestore;
             
         } catch (Exception e) {
@@ -71,7 +78,7 @@ public class FirebaseConfig {
             // Fallback al método original
             FirebaseOptions options = FirebaseOptions.builder()
                 .setCredentials(credentials)
-                .setProjectId("intreasoft-daniel")
+                .setProjectId(projectId)
                 .build();
 
             FirebaseApp firebaseApp;
@@ -81,7 +88,7 @@ public class FirebaseConfig {
                 firebaseApp = FirebaseApp.getInstance(); // Obtiene la instancia existente si ya fue inicializada.
             }
                 
-            System.out.println("INFO: Conectado exitosamente a Firebase Firestore en el proyecto: " + firebaseApp.getOptions().getProjectId() + " (fallback)");
+            System.out.println("INFO: Conectado exitosamente a Firebase Firestore en el proyecto: " + firebaseApp.getOptions().getProjectId() + " con base de datos: " + databaseId + " (fallback)");
             return FirestoreClient.getFirestore(firebaseApp);
         }
     }
