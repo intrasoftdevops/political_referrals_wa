@@ -1,57 +1,33 @@
 package com.politicalreferralswa.config;
 
+import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.Contact;
-import io.swagger.v3.oas.models.info.License;
-import io.swagger.v3.oas.models.servers.Server;
-import io.swagger.v3.oas.models.tags.Tag;
+import io.swagger.v3.oas.models.security.SecurityScheme;
+import io.swagger.v3.oas.models.security.SecurityRequirement;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import java.util.List;
-
 @Configuration
 public class OpenApiConfig {
-
+    
     @Bean
     public OpenAPI customOpenAPI() {
         return new OpenAPI()
                 .info(new Info()
-                        .title("Political Referrals WA API")
+                        .title("🎛️ Political Referrals WA - API de Control del Sistema")
+                        .description("API para controlar el sistema de IA del chatbot político colombiano. **Los endpoints de control requieren autenticación por API Key.**")
                         .version("1.0.0")
-                        .description("""
-                            API REST para el chatbot político colombiano con extracción inteligente de datos usando Gemini AI.
-                            
-                            ## Características Principales
-                            - **Extracción automática** de datos en conversación natural
-                            - **Soporte para WhatsApp** (Wati API) y **Telegram**
-                            - **Integración con Gemini AI** para procesamiento inteligente
-                            - **Sistema de métricas** para monitoreo de rendimiento
-                            
-                            ## Endpoints Disponibles
-                            - `/api/wati-webhook` - Webhook para mensajes de WhatsApp
-                            - `/telegram_webhook` - Webhook para mensajes de Telegram
-                            - `/api/message` - API directa para envío de mensajes
-                            - `/api/metrics/gemini` - Métricas del sistema de extracción
-                            """)
                         .contact(new Contact()
-                                .name("Political Referrals WA Team")
-                                .email("support@politicalreferrals.com"))
-                        .license(new License()
-                                .name("MIT")
-                                .url("https://opensource.org/licenses/MIT")))
-                .servers(List.of(
-                        new Server()
-                                .url("/") // URL Relativa
-                                .description("Default Server URL")
-                ))
-                .tags(List.of(
-                        new Tag().name("WhatsApp").description("Endpoints relacionados con WhatsApp a través de Wati API"),
-                        new Tag().name("Telegram").description("Endpoints relacionados con Telegram Bot API"),
-                        new Tag().name("Messages").description("API directa para envío de mensajes"),
-                        new Tag().name("Metrics").description("Métricas y estadísticas del sistema"),
-                        new Tag().name("Admin").description("Operaciones de administración de usuarios") // Añadimos el tag para Admin
-                ));
+                                .name("Intrasoft Development Team")
+                                .email("devops@intrasoft.com")))
+                .components(new Components()
+                        .addSecuritySchemes("ApiKeyAuth", new SecurityScheme()
+                                .type(SecurityScheme.Type.APIKEY)
+                                .in(SecurityScheme.In.HEADER)
+                                .name("X-API-Key")
+                                .description("API Key requerida para acceder a los endpoints de control del sistema")))
+                .addSecurityItem(new SecurityRequirement().addList("ApiKeyAuth"));
     }
 } 

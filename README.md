@@ -97,6 +97,30 @@ docs/
 - Optimizaciones de rendimiento
 - Nuevas funcionalidades de IA
 
+## 🎛️ Control de IA del Sistema
+
+El sistema incluye **endpoints de control global** para activar/desactivar la IA en tiempo real:
+
+### **Endpoints Principales:**
+- **`GET /api/system/ai/status`** - Ver estado actual
+- **`POST /api/system/ai/disable`** - Deshabilitar IA
+- **`POST /api/system/ai/enable`** - Habilitar IA
+- **`POST /api/system/ai/toggle`** - Cambiar estado
+
+### **Pruebas Rápidas:**
+```bash
+# Ver estado
+curl http://localhost:8080/api/system/ai/status
+
+# Deshabilitar IA
+curl -X POST http://localhost:8080/api/system/ai/disable
+
+# Habilitar IA
+curl -X POST http://localhost:8080/api/system/ai/enable
+```
+
+📖 **Documentación completa**: [README-IA-CONTROL.md](README-IA-CONTROL.md)
+
 ## 🔧 Troubleshooting
 
 ### Problema: Firebase no conecta localmente
