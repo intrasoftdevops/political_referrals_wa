@@ -36,6 +36,7 @@ public class SystemConfigController {
      * Endpoint para obtener el estado actual de la IA del sistema
      */
     @GetMapping("/ai/status")
+    @CrossOrigin(origins = "*") // Permitir CORS para este endpoint
     @Operation(
         summary = "🔍 Obtener Estado de la IA",
         description = "Obtiene el estado actual de la IA del sistema. Permite verificar si la IA está habilitada o deshabilitada para todos los usuarios COMPLETED."
@@ -74,6 +75,7 @@ public class SystemConfigController {
      * Endpoint para habilitar la IA del sistema
      */
     @PostMapping("/ai/enable")
+    @CrossOrigin(origins = "*") // Permitir CORS para este endpoint
     @RequiresApiKey("Habilitar IA del sistema")
     @Operation(
         summary = "🟢 Habilitar IA",
@@ -113,6 +115,7 @@ public class SystemConfigController {
      * Endpoint para deshabilitar la IA del sistema
      */
     @PostMapping("/ai/disable")
+    @CrossOrigin(origins = "*") // Permitir CORS para este endpoint
     @RequiresApiKey("Deshabilitar IA del sistema")
     @Operation(
         summary = "🔴 Deshabilitar IA",
@@ -152,6 +155,7 @@ public class SystemConfigController {
      * Endpoint para cambiar el estado de la IA del sistema
      */
     @PostMapping("/ai/toggle")
+    @CrossOrigin(origins = "*") // Permitir CORS para este endpoint
     @RequiresApiKey("Cambiar estado de la IA del sistema")
     @Operation(
         summary = "🔄 Cambiar Estado de la IA",
@@ -194,6 +198,7 @@ public class SystemConfigController {
      * Endpoint para establecer un estado específico de la IA
      */
     @PostMapping("/ai/set")
+    @CrossOrigin(origins = "*") // Permitir CORS para este endpoint
     @RequiresApiKey("Establecer estado específico de la IA del sistema")
     @Operation(
         summary = "⚙️ Establecer Estado Específico de la IA",
