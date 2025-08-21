@@ -1219,15 +1219,12 @@ public class ChatbotService {
                 if (!systemConfigService.isAIEnabled()) {
                     System.out.println("ChatbotService: IA del sistema DESHABILITADA. Redirigiendo a agente humano...");
                     
-                    // Mensaje informativo para el usuario
-                    responseMessage = "¡Hola! En este momento estoy siendo atendido por un agente humano. " +
-                                   "Tu mensaje ha sido enviado a nuestro equipo y te responderemos pronto. " +
-                                   "Mientras tanto, puedes revisar nuestra política de privacidad en: https://danielquinterocalle.com/privacidad";
+                    // No enviar mensaje automático, el agente responderá directamente
                     nextChatbotState = "COMPLETED";
                     
                     // Aquí podrías implementar la lógica para enviar el mensaje a WATI para que lo vean los agentes humanos
-                    // Por ahora solo retornamos el mensaje informativo
-                    return new ChatResponse(responseMessage, nextChatbotState, secondaryMessage);
+                    // Retornar sin mensaje para que el agente responda
+                    return new ChatResponse("", nextChatbotState, secondaryMessage);
                 }
                 
                 System.out.println("ChatbotService: IA del sistema HABILITADA. Procesando con IA...");
