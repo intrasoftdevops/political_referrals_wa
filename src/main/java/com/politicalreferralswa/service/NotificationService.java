@@ -73,6 +73,10 @@ public class NotificationService {
      * Construye mensaje de éxito
      */
     private String buildSuccessMessage(String serviceName, String region, String imageTag, String commitSha) {
+        // Manejar commit SHA de forma segura
+        String shortCommit = commitSha != null && commitSha.length() >= 8 ? 
+            commitSha.substring(0, 8) : commitSha;
+            
         return String.format(
             "🚀 *DESPLIEGUE EXITOSO* 🚀\n\n" +
             "✅ *Servicio:* %s\n" +
@@ -80,7 +84,7 @@ public class NotificationService {
             "🐳 *Imagen:* %s\n" +
             "🔗 *Commit:* %s\n\n" +
             "🎉 La aplicación está funcionando en producción!",
-            serviceName, region, imageTag, commitSha.substring(0, 8)
+            serviceName, region, imageTag, shortCommit
         );
     }
     
@@ -88,6 +92,10 @@ public class NotificationService {
      * Construye mensaje de fallo
      */
     private String buildFailureMessage(String serviceName, String region, String commitSha, String errorDetails) {
+        // Manejar commit SHA de forma segura
+        String shortCommit = commitSha != null && commitSha.length() >= 8 ? 
+            commitSha.substring(0, 8) : commitSha;
+            
         return String.format(
             "❌ *DESPLIEGUE FALLIDO* ❌\n\n" +
             "🔴 *Servicio:* %s\n" +
@@ -95,7 +103,7 @@ public class NotificationService {
             "🔗 *Commit:* %s\n\n" +
             "⚠️ *Error:* %s\n\n" +
             "🔍 Revisa los logs para más detalles",
-            serviceName, region, commitSha.substring(0, 8), errorDetails
+            serviceName, region, shortCommit, errorDetails
         );
     }
     

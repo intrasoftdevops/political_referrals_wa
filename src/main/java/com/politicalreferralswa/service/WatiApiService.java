@@ -205,7 +205,7 @@ public class WatiApiService {
     
     /**
      * Envía un mensaje de notificación a un número de WhatsApp usando la API de Wati.
-     * Este método usa sendTemplateMessage v2 con la template deployment_notifications.
+     * Este método usa sendTemplateMessage v2 con fallback de templates.
      *
      * @param toPhoneNumber El número de teléfono del destinatario
      * @param messageText El texto del mensaje a enviar
@@ -234,28 +234,62 @@ public class WatiApiService {
 
             System.out.println("WatiApiService: URL de Wati para notificación construida: " + fullApiUri.toString());
 
-            // Crear el body JSON para template v2 con parámetros numerados
-            String jsonBody = String.format(
-                "{\"template_name\":\"deployment_notifications\",\"broadcast_name\":\"deployment_%s\",\"parameters\":[{\"name\":\"1\",\"value\":\"political-referrals-wa\"},{\"name\":\"2\",\"value\":\"us-central1\"},{\"name\":\"3\",\"value\":\"latest\"},{\"name\":\"4\",\"value\":\"%s\"}]}",
-                System.currentTimeMillis(), cleanMessage.replace("\"", "\\\"")
-            );
+            // Intentar primero con deployment_notification (singular), luego con deployment_notifications (plural)
+            String response = null;
+            String[] templateNames = {"deployment_notification", "deployment_notifications"};
+            
+            for (String templateName : templateNames) {
+                try {
+                    System.out.println("WatiApiService: Intentando con template: " + templateName);
+                    
+                    // Crear el body JSON para template v2 con parámetros correctos según el entorno
+                    String jsonBody;
+                    if ("473173".equals(watiApiTenantId)) {
+                        // Desarrollo: usar parámetros numerados {{1}} y {{2}}
+                        jsonBody = String.format(
+                            "{\"template_name\":\"%s\",\"broadcast_name\":\"deployment_%s\",\"parameters\":[{\"name\":\"1\",\"value\":\"Usuario\"},{\"name\":\"2\",\"value\":\"%s\"}]}",
+                            templateName, System.currentTimeMillis(), cleanMessage.replace("\"", "\\\"")
+                        );
+                    } else {
+                        // Producción: usar parámetros nombrados {{name}} y {{message}}
+                        jsonBody = String.format(
+                            "{\"template_name\":\"%s\",\"broadcast_name\":\"deployment_%s\",\"parameters\":[{\"name\":\"name\",\"value\":\"Usuario\"},{\"name\":\"message\",\"value\":\"%s\"}]}",
+                            templateName, System.currentTimeMillis(), cleanMessage.replace("\"", "\\\"")
+                        );
+                    }
 
-            System.out.println("WatiApiService: Body JSON para template: " + jsonBody);
+                    System.out.println("WatiApiService: Body JSON para template: " + jsonBody);
 
-            String response = webClient.post()
-                    .uri(fullApiUri)
-                    .headers(h -> h.addAll(headers))
-                    .bodyValue(jsonBody)
-                    .retrieve()
-                    .bodyToMono(String.class)
-                    .timeout(Duration.ofSeconds(60))
-                    .retryWhen(reactor.util.retry.Retry.backoff(1, Duration.ofMillis(500)))
-                    .doOnSuccess(resp -> System.out.println("WatiApiService: Notificación enviada exitosamente. Respuesta: " + resp))
-                    .doOnError(error -> System.err.println("WatiApiService: Error al enviar notificación: " + error.getMessage()))
-                    .block();
+                    response = webClient.post()
+                            .uri(fullApiUri)
+                            .headers(h -> h.addAll(headers))
+                            .bodyValue(jsonBody)
+                            .retrieve()
+                            .bodyToMono(String.class)
+                            .timeout(Duration.ofSeconds(60))
+                            .retryWhen(reactor.util.retry.Retry.backoff(1, Duration.ofMillis(500)))
+                            .doOnSuccess(resp -> System.out.println("WatiApiService: Respuesta recibida con template " + templateName + ": " + resp))
+                            .doOnError(error -> System.err.println("WatiApiService: Error al enviar notificación con template " + templateName + ": " + error.getMessage()))
+                            .block();
 
-            if (response != null) {
-                System.out.println("WatiApiService: Notificación enviada completada exitosamente");
+                    if (response != null) {
+                        // Verificar que la respuesta sea exitosa (result: true)
+                        if (response.contains("\"result\":true")) {
+                            System.out.println("WatiApiService: Notificación enviada exitosamente con template: " + templateName);
+                            break; // Salir del bucle si fue exitoso
+                        } else {
+                            System.out.println("WatiApiService: Template " + templateName + " falló, intentando siguiente...");
+                            // Continuar con el siguiente template
+                        }
+                    }
+                } catch (Exception e) {
+                    System.err.println("WatiApiService: Error con template " + templateName + ": " + e.getMessage());
+                    // Continuar con el siguiente template
+                }
+            }
+
+            if (response == null || !response.contains("\"result\":true")) {
+                throw new RuntimeException("No se pudo enviar la notificación con ningún template disponible. Última respuesta: " + response);
             }
         } catch (Exception e) {
             System.err.println("WatiApiService: Error en envío de notificación: " + e.getMessage());
