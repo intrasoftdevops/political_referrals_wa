@@ -43,9 +43,9 @@ public class NotificationService {
     /**
      * Envía notificación de despliegue exitoso a un objetivo específico
      */
-    public void sendDeploymentSuccessToTarget(String serviceName, String region, String imageTag, String commitSha, String targetPhone, String groupId) {
+    public void sendDeploymentSuccessToTarget(String serviceName, String region, String imageTag, String commitSha, String targetPhones, String groupId) {
         String message = buildSuccessMessage(serviceName, region, imageTag, commitSha);
-        sendWhatsAppNotificationToTarget(message, targetPhone, groupId);
+        sendWhatsAppNotificationToTarget(message, targetPhones, groupId);
     }
     
     /**
@@ -64,9 +64,9 @@ public class NotificationService {
     /**
      * Envía notificación de despliegue fallido a un objetivo específico
      */
-    public void sendDeploymentFailureToTarget(String serviceName, String region, String commitSha, String errorDetails, String targetPhone, String groupId) {
+    public void sendDeploymentFailureToTarget(String serviceName, String region, String commitSha, String errorDetails, String targetPhones, String groupId) {
         String message = buildFailureMessage(serviceName, region, commitSha, errorDetails);
-        sendWhatsAppNotificationToTarget(message, targetPhone, groupId);
+        sendWhatsAppNotificationToTarget(message, targetPhones, groupId);
     }
     
     /**
@@ -170,7 +170,7 @@ public class NotificationService {
     /**
      * Envía notificación a un objetivo específico (prioridad: grupo > teléfono)
      */
-    private void sendWhatsAppNotificationToTarget(String message, String targetPhone, String groupId) {
+    private void sendWhatsAppNotificationToTarget(String message, String targetPhones, String groupId) {
         try {
             // Prioridad 1: Intentar enviar a grupo si se especifica
             if (groupId != null && !groupId.isEmpty()) {
@@ -179,26 +179,43 @@ public class NotificationService {
                 return;
             }
             
-            // Prioridad 2: Enviar a teléfono específico
-            if (targetPhone != null && !targetPhone.isEmpty()) {
-                logger.info("Attempting to send WhatsApp notification to phone: {}", targetPhone);
+            // Prioridad 2: Enviar a múltiples números de teléfono
+            if (targetPhones != null && !targetPhones.isEmpty()) {
+                logger.info("Attempting to send WhatsApp notification to phones: {}", targetPhones);
                 
-                // Intentar envío con manejo de errores SSL
-                try {
-                    watiApiService.sendMessage(targetPhone, message);
-                    logger.info("WhatsApp notification sent successfully to phone: {}", targetPhone);
-                } catch (Exception sslError) {
-                    logger.warn("SSL error occurred, attempting retry: {}", sslError.getMessage());
-                    
-                    // Esperar un poco y reintentar
-                    Thread.sleep(2000);
-                    watiApiService.sendMessage(targetPhone, message);
-                    logger.info("WhatsApp notification sent successfully on retry to phone: {}", targetPhone);
+                // Dividir los números de teléfono por comas
+                String[] phones = targetPhones.split(",");
+                int successCount = 0;
+                
+                for (String phone : phones) {
+                    String cleanPhone = phone.trim();
+                    if (!cleanPhone.isEmpty()) {
+                        try {
+                            // Intentar envío con manejo de errores SSL
+                            try {
+                                watiApiService.sendMessage(cleanPhone, message);
+                                successCount++;
+                                logger.info("WhatsApp notification sent successfully to phone: {}", cleanPhone);
+                            } catch (Exception sslError) {
+                                logger.warn("SSL error occurred for phone {}, attempting retry: {}", cleanPhone, sslError.getMessage());
+                                
+                                // Esperar un poco y reintentar
+                                Thread.sleep(2000);
+                                watiApiService.sendMessage(cleanPhone, message);
+                                successCount++;
+                                logger.info("WhatsApp notification sent successfully on retry to phone: {}", cleanPhone);
+                            }
+                        } catch (Exception e) {
+                            logger.warn("Failed to send to phone {}: {}", cleanPhone, e.getMessage());
+                        }
+                    }
                 }
+                
+                logger.info("WhatsApp notifications sent to {}/{} phones successfully", successCount, phones.length);
                 return;
             }
             
-            logger.warn("No group ID or phone specified for target notification");
+            logger.warn("No group ID or phones specified for target notification");
             
         } catch (Exception e) {
             logger.error("Failed to send target WhatsApp notification: {}", e.getMessage(), e);
