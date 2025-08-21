@@ -1,14 +1,58 @@
 package com.politicalreferralswa.service;
 
+import com.politicalreferralswa.model.SystemConfiguration;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
+import jakarta.annotation.PostConstruct;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Service
 public class SystemConfigService {
     
-    // Variable global que controla si la IA está habilitada para todo el sistema
-    // Por defecto la IA está HABILITADA al iniciar
+    private final FirestoreConfigService firestoreConfigService;
     private final AtomicBoolean aiEnabled = new AtomicBoolean(true);
+    
+    // Clave para la configuración de IA en Firestore
+    private static final String AI_ENABLED_KEY = "ai_enabled";
+    
+    @Autowired
+    public SystemConfigService(FirestoreConfigService firestoreConfigService) {
+        this.firestoreConfigService = firestoreConfigService;
+    }
+    
+    /**
+     * Inicializa el estado de la IA desde Firestore al arrancar el servicio
+     */
+    @PostConstruct
+    public void initializeAIState() {
+        try {
+            // Buscar el estado en Firestore
+            Optional<String> aiState = firestoreConfigService.findValueByConfigKey(AI_ENABLED_KEY);
+            
+            if (aiState.isPresent()) {
+                // Si existe en Firestore, usar ese valor
+                boolean enabled = Boolean.parseBoolean(aiState.get());
+                aiEnabled.set(enabled);
+                System.out.println("SystemConfigService: Estado de IA cargado desde Firestore: " + (enabled ? "HABILITADA" : "DESHABILITADA"));
+            } else {
+                // Si no existe en Firestore, crear con valor por defecto (HABILITADA)
+                SystemConfiguration config = new SystemConfiguration(
+                    AI_ENABLED_KEY, 
+                    "true", 
+                    "Estado de la IA del sistema (true=habilitada, false=deshabilitada)"
+                );
+                firestoreConfigService.saveConfiguration(config);
+                aiEnabled.set(true);
+                System.out.println("SystemConfigService: Estado de IA inicializado en Firestore como HABILITADA");
+            }
+        } catch (Exception e) {
+            System.err.println("SystemConfigService: Error al inicializar estado de IA desde Firestore: " + e.getMessage());
+            // En caso de error, mantener el valor por defecto (HABILITADA)
+            aiEnabled.set(true);
+        }
+    }
     
     /**
      * Verifica si la IA está habilitada globalmente en el sistema
@@ -19,28 +63,31 @@ public class SystemConfigService {
     }
     
     /**
-     * Habilita la IA globalmente en el sistema
+     * Habilita la IA globalmente en el sistema y persiste en Firestore
      */
     public void enableAI() {
         aiEnabled.set(true);
-        System.out.println("SystemConfigService: IA del sistema HABILITADA");
+        persistAIState(true);
+        System.out.println("SystemConfigService: IA del sistema HABILITADA y persistida en Firestore");
     }
     
     /**
-     * Deshabilita la IA globalmente en el sistema
+     * Deshabilita la IA globalmente en el sistema y persiste en Firestore
      */
     public void disableAI() {
         aiEnabled.set(false);
-        System.out.println("SystemConfigService: IA del sistema DESHABILITADA - Los usuarios serán atendidos por agentes humanos");
+        persistAIState(false);
+        System.out.println("SystemConfigService: IA del sistema DESHABILITADA y persistida en Firestore - Los usuarios serán atendidos por agentes humanos");
     }
     
     /**
-     * Cambia el estado de la IA del sistema
+     * Cambia el estado de la IA del sistema y persiste en Firestore
      * @param enabled true para habilitar, false para deshabilitar
      */
     public void setAIEnabled(boolean enabled) {
         aiEnabled.set(enabled);
-        System.out.println("SystemConfigService: IA del sistema " + (enabled ? "HABILITADA" : "DESHABILITADA"));
+        persistAIState(enabled);
+        System.out.println("SystemConfigService: IA del sistema " + (enabled ? "HABILITADA" : "DESHABILITADA") + " y persistida en Firestore");
     }
     
     /**
@@ -49,5 +96,33 @@ public class SystemConfigService {
      */
     public String getAIStatus() {
         return aiEnabled.get() ? "HABILITADA" : "DESHABILITADA";
+    }
+    
+    /**
+     * Persiste el estado de la IA en Firestore
+     * @param enabled el estado a persistir
+     */
+    private void persistAIState(boolean enabled) {
+        try {
+            Optional<SystemConfiguration> existingConfig = firestoreConfigService.findConfigurationByKey(AI_ENABLED_KEY);
+            
+            if (existingConfig.isPresent()) {
+                // Actualizar configuración existente
+                SystemConfiguration config = existingConfig.get();
+                config.setConfigValue(String.valueOf(enabled));
+                firestoreConfigService.saveConfiguration(config);
+            } else {
+                // Crear nueva configuración
+                SystemConfiguration config = new SystemConfiguration(
+                    AI_ENABLED_KEY, 
+                    String.valueOf(enabled), 
+                    "Estado de la IA del sistema (true=habilitada, false=deshabilitada)"
+                );
+                firestoreConfigService.saveConfiguration(config);
+            }
+        } catch (Exception e) {
+            System.err.println("SystemConfigService: Error al persistir estado de IA en Firestore: " + e.getMessage());
+            // No lanzar excepción para no interrumpir el flujo principal
+        }
     }
 }
