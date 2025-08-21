@@ -197,13 +197,13 @@ jobs:
           echo "Configurando SYSTEM_API_KEY para PRODUCCIÓN..."
           gcloud run services update $SERVICE_NAME \
             --region=${{ env.REGION }} \
-            --set-env-vars SYSTEM_API_KEY=SYSTEM_API_KEY_PROD:latest
+            --set-secrets SYSTEM_API_KEY=SYSTEM_API_KEY_PROD:latest
         else
           # DESARROLLO
           echo "Configurando SYSTEM_API_KEY para DESARROLLO..."
           gcloud run services update $SERVICE_NAME \
             --region=${{ env.REGION }} \
-            --set-env-vars SYSTEM_API_KEY=SYSTEM_API_KEY_DEV:latest
+            --set-secrets SYSTEM_API_KEY=SYSTEM_API_KEY_DEV:latest
         fi
           
     - name: Get service URL
