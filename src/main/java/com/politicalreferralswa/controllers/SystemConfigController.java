@@ -61,6 +61,9 @@ public class SystemConfigController {
         )
     })
     public ResponseEntity<Map<String, Object>> getAIStatus() {
+        // Sincronizar estado desde BD antes de responder
+        systemConfigService.refreshAIStateFromDatabase();
+        
         Map<String, Object> response = new HashMap<>();
         response.put("aiEnabled", systemConfigService.isAIEnabled());
         response.put("status", systemConfigService.getAIStatus());
@@ -101,6 +104,9 @@ public class SystemConfigController {
         )
     })
     public ResponseEntity<Map<String, Object>> enableAI() {
+        // Sincronizar estado desde BD antes de cambiar
+        systemConfigService.refreshAIStateFromDatabase();
+        
         systemConfigService.enableAI();
         
         Map<String, Object> response = new HashMap<>();
@@ -141,6 +147,9 @@ public class SystemConfigController {
         )
     })
     public ResponseEntity<Map<String, Object>> disableAI() {
+        // Sincronizar estado desde BD antes de cambiar
+        systemConfigService.refreshAIStateFromDatabase();
+        
         systemConfigService.disableAI();
         
         Map<String, Object> response = new HashMap<>();
@@ -181,6 +190,9 @@ public class SystemConfigController {
         )
     })
     public ResponseEntity<Map<String, Object>> toggleAI() {
+        // Sincronizar estado desde BD antes de cambiar
+        systemConfigService.refreshAIStateFromDatabase();
+        
         boolean currentStatus = systemConfigService.isAIEnabled();
         systemConfigService.setAIEnabled(!currentStatus);
         
@@ -194,70 +206,5 @@ public class SystemConfigController {
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * Endpoint para establecer un estado específico de la IA
-     */
-    @PostMapping("/ai/set")
-    @CrossOrigin(origins = "*") // Permitir CORS para este endpoint
-    @RequiresApiKey("Establecer estado específico de la IA del sistema")
-    @Operation(
-        summary = "⚙️ Establecer Estado Específico de la IA",
-        description = "Establece un estado específico para la IA del sistema. Permite controlar exactamente si la IA debe estar habilitada o deshabilitada. **Requiere API Key válida.**"
-    )
-    @ApiResponses(value = {
-        @ApiResponse(
-            responseCode = "200",
-            description = "✅ Estado establecido exitosamente",
-            content = @Content(
-                mediaType = "application/json",
-                schema = @Schema(
-                    description = "Respuesta cuando se establece el estado de la IA exitosamente",
-                    example = """
-                    {
-                      "aiEnabled": true,
-                      "status": "HABILITADA",
-                      "message": "La IA del sistema ha sido habilitada. Todos los usuarios COMPLETED ahora interactuarán con la IA."
-                    }
-                    """
-                )
-            )
-        ),
-        @ApiResponse(
-            responseCode = "400",
-            description = "❌ Datos inválidos",
-            content = @Content(
-                mediaType = "application/json",
-                schema = @Schema(
-                    description = "Respuesta de error cuando faltan datos requeridos",
-                    example = """
-                    {
-                      "error": "El campo 'enabled' es requerido",
-                      "message": "Debe enviar un JSON con el campo 'enabled' como boolean"
-                    }
-                    """
-                )
-            )
-        )
-    })
-    public ResponseEntity<Map<String, Object>> setAIStatus(@RequestBody Map<String, Boolean> request) {
-        Boolean enabled = request.get("enabled");
-        
-        if (enabled == null) {
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("error", "El campo 'enabled' es requerido");
-            errorResponse.put("message", "Debe enviar un JSON con el campo 'enabled' como boolean");
-            return ResponseEntity.badRequest().body(errorResponse);
-        }
-        
-        systemConfigService.setAIEnabled(enabled);
-        
-        Map<String, Object> response = new HashMap<>();
-        response.put("aiEnabled", enabled);
-        response.put("status", systemConfigService.getAIStatus());
-        response.put("message", enabled 
-            ? "La IA del sistema ha sido habilitada. Todos los usuarios COMPLETED ahora interactuarán con la IA."
-            : "La IA del sistema ha sido deshabilitada. Los usuarios COMPLETED ahora serán atendidos por agentes humanos a través de WATI.");
-        
-        return ResponseEntity.ok(response);
-    }
+
 }
