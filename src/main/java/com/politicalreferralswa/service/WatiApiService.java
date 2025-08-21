@@ -214,6 +214,11 @@ public class WatiApiService {
         System.out.println("WatiApiService: Enviando notificación a: " + toPhoneNumber);
         
         try {
+            // Limpiar el mensaje para Wati (eliminar saltos de línea y caracteres problemáticos)
+            String cleanMessage = cleanMessageForWati(messageText);
+            System.out.println("WatiApiService: Mensaje original: " + messageText);
+            System.out.println("WatiApiService: Mensaje limpio: " + cleanMessage);
+            
             HttpHeaders headers = new HttpHeaders();
             headers.setBearerAuth(watiApiToken);
             headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
@@ -232,7 +237,7 @@ public class WatiApiService {
             // Crear el body JSON para template v2 con parámetros numerados
             String jsonBody = String.format(
                 "{\"template_name\":\"deployment_notifications\",\"broadcast_name\":\"deployment_%s\",\"parameters\":[{\"name\":\"1\",\"value\":\"political-referrals-wa\"},{\"name\":\"2\",\"value\":\"us-central1\"},{\"name\":\"3\",\"value\":\"latest\"},{\"name\":\"4\",\"value\":\"%s\"}]}",
-                System.currentTimeMillis(), messageText.replace("\"", "\\\"")
+                System.currentTimeMillis(), cleanMessage.replace("\"", "\\\"")
             );
 
             System.out.println("WatiApiService: Body JSON para template: " + jsonBody);
@@ -257,6 +262,27 @@ public class WatiApiService {
             e.printStackTrace();
             throw e;
         }
+    }
+    
+    /**
+     * Limpia el mensaje para que sea compatible con Wati API.
+     * Elimina saltos de línea, tabs y caracteres problemáticos.
+     *
+     * @param message El mensaje original
+     * @return El mensaje limpio
+     */
+    private String cleanMessageForWati(String message) {
+        if (message == null) {
+            return "";
+        }
+        
+        return message
+            .replaceAll("\\r\\n", " ")  // Reemplazar saltos de línea Windows
+            .replaceAll("\\n", " ")     // Reemplazar saltos de línea Unix
+            .replaceAll("\\r", " ")     // Reemplazar retornos de carro
+            .replaceAll("\\t", " ")     // Reemplazar tabs
+            .replaceAll("\\s+", " ")    // Reemplazar múltiples espacios con uno solo
+            .trim();                    // Eliminar espacios al inicio y final
     }
     
     /**
