@@ -29,14 +29,16 @@ public class NotificationController {
             String region = payload.get("region");
             String imageTag = payload.get("imageTag");
             String commitSha = payload.get("commitSha");
-            String targetPhone = payload.get("targetPhone");
+            String commitTitle = payload.get("commitTitle");
+            String targetPhones = payload.get("targetPhones");
             String groupId = payload.get("groupId");
             
             logger.info("Received deployment success notification for service: {}", serviceName);
+            logger.info("Payload: targetPhones={}, groupId={}, commitTitle={}", targetPhones, groupId, commitTitle);
             
             // Usar configuración del payload o fallback a configuración local
-            if (targetPhone != null && !targetPhone.isEmpty()) {
-                notificationService.sendDeploymentSuccessToTarget(serviceName, region, imageTag, commitSha, targetPhone, groupId);
+            if ((targetPhones != null && !targetPhones.isEmpty()) || (groupId != null && !groupId.isEmpty())) {
+                notificationService.sendDeploymentSuccessToTarget(serviceName, region, imageTag, commitSha, targetPhones, groupId);
             } else {
                 notificationService.sendDeploymentSuccess(serviceName, region, imageTag, commitSha);
             }
@@ -58,14 +60,15 @@ public class NotificationController {
             String region = payload.get("region");
             String commitSha = payload.get("commitSha");
             String errorDetails = payload.get("errorDetails");
-            String targetPhone = payload.get("targetPhone");
+            String targetPhones = payload.get("targetPhones");
             String groupId = payload.get("groupId");
             
             logger.info("Received deployment failure notification for service: {}", serviceName);
+            logger.info("Payload: targetPhones={}, groupId={}", targetPhones, groupId);
             
             // Usar configuración del payload o fallback a configuración local
-            if (targetPhone != null && !targetPhone.isEmpty()) {
-                notificationService.sendDeploymentFailureToTarget(serviceName, region, commitSha, errorDetails, targetPhone, groupId);
+            if ((targetPhones != null && !targetPhones.isEmpty()) || (groupId != null && !groupId.isEmpty())) {
+                notificationService.sendDeploymentFailureToTarget(serviceName, region, commitSha, errorDetails, targetPhones, groupId);
             } else {
                 notificationService.sendDeploymentFailure(serviceName, region, commitSha, errorDetails);
             }
