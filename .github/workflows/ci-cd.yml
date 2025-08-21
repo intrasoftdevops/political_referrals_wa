@@ -157,10 +157,10 @@ jobs:
             --set-secrets CHATBOT_IA_URL=chatbot-ia-url-prod:latest \
             --set-secrets ANALYTICS_ENDPOINT_URL=analytics-endpoint-url-prod:latest \
             --set-secrets WELCOME_VIDEO_URL=welcome-video-url-prod:latest \
-                  --set-secrets WATI_NOTIFICATION_ENABLED=wati-notification-enabled-prod:latest \
-      --set-secrets WATI_NOTIFICATION_GROUP_ID=wati-notification-group-id-prod:latest \
-      --set-secrets WATI_NOTIFICATION_PHONES=wati-notification-phones-prod:latest \
-      --set-secrets SYSTEM_API_KEY=SYSTEM_API_KEY_PROD:latest
+            --set-secrets WATI_NOTIFICATION_ENABLED=wati-notification-enabled-prod:latest \
+            --set-secrets WATI_NOTIFICATION_GROUP_ID=wati-notification-group-id-prod:latest \
+            --set-secrets WATI_NOTIFICATION_PHONES=wati-notification-phones-prod:latest \
+            --set-secrets SYSTEM_API_KEY=SYSTEM_API_KEY_PROD:latest
         else
           # Secrets para DESARROLLO
           echo "Using DEVELOPMENT secrets..."
