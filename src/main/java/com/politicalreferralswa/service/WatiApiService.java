@@ -205,7 +205,7 @@ public class WatiApiService {
     
     /**
      * Envía un mensaje de notificación a un número de WhatsApp usando la API de Wati.
-     * Este método usa sendMessage en lugar de sendSessionMessage para poder enviar a números sin sesión activa.
+     * Este método usa sendTemplateMessage v2 con la template deployment_notifications.
      *
      * @param toPhoneNumber El número de teléfono del destinatario
      * @param messageText El texto del mensaje a enviar
@@ -216,27 +216,37 @@ public class WatiApiService {
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.setBearerAuth(watiApiToken);
+            headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
 
-            // Construir la URL para enviar mensaje (NO sendSessionMessage)
+            // Construir la URL para sendTemplateMessage v2
             URI fullApiUri = UriComponentsBuilder.fromUriString(watiApiBaseEndpoint)
                                                 .pathSegment(watiApiTenantId)
-                                                .path("/api/v1/sendMessage/{whatsappNumber}")
-                                                .queryParam("messageText", messageText)
-                                                .buildAndExpand(toPhoneNumber)
+                                                .path("/api/v2/sendTemplateMessage")
+                                                .queryParam("whatsappNumber", toPhoneNumber)
+                                                .build()
                                                 .encode()
                                                 .toUri();
 
             System.out.println("WatiApiService: URL de Wati para notificación construida: " + fullApiUri.toString());
 
+            // Crear el body JSON para template v2 con parámetros numerados
+            String jsonBody = String.format(
+                "{\"template_name\":\"deployment_notifications\",\"broadcast_name\":\"deployment_%s\",\"parameters\":[{\"name\":\"1\",\"value\":\"political-referrals-wa\"},{\"name\":\"2\",\"value\":\"us-central1\"},{\"name\":\"3\",\"value\":\"latest\"},{\"name\":\"4\",\"value\":\"%s\"}]}",
+                System.currentTimeMillis(), messageText.replace("\"", "\\\"")
+            );
+
+            System.out.println("WatiApiService: Body JSON para template: " + jsonBody);
+
             String response = webClient.post()
                     .uri(fullApiUri)
                     .headers(h -> h.addAll(headers))
+                    .bodyValue(jsonBody)
                     .retrieve()
                     .bodyToMono(String.class)
                     .timeout(Duration.ofSeconds(60))
                     .retryWhen(reactor.util.retry.Retry.backoff(1, Duration.ofMillis(500)))
-                    .doOnSuccess(resp -> System.out.println("WatiApiService: Notificación enviada exitosamente. Respuesta de Wati: " + resp))
-                    .doOnError(error -> System.err.println("WatiApiService: Error al enviar notificación a Wati: " + error.getMessage()))
+                    .doOnSuccess(resp -> System.out.println("WatiApiService: Notificación enviada exitosamente. Respuesta: " + resp))
+                    .doOnError(error -> System.err.println("WatiApiService: Error al enviar notificación: " + error.getMessage()))
                     .block();
 
             if (response != null) {
@@ -248,7 +258,7 @@ public class WatiApiService {
             throw e;
         }
     }
-
+    
     /**
      * Envía un video de WhatsApp usando la API de Wati.
      * Este método envía un video desde una URL.
