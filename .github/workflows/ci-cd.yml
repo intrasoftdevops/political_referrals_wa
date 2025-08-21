@@ -249,6 +249,10 @@ jobs:
         echo "Deployment failed!"
         echo "Check the logs for more details"
         
+    - name: Checkout code for commit info
+      if: github.ref == 'refs/heads/main' && always()
+      uses: actions/checkout@v4
+      
     - name: Send WhatsApp Notification
       if: github.ref == 'refs/heads/main' && always()
       run: |
