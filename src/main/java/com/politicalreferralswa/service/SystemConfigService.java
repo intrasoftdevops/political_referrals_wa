@@ -99,6 +99,52 @@ public class SystemConfigService {
     }
     
     /**
+     * Lee el estado actual de la IA desde Firestore y actualiza la memoria local
+     * Útil para sincronizar cambios manuales en la base de datos
+     * @return true si se actualizó exitosamente, false en caso contrario
+     */
+    public boolean refreshAIStateFromDatabase() {
+        try {
+            Optional<String> aiState = firestoreConfigService.findValueByConfigKey(AI_ENABLED_KEY);
+            
+            if (aiState.isPresent()) {
+                boolean enabled = Boolean.parseBoolean(aiState.get());
+                boolean wasChanged = aiEnabled.get() != enabled;
+                
+                aiEnabled.set(enabled);
+                
+                if (wasChanged) {
+                    System.out.println("SystemConfigService: Estado de IA sincronizado desde BD: " + (enabled ? "HABILITADA" : "DESHABILITADA"));
+                } else {
+                    System.out.println("SystemConfigService: Estado de IA ya está sincronizado: " + (enabled ? "HABILITADA" : "DESHABILITADA"));
+                }
+                
+                return true;
+            } else {
+                System.out.println("SystemConfigService: Estado de IA no encontrado en BD, manteniendo estado actual: " + getAIStatus());
+                return false;
+            }
+        } catch (Exception e) {
+            System.err.println("SystemConfigService: Error al refrescar estado de IA desde BD: " + e.getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Obtiene el estado actual de la IA desde Firestore (sin modificar memoria local)
+     * @return Optional con el estado de la BD, o empty si no existe
+     */
+    public Optional<Boolean> getAIStateFromDatabase() {
+        try {
+            Optional<String> aiState = firestoreConfigService.findValueByConfigKey(AI_ENABLED_KEY);
+            return aiState.map(Boolean::parseBoolean);
+            } catch (Exception e) {
+            System.err.println("SystemConfigService: Error al leer estado de IA desde BD: " + e.getMessage());
+            return Optional.empty();
+        }
+    }
+    
+    /**
      * Persiste el estado de la IA en Firestore
      * @param enabled el estado a persistir
      */
