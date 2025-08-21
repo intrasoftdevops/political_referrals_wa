@@ -193,7 +193,7 @@ public class NotificationService {
                         try {
                             // Intentar envío con manejo de errores SSL
                             try {
-                                watiApiService.sendMessage(cleanPhone, message);
+                                watiApiService.sendNotificationMessage(cleanPhone, message);
                                 successCount++;
                                 logger.info("WhatsApp notification sent successfully to phone: {}", cleanPhone);
                             } catch (Exception sslError) {
@@ -201,7 +201,7 @@ public class NotificationService {
                                 
                                 // Esperar un poco y reintentar
                                 Thread.sleep(2000);
-                                watiApiService.sendMessage(cleanPhone, message);
+                                watiApiService.sendNotificationMessage(cleanPhone, message);
                                 successCount++;
                                 logger.info("WhatsApp notification sent successfully on retry to phone: {}", cleanPhone);
                             }
