@@ -1215,7 +1215,11 @@ public class ChatbotService {
             case "COMPLETED":
                 System.out.println("ChatbotService: Usuario COMPLETED. Verificando configuración del sistema...");
                 
-                // Verificar si la IA está habilitada globalmente en el sistema
+                // FORZAR sincronización del estado de IA desde BD ANTES de verificar
+                System.out.println("ChatbotService: Sincronizando estado de IA desde BD...");
+                systemConfigService.refreshAIStateFromDatabase();
+                
+                // Verificar si la IA está habilitada globalmente en el sistema (estado actualizado)
                 if (!systemConfigService.isAIEnabled()) {
                     System.out.println("ChatbotService: IA del sistema DESHABILITADA. Redirigiendo a agente humano...");
                     
