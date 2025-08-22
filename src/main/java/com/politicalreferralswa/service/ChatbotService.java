@@ -145,17 +145,6 @@ public class ChatbotService {
         "cómo invito gente",
         "como es que invito",
         "cómo es que invito",
-    );
-    
-    // Número de WhatsApp según el ambiente
-    private String getWhatsAppInviteNumber() {
-        if ("prod".equals(activeProfile)) {
-            return "573019700355"; // Número de producción
-        } else {
-            return "573224029924"; // Número de desarrollo
-        }
-    }
-        // Patrones adicionales para casos específicos
         "¿dónde está el grupo?",
         "¿cómo entro a la tribu?",
         "¿cómo entro al grupo?",
@@ -168,6 +157,15 @@ public class ChatbotService {
         "link de mi parche",
         "enlace de mi parche"
     );
+    
+    // Número de WhatsApp según el ambiente
+    private String getWhatsAppInviteNumber() {
+        if ("prod".equals(activeProfile)) {
+            return "573019700355"; // Número de producción
+        } else {
+            return "573224029924"; // Número de desarrollo
+        }
+    }
 
     // Patrones para detectar solicitudes de eliminación
     private static final List<String> DELETE_REQUEST_PATTERNS = List.of(
