@@ -956,8 +956,14 @@ public class ChatbotService {
                                 additionalMessages.add(friendsInviteMessage);
 
                                 // Enviar el video de bienvenida ANTES del mensaje de IA
-                                watiApiService.sendVideoMessage(user.getPhone(), welcomeVideoUrl, "Video de bienvenida a la campaña");
-                                System.out.println("DEBUG: Video de bienvenida enviado a: " + user.getPhone());
+                                try {
+                                    watiApiService.sendVideoMessage(user.getPhone(), welcomeVideoUrl, "Video de bienvenida a la campaña");
+                                    System.out.println("DEBUG: Video de bienvenida enviado a: " + user.getPhone());
+                                } catch (Exception e) {
+                                    System.err.println("DEBUG: ⚠️ Error al enviar video de bienvenida: " + e.getMessage());
+                                    System.err.println("DEBUG: ⚠️ Continuando con flujo normal sin video...");
+                                    // No lanzar la excepción, continuar con el flujo normal
+                                }
 
                                 String aiBotIntroMessage = """
                                         ¡Atención! Ahora entrarás en conversación con una inteligencia artificial.
@@ -1211,8 +1217,14 @@ public class ChatbotService {
                         additionalMessages.add(friendsInviteMessage);
 
                         // Enviar el video de bienvenida ANTES del mensaje de IA
-                        watiApiService.sendVideoMessage(user.getPhone(), welcomeVideoUrl, "Video de bienvenida a la campaña");
-                        System.out.println("DEBUG: Video de bienvenida enviado a: " + user.getPhone());
+                        try {
+                            watiApiService.sendVideoMessage(user.getPhone(), welcomeVideoUrl, "Video de bienvenida a la campaña");
+                            System.out.println("DEBUG: Video de bienvenida enviado a: " + user.getPhone());
+                        } catch (Exception e) {
+                            System.err.println("DEBUG: ⚠️ Error al enviar video de bienvenida: " + e.getMessage());
+                            System.err.println("DEBUG: ⚠️ Continuando con flujo normal sin video...");
+                            // No lanzar la excepción, continuar con el flujo normal
+                        }
 
                         String aiBotIntroMessage = """
                                 ¡Atención! Ahora entrarás en conversación con una inteligencia artificial.
@@ -1323,24 +1335,6 @@ public class ChatbotService {
             case "COMPLETED":
                 System.out.println("ChatbotService: Usuario COMPLETED. Verificando configuración del sistema...");
                 
-                // FORZAR sincronización del estado de IA desde BD ANTES de verificar
-                System.out.println("ChatbotService: Sincronizando estado de IA desde BD...");
-                systemConfigService.refreshAIStateFromDatabase();
-                
-                // Verificar si la IA está habilitada globalmente en el sistema (estado actualizado)
-                if (!systemConfigService.isAIEnabled()) {
-                    System.out.println("ChatbotService: IA del sistema DESHABILITADA. Redirigiendo a agente humano...");
-                    
-                    // No enviar mensaje automático, el agente responderá directamente
-                    nextChatbotState = "COMPLETED";
-                    
-                    // Aquí podrías implementar la lógica para enviar el mensaje a WATI para que lo vean los agentes humanos
-                    // Retornar sin mensaje para que el agente responda
-                    return new ChatResponse("", nextChatbotState, secondaryMessage);
-                }
-                
-                System.out.println("ChatbotService: IA del sistema HABILITADA. Procesando con IA...");
-
                 // Obtener session ID para el análisis
                 String sessionId = user.getPhone();
                 if ((sessionId == null || sessionId.isEmpty()) && user.getTelegram_chat_id() != null) {
@@ -1351,7 +1345,7 @@ public class ChatbotService {
                 }
 
                 if (sessionId != null && !sessionId.isEmpty()) {
-                    // Primero verificar si es una solicitud de eliminación
+                    // PRIMERO verificar si es una solicitud de eliminación - ESTO DEBE FUNCIONAR SIEMPRE
                     DeleteRequestResult deleteResult = isDeleteRequest(messageText);
                     if (deleteResult.isDeleteRequest()) {
                         System.out.println("ChatbotService: Detectada solicitud de eliminación tipo: " + deleteResult.getDeleteType());
@@ -1420,6 +1414,24 @@ public class ChatbotService {
                         return new ChatResponse(responseMessage, nextChatbotState, secondaryMessage);
                     }
                     
+                    // FORZAR sincronización del estado de IA desde BD ANTES de verificar
+                    System.out.println("ChatbotService: Sincronizando estado de IA desde BD...");
+                    systemConfigService.refreshAIStateFromDatabase();
+                    
+                    // Verificar si la IA está habilitada globalmente en el sistema (estado actualizado)
+                    if (!systemConfigService.isAIEnabled()) {
+                        System.out.println("ChatbotService: IA del sistema DESHABILITADA. Redirigiendo a agente humano...");
+                        
+                        // No enviar mensaje automático, el agente responderá directamente
+                        nextChatbotState = "COMPLETED";
+                        
+                        // Aquí podrías implementar la lógica para enviar el mensaje a WATI para que lo vean los agentes humanos
+                        // Retornar sin mensaje para que el agente responda
+                        return new ChatResponse("", nextChatbotState, secondaryMessage);
+                    }
+                    
+                    System.out.println("ChatbotService: IA del sistema HABILITADA. Procesando con IA...");
+
                     // Primero verificar si es una pregunta de analytics
                     if (analyticsService.isAnalyticsQuestion(messageText)) {
                         System.out.println("ChatbotService: Detectada pregunta de analytics. Obteniendo métricas...");
