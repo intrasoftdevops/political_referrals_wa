@@ -41,16 +41,21 @@ public class OpenApiConfig {
             openAPI.addServersItem(new Server()
                     .url("http://localhost:8080")
                     .description("Servidor local de desarrollo"));
+        } else if ("dev".equals(activeProfile)) {
+            // Para desarrollo desplegado
+            openAPI.addServersItem(new Server()
+                    .url("https://political-referrals-wa-dev-331919709696.us-central1.run.app")
+                    .description("Servidor de desarrollo en Google Cloud Run"));
         } else if ("prod".equals(activeProfile)) {
             // Para producción
             openAPI.addServersItem(new Server()
                     .url("https://political-referrals-wa-prod-331919709696.us-central1.run.app")
                     .description("Servidor de producción en Google Cloud Run"));
         } else {
-            // Para desarrollo (dev) - por defecto
+            // Fallback por defecto
             openAPI.addServersItem(new Server()
                     .url("https://political-referrals-wa-dev-331919709696.us-central1.run.app")
-                    .description("Servidor de desarrollo en Google Cloud Run"));
+                    .description("Servidor por defecto (desarrollo)"));
         }
         
         return openAPI;
