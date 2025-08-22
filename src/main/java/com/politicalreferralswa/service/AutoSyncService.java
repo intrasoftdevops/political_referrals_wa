@@ -19,10 +19,11 @@ public class AutoSyncService {
     }
     
     /**
-     * Sincronización de respaldo cada 5 minutos para casos extremos
+     * Sincronización de respaldo cada 30 minutos para casos extremos
      * Solo se ejecuta si hay problemas de conectividad o para mantener consistencia
+     * NOTA: El estado de IA ahora se lee directamente desde la BD en tiempo real
      */
-    @Scheduled(fixedRate = 300000) // 5 minutos
+    @Scheduled(fixedRate = 1800000) // 30 minutos (ya no es crítico)
     public void backupSyncAIState() {
         try {
             boolean synced = systemConfigService.refreshAIStateFromDatabase();

@@ -64,10 +64,13 @@ public class SystemConfigController {
         // Sincronizar estado desde BD antes de responder
         systemConfigService.refreshAIStateFromDatabase();
         
+        // Leer estado directamente desde BD para ambos campos
+        boolean aiEnabled = systemConfigService.isAIEnabled();
+        
         Map<String, Object> response = new HashMap<>();
-        response.put("aiEnabled", systemConfigService.isAIEnabled());
-        response.put("status", systemConfigService.getAIStatus());
-        response.put("message", systemConfigService.isAIEnabled() 
+        response.put("aiEnabled", aiEnabled);
+        response.put("status", aiEnabled ? "HABILITADA" : "DESHABILITADA");
+        response.put("message", aiEnabled 
             ? "La IA está habilitada y los usuarios COMPLETED interactúan con ella" 
             : "La IA está deshabilitada y los usuarios COMPLETED serán atendidos por agentes humanos");
         
@@ -109,9 +112,12 @@ public class SystemConfigController {
         
         systemConfigService.enableAI();
         
+        // Leer estado actualizado desde BD
+        boolean aiEnabled = systemConfigService.isAIEnabled();
+        
         Map<String, Object> response = new HashMap<>();
-        response.put("aiEnabled", true);
-        response.put("status", "HABILITADA");
+        response.put("aiEnabled", aiEnabled);
+        response.put("status", aiEnabled ? "HABILITADA" : "DESHABILITADA");
         response.put("message", "La IA del sistema ha sido habilitada. Todos los usuarios COMPLETED ahora interactuarán con la IA.");
         
         return ResponseEntity.ok(response);
@@ -152,9 +158,12 @@ public class SystemConfigController {
         
         systemConfigService.disableAI();
         
+        // Leer estado actualizado desde BD
+        boolean aiEnabled = systemConfigService.isAIEnabled();
+        
         Map<String, Object> response = new HashMap<>();
-        response.put("aiEnabled", false);
-        response.put("status", "DESHABILITADA");
+        response.put("aiEnabled", aiEnabled);
+        response.put("status", aiEnabled ? "HABILITADA" : "DESHABILITADA");
         response.put("message", "La IA del sistema ha sido deshabilitada. Los usuarios COMPLETED ahora serán atendidos por agentes humanos a través de WATI.");
         
         return ResponseEntity.ok(response);
@@ -196,10 +205,13 @@ public class SystemConfigController {
         boolean currentStatus = systemConfigService.isAIEnabled();
         systemConfigService.setAIEnabled(!currentStatus);
         
+        // Leer estado actualizado desde BD
+        boolean newStatus = systemConfigService.isAIEnabled();
+        
         Map<String, Object> response = new HashMap<>();
-        response.put("aiEnabled", !currentStatus);
-        response.put("status", systemConfigService.getAIStatus());
-        response.put("message", !currentStatus 
+        response.put("aiEnabled", newStatus);
+        response.put("status", newStatus ? "HABILITADA" : "DESHABILITADA");
+        response.put("message", newStatus 
             ? "La IA del sistema ha sido habilitada. Todos los usuarios COMPLETED ahora interactuarán con la IA."
             : "La IA del sistema ha sido deshabilitada. Los usuarios COMPLETED ahora serán atendidos por agentes humanos a través de WATI.");
         
