@@ -143,11 +143,20 @@ public class GeminiService {
               - "José María" = name: "José María" (ambos son nombres)
 
             INTERPRETACIÓN POR ESTADO ACTUAL:
-            - Si el estado es "WAITING_LASTNAME": Cualquier texto se interpreta como APELLIDO
+            - Si el estado es "WAITING_LASTNAME": 
+              * Extraer SOLO el apellido, ignorando frases como "Si, mi nombre es..."
+              * Ejemplos: "Si, mi nombre es Carlos Rodríguez" → lastname: "Rodríguez"
+              * Confianza SIEMPRE >= 0.8 si se puede extraer un apellido válido
             - Si el estado es "WAITING_NAME": 
               * Si el mensaje es una CONFIRMACIÓN del nombre existente, marcar como confirmación
               * Si es un NUEVO nombre, extraerlo normalmente
-            - Si el estado es "WAITING_CITY": Cualquier texto se interpreta como CIUDAD
+              * IMPORTANTE: Si el mensaje contiene nombre Y apellido, extraer AMBOS campos
+              * Ejemplo: "Si, mi nombre es alejandro rodríguez" → name: "Alejandro", lastname: "Rodríguez"
+              * Ejemplo: "Me llamo ana sofía garcía" → name: "Ana Sofía", lastname: "García"
+            - Si el estado es "WAITING_CITY": 
+              * Interpretar jerga colombiana y mapear a ciudad oficial
+              * Ejemplos: "La nevera" → city: "Bogotá", state: "Cundinamarca"
+              * Confianza SIEMPRE >= 0.8 si se puede identificar una ciudad
             - Si el estado es null o vacío: Usar análisis semántico normal
 
             DETECCIÓN INTELIGENTE DE CONFIRMACIONES:
@@ -266,6 +275,44 @@ public class GeminiService {
             EJEMPLOS DE AMBIGÜEDAD:
             - "Soy de Armenia": {"city": "Armenia", "needsClarification": {"city": "Hay varias Armenia en Colombia: Quindío, Antioquia, Bello. ¿Cuál es la tuya?"}}
             - "Vivo en La Dorada": {"city": "La Dorada", "needsClarification": {"city": "La Dorada existe en Caldas y Putumayo. ¿Cuál es?"}}
+
+            EJEMPLOS ESPECÍFICOS PARA ESTADOS:
+            
+            ESTADO "NEW" (SALUDOS GENERALES):
+            - "hola": {"confidence": 0.0}
+            - "buenas": {"confidence": 0.0}
+            - "buenos días": {"confidence": 0.0}
+            - "hey": {"confidence": 0.0}
+            
+            ESTADO "WAITING_NAME":
+            - "Juan": {"name": "Juan", "confidence": 0.95}
+            - "María José": {"name": "María José", "confidence": 0.95}
+            - "Carlos Alberto": {"name": "Carlos Alberto", "confidence": 0.95}
+            - "Si, mi nombre es Juan": {"name": "Juan", "confidence": 0.9}
+            - "Me llamo María": {"name": "María", "confidence": 0.9}
+            - "Soy Carlos": {"name": "Carlos", "confidence": 0.9}
+            - "Si, mi nombre es alejandro rodríguez": {"name": "Alejandro", "lastname": "Rodríguez", "confidence": 0.95}
+            - "Me llamo ana sofía garcía": {"name": "Ana Sofía", "lastname": "García", "confidence": 0.95}
+            - "Soy miguel ángel lópez martínez": {"name": "Miguel Ángel", "lastname": "López Martínez", "confidence": 0.95}
+            - "Si, mi nombre es alejandro martínez": {"name": "Alejandro", "lastname": "Martínez", "confidence": 0.95}
+            - "Me llamo maría gonzález": {"name": "María", "lastname": "González", "confidence": 0.95}
+            
+            ESTADO "WAITING_LASTNAME":
+            - "Rodríguez": {"lastname": "Rodríguez", "confidence": 0.95}
+            - "Pérez González": {"lastname": "Pérez González", "confidence": 0.95}
+            - "Si, mi nombre es Carlos Rodríguez": {"lastname": "Rodríguez", "confidence": 0.9}
+            - "Me llamo María José García": {"lastname": "García", "confidence": 0.9}
+            - "López": {"lastname": "López", "confidence": 0.95}
+            - "Martínez Silva": {"lastname": "Martínez Silva", "confidence": 0.95}
+            
+            ESTADO "WAITING_CITY":
+            - "Bogotá": {"city": "Bogotá", "state": "Cundinamarca", "confidence": 0.95}
+            - "La nevera": {"city": "Bogotá", "state": "Cundinamarca", "confidence": 0.85}
+            - "Medellín": {"city": "Medellín", "state": "Antioquia", "confidence": 0.95}
+            - "Cali": {"city": "Cali", "state": "Valle del Cauca", "confidence": 0.95}
+            - "Envigado": {"city": "Envigado", "state": "Antioquia", "confidence": 0.9}
+            - "Soy rolo": {"city": "Bogotá", "state": "Cundinamarca", "confidence": 0.85}
+            - "Soy paisa": {"city": "Medellín", "state": "Antioquia", "confidence": 0.85}
 
             EJEMPLOS DE CORRECCIÓN:
             - "Me equivoqué, no soy de Medellín sino de Envigado": {"city": "Envigado", "correction": true, "previousValue": "Medellín"}

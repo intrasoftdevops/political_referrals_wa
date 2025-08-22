@@ -135,8 +135,10 @@ public class UserDataExtractor {
         
         // Actualizar nombre si se extrajo (siempre actualizar si hay datos nuevos)
         if (extraction.getName() != null) {
-            System.out.println("DEBUG EXTRACTOR: 🚨 SOBRESCRIBIENDO NOMBRE: '" + user.getName() + "' → '" + extraction.getName() + "'");
-            user.setName(extraction.getName());
+            // Capitalizar primera letra del nombre
+            String capitalizedName = capitalizeFirstLetter(extraction.getName());
+            System.out.println("DEBUG EXTRACTOR: 🚨 SOBRESCRIBIENDO NOMBRE: '" + user.getName() + "' → '" + capitalizedName + "'");
+            user.setName(capitalizedName);
             updated = true;
         }
         
@@ -309,6 +311,23 @@ public class UserDataExtractor {
         return ExtractionResult.incomplete(emotionalPrefix + "Para continuar con tu registro, necesito algunos datos. ¿Cuál es tu nombre?");
     }
 
+    /**
+     * Capitaliza la primera letra de un nombre
+     */
+    private String capitalizeFirstLetter(String name) {
+        if (name == null || name.trim().isEmpty()) {
+            return name;
+        }
+        
+        String trimmedName = name.trim();
+        if (trimmedName.length() == 1) {
+            return trimmedName.toUpperCase();
+        }
+        
+        // Capitalizar primera letra y mantener el resto en minúsculas
+        return trimmedName.substring(0, 1).toUpperCase() + trimmedName.substring(1).toLowerCase();
+    }
+    
     /**
      * Construye un mensaje empático basado en el contexto emocional detectado
      */

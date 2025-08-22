@@ -1016,17 +1016,36 @@ public class ChatbotService {
                     // Usar IA para detectar si es confirmación o nuevo nombre
                     UserDataExtractionResult extraction = geminiService.extractUserData(messageText, null, "WAITING_NAME");
                     
-                    if (extraction.isSuccessful() && extraction.getIsConfirmation() != null) {
-                        if (extraction.getIsConfirmation()) {
+                    if (extraction.isSuccessful()) {
+                        // IMPORTANTE: SIEMPRE guardar los datos extraídos si están presentes
+                        boolean dataUpdated = false;
+                        
+                        if (extraction.getName() != null) {
+                            user.setName(extraction.getName());
+                            System.out.println("DEBUG: IA extrajo nombre: " + extraction.getName());
+                            dataUpdated = true;
+                        }
+                        
+                        if (extraction.getLastname() != null) {
+                            user.setLastname(extraction.getLastname());
+                            System.out.println("DEBUG: IA extrajo apellido: " + extraction.getLastname());
+                            dataUpdated = true;
+                        }
+                        
+                        if (extraction.getIsConfirmation() != null && extraction.getIsConfirmation()) {
                             // Usuario confirma el nombre existente
                             System.out.println("DEBUG: IA detectó confirmación del nombre existente: " + user.getName());
-                            responseMessage = "¿Cuál es tu apellido?";
-                            nextChatbotState = "WAITING_LASTNAME";
                         } else {
                             // Usuario proporciona un nombre diferente
-                            String newName = extraction.getName() != null ? extraction.getName() : messageText.trim();
-                            user.setName(newName);
-                            System.out.println("DEBUG: IA detectó nuevo nombre: " + newName);
+                            System.out.println("DEBUG: IA detectó nuevo nombre/apellido");
+                        }
+                        
+                        // Si tenemos nombre Y apellido, continuar a ciudad
+                        if (user.getName() != null && user.getLastname() != null) {
+                            responseMessage = "¿En qué ciudad vives?";
+                            nextChatbotState = "WAITING_CITY";
+                        } else {
+                            // Si solo tenemos nombre, preguntar por apellido
                             responseMessage = "¿Cuál es tu apellido?";
                             nextChatbotState = "WAITING_LASTNAME";
                         }
@@ -1078,26 +1097,53 @@ public class ChatbotService {
                 }
                 break;
             case "WAITING_LASTNAME":
-                // En WAITING_LASTNAME solo procesamos apellido
-                System.out.println("DEBUG: Procesando apellido en estado WAITING_LASTNAME");
+                // En WAITING_LASTNAME usar extracción inteligente para apellido
+                System.out.println("DEBUG: Procesando apellido en estado WAITING_LASTNAME con IA");
                 
-                if (messageText != null && !messageText.trim().isEmpty()) {
+                try {
+                    UserDataExtractionResult extraction = geminiService.extractUserData(messageText, null, "WAITING_LASTNAME");
+                    
+                    if (extraction.isSuccessful() && extraction.getLastname() != null) {
+                        user.setLastname(extraction.getLastname());
+                        System.out.println("DEBUG: IA extrajo apellido: " + extraction.getLastname());
+                        responseMessage = "¿En qué ciudad vives?";
+                        nextChatbotState = "WAITING_CITY";
+                    } else {
+                        // Fallback: usar texto completo si la IA falla
+                        System.out.println("DEBUG: IA falló, usando fallback para apellido");
+                        user.setLastname(messageText.trim());
+                        System.out.println("DEBUG: Apellido establecido (fallback): " + messageText.trim());
+                        responseMessage = "¿En qué ciudad vives?";
+                        nextChatbotState = "WAITING_CITY";
+                    }
+                } catch (Exception e) {
+                    System.err.println("Error en extracción IA para apellido: " + e.getMessage());
+                    // Fallback en caso de error
                     user.setLastname(messageText.trim());
-                    System.out.println("DEBUG: Apellido establecido: " + messageText.trim());
                     responseMessage = "¿En qué ciudad vives?";
                     nextChatbotState = "WAITING_CITY";
-                } else {
-                    responseMessage = "Por favor, ingresa un apellido válido.";
-                    nextChatbotState = "WAITING_LASTNAME";
                 }
                 break;
             case "WAITING_CITY":
-                // En WAITING_CITY solo procesamos ciudad, NO departamento completo
-                System.out.println("DEBUG: Procesando ciudad en estado WAITING_CITY");
+                // En WAITING_CITY usar extracción inteligente para ciudad
+                System.out.println("DEBUG: Procesando ciudad en estado WAITING_CITY con IA");
                 
-                if (messageText != null && !messageText.trim().isEmpty()) {
-                    user.setCity(messageText.trim());
-                    System.out.println("DEBUG: Ciudad establecida: " + messageText.trim());
+                try {
+                    UserDataExtractionResult extraction = geminiService.extractUserData(messageText, null, "WAITING_CITY");
+                    
+                    if (extraction.isSuccessful() && extraction.getCity() != null) {
+                        user.setCity(extraction.getCity());
+                        if (extraction.getState() != null) {
+                            user.setState(extraction.getState());
+                        }
+                        System.out.println("DEBUG: IA extrajo ciudad: " + extraction.getCity() + 
+                                         (extraction.getState() != null ? ", estado: " + extraction.getState() : ""));
+                    } else {
+                        // Fallback: usar texto completo si la IA falla
+                        System.out.println("DEBUG: IA falló, usando fallback para ciudad");
+                        user.setCity(messageText.trim());
+                        System.out.println("DEBUG: Ciudad establecida (fallback): " + messageText.trim());
+                    }
                     
                     // Construir nombre completo para mostrar
                     String fullName = user.getName();
@@ -1110,9 +1156,20 @@ public class ChatbotService {
                         "Respetamos la ley y cuidamos tu información, vamos a mantenerla de forma confidencial, esta es nuestra política de seguridad https://danielquintero.com/privacidad. Si continuas esta conversación estás de acuerdo con ella.\n\n" +
                         "Acompáñame hacia una Colombia más justa, equitativa y próspera para todos. ¿Aceptas el reto de resetear la política? (Sí/No)";
                     nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
-                } else {
-                    responseMessage = "Por favor, ingresa una ciudad válida.";
-                    nextChatbotState = "WAITING_CITY";
+                } catch (Exception e) {
+                    System.err.println("Error en extracción IA para ciudad: " + e.getMessage());
+                    // Fallback en caso de error
+                    user.setCity(messageText.trim());
+                    
+                    String fullName = user.getName();
+                    if (user.getLastname() != null && !user.getLastname().trim().isEmpty()) {
+                        fullName += " " + user.getLastname();
+                    }
+                    
+                    responseMessage = "Perfecto " + fullName + ". Ahora necesito que aceptes nuestra política de privacidad para continuar.\n\n" +
+                        "Respetamos la ley y cuidamos tu información, vamos a mantenerla de forma confidencial, esta es nuestra política de seguridad https://danielquintero.com/privacidad. Si continuas esta conversación estás de acuerdo con ella.\n\n" +
+                        "Acompáñame hacia una Colombia más justa, equitativa y próspera para todos. ¿Aceptas el reto de resetear la política? (Sí/No)";
+                    nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
                 }
                 break;
             case "CONFIRM_DATA":
@@ -1512,6 +1569,30 @@ public class ChatbotService {
                     nextChatbotState = "COMPLETED";
                 }
                 break;
+            case "NEW":
+                // Usuario reseteado - determinar el siguiente paso basado en datos existentes
+                System.out.println("DEBUG: Usuario en estado NEW (reseteado). Datos mantenidos: " +
+                    "nombre='" + user.getName() + "', apellido='" + user.getLastname() + "', ciudad='" + user.getCity() + "'");
+                
+                // Determinar el siguiente paso basado en qué datos ya tiene
+                if (user.getName() == null || user.getName().trim().isEmpty()) {
+                    // No tiene nombre, preguntar por nombre
+                    System.out.println("DEBUG: Usuario NEW sin nombre, preguntando por nombre.");
+                    return new ChatResponse("¿Cuál es tu nombre?", "WAITING_NAME");
+                } else if (user.getLastname() == null || user.getLastname().trim().isEmpty()) {
+                    // Tiene nombre pero no apellido, preguntar por apellido
+                    System.out.println("DEBUG: Usuario NEW con nombre pero sin apellido, preguntando por apellido.");
+                    return new ChatResponse("¿Cuál es tu apellido?", "WAITING_LASTNAME");
+                } else if (user.getCity() == null || user.getCity().trim().isEmpty()) {
+                    // Tiene nombre y apellido pero no ciudad, preguntar por ciudad
+                    System.out.println("DEBUG: Usuario NEW con nombre y apellido pero sin ciudad, preguntando por ciudad.");
+                    return new ChatResponse("¿En qué ciudad vives?", "WAITING_CITY");
+                } else {
+                    // Tiene todos los datos básicos, preguntar por términos
+                    System.out.println("DEBUG: Usuario NEW con todos los datos básicos, preguntando por términos.");
+                    return new ChatResponse(PRIVACY_MESSAGE, "WAITING_TERMS_ACCEPTANCE");
+                }
+                
             default:
                 System.out.println("⚠️  WARNING: Usuario en estado desconocido ('" + currentChatbotState
                         + "'). Redirigiendo al flujo de inicio.");
