@@ -51,19 +51,14 @@ public class UserResetController {
             String currentName = (String) userData.get("name");
             String currentCity = (String) userData.get("city");
             
-            // Resetear campos del chatbot manteniendo datos básicos
+            // Resetear solo campos del chatbot, MANTENER datos del usuario
             Map<String, Object> resetData = new HashMap<>();
             resetData.put("chatbot_state", "NEW"); // Volver al estado inicial
             resetData.put("aceptaTerminos", false); // Resetear términos
             resetData.put("updated_at", Timestamp.now());
             
-            // Mantener datos básicos si existen
-            if (currentName != null) {
-                resetData.put("name", currentName);
-            }
-            if (currentCity != null) {
-                resetData.put("city", currentCity);
-            }
+            // MANTENER datos del usuario (nombre, apellido, ciudad)
+            // Solo resetear el flujo del chatbot
             
             // Actualizar en Firestore
             WriteResult result = userRef.update(resetData).get();
@@ -176,11 +171,14 @@ public class UserResetController {
                 return ResponseEntity.notFound().build();
             }
             
-            // Reset simple - solo los campos críticos del chatbot
+            // Reset del chatbot, MANTENER datos del usuario
             Map<String, Object> resetData = new HashMap<>();
             resetData.put("chatbot_state", "NEW");
             resetData.put("aceptaTerminos", false);
             resetData.put("updated_at", Timestamp.now());
+            
+            // MANTENER datos del usuario (nombre, apellido, ciudad)
+            // Solo resetear el flujo del chatbot
             
             userRef.update(resetData).get();
             
