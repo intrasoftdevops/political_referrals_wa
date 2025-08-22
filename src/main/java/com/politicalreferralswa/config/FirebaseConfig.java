@@ -30,7 +30,8 @@ public class FirebaseConfig {
         // Verificar si estamos en Cloud Run o entorno de producción
         boolean isCloudRun = System.getenv("K_SERVICE") != null || 
                            System.getenv("PORT") != null ||
-                           System.getProperty("spring.profiles.active", "").contains("prod");
+                           "prod".equals(System.getenv("SPRING_PROFILES_ACTIVE")) ||
+                           "prod".equals(System.getProperty("spring.profiles.active", ""));
         
         if (isCloudRun) {
             // En Cloud Run, usar credenciales por defecto directamente
