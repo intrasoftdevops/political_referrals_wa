@@ -6,7 +6,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class ApiKeyAuthService {
     
-    @Value("${system.api.key:default-secure-key}")
+    @Value("${SYSTEM_API_KEY:default-secure-key}")
     private String validApiKey;
     
     /**
