@@ -25,6 +25,7 @@ public class User {
     private String referred_by_phone;
     private String referred_by_code;
     private String telegram_chat_id;
+    private boolean reset_from_deletion; // Flag para identificar usuarios que vienen del reseteo
 
     // Si no usas Lombok, tendrías que tener los getters y setters escritos manualmente:
     /*
