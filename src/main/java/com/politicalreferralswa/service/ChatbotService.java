@@ -4,6 +4,7 @@ import com.google.cloud.firestore.Firestore;
 import com.politicalreferralswa.model.User; // Asegúrate de que User.java tiene campos: id (String UUID), phone (String), telegram_chat_id (String), Y AHORA referred_by_code (String)
 import com.politicalreferralswa.service.UserDataExtractionResult;
 import com.politicalreferralswa.service.GeminiService;
+import com.politicalreferralswa.service.NotificationService;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Value;
 import com.google.cloud.Timestamp;
@@ -43,6 +44,7 @@ public class ChatbotService {
     private final AnalyticsService analyticsService;
     private final SystemConfigService systemConfigService;
     private final RestTemplate restTemplate;
+    private final NotificationService notificationService;
 
     @Value("${WELCOME_VIDEO_URL}")
     private String welcomeVideoUrl;
@@ -57,7 +59,7 @@ public class ChatbotService {
     private String contextPath;
 
     private static final Pattern REFERRAL_MESSAGE_PATTERN = Pattern
-            .compile("Hola, vengo referido por:\\s*([A-Za-z0-9]{8})");
+            .compile("(?i).*referido\\s+por\\s*:?\\s*([A-Za-z0-9]{8})");
     private static final String TELEGRAM_BOT_USERNAME = "ResetPoliticaBot";
     private static final Pattern STRICT_PHONE_NUMBER_PATTERN = Pattern.compile("^\\+\\d{10,15}$");
 
@@ -178,7 +180,8 @@ public class ChatbotService {
                           UserDataExtractor userDataExtractor, GeminiService geminiService,
                           NameValidationService nameValidationService,
                           TribalAnalysisService tribalAnalysisService, AnalyticsService analyticsService,
-                          SystemConfigService systemConfigService, RestTemplate restTemplate) {
+                          SystemConfigService systemConfigService, RestTemplate restTemplate,
+                          NotificationService notificationService) {
         this.firestore = firestore;
         this.watiApiService = watiApiService;
         this.telegramApiService = telegramApiService;
@@ -190,6 +193,7 @@ public class ChatbotService {
         this.analyticsService = analyticsService;
         this.systemConfigService = systemConfigService;
         this.restTemplate = restTemplate;
+        this.notificationService = notificationService;
     }
 
     /**
@@ -667,11 +671,27 @@ public class ChatbotService {
 
             if (referrerUser.isPresent()) {
                 // MODIFICACIÓN CLAVE AQUÍ: Guardar el código de referido también
-                // Guardar el número del referente sin el símbolo "+"
+                // Guardar el número del referente SOLO con la parte local (sin código de país)
                 String referrerPhone = referrerUser.get().getPhone();
-                if (referrerPhone != null && referrerPhone.startsWith("+")) {
-                    referrerPhone = referrerPhone.substring(1);
+                System.out.println("DEBUG handleNewUserIntro: 🔍 Número original del referente: " + referrerPhone);
+                
+                // Extraer solo la parte local del número (sin +57)
+                if (referrerPhone != null) {
+                    if (referrerPhone.startsWith("+57")) {
+                        referrerPhone = referrerPhone.substring(3); // Quitar +57
+                        System.out.println("DEBUG handleNewUserIntro: 🔍 Número después de quitar +57: " + referrerPhone);
+                    } else if (referrerPhone.startsWith("57")) {
+                        referrerPhone = referrerPhone.substring(2); // Quitar 57
+                        System.out.println("DEBUG handleNewUserIntro: 🔍 Número después de quitar 57: " + referrerPhone);
+                    } else if (referrerPhone.startsWith("+")) {
+                        referrerPhone = referrerPhone.substring(1); // Quitar +
+                        System.out.println("DEBUG handleNewUserIntro: 🔍 Número después de quitar +: " + referrerPhone);
+                    } else {
+                        System.out.println("DEBUG handleNewUserIntro: 🔍 Número sin procesar (no empieza con +57, 57 o +): " + referrerPhone);
+                    }
                 }
+                
+                System.out.println("DEBUG handleNewUserIntro: 🔍 Número final a guardar: " + referrerPhone);
                 user.setReferred_by_phone(referrerPhone);
                 user.setReferred_by_code(incomingReferralCode); // <-- AÑADIDO: Guardar el código de referido
                 System.out.println("DEBUG handleNewUserIntro: Estableciendo referred_by_phone: '" + user.getReferred_by_phone() + "' y referred_by_code: '" + user.getReferred_by_code() + "'");
@@ -960,7 +980,7 @@ public class ChatbotService {
                                         + encodedTelegramPayload;
 
                                 String friendsInviteMessage = String.format(
-                                        "Amigos, soy %s y quiero invitarte a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/%s?text=%s",
+                                        "Amigos, soy %s y quiero invitarte a unirte a la campaña de Daniel Quintero a la Presidencia: https://wa.me/%s?text=%s",
                                         user.getName(),
                                         getWhatsAppInviteNumber(),
                                         URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
@@ -978,11 +998,11 @@ public class ChatbotService {
                                 }
 
                                 String aiBotIntroMessage = """
-                                        ¡Atención! Ahora entrarás en conversación con una inteligencia artificial.
-                                        Soy una IA de prueba para este proyecto.
-                                        Mi objetivo es simular mis respuestas basadas en información clave y mi visión política.
-                                        Ten en cuenta que aún estoy en etapa de prueba y mejora continua.
-                                        ¡Hazme tu pregunta!
+                                        Ahora entrarás en conversación con el equipo de voluntarios de la campaña.
+
+                                        Ten en cuenta que eventualmente podrás recibir respuestas de DQBot, una inteligencia artificial entrenada para dar información sobre la campaña de Daniel Quintero Presidente.
+
+                                        ¡Haz tu pregunta y comencemos!
                                         """;
                                 additionalMessages.add(aiBotIntroMessage);
 
@@ -1007,6 +1027,31 @@ public class ChatbotService {
                             );
 
                             Optional<String> termsSecondaryMessage = Optional.of(String.join("###SPLIT###", additionalMessages));
+                            
+                            // Notificar al referente si este usuario fue referido
+                            if (user.getReferred_by_phone() != null && user.getReferred_by_code() != null) {
+                                try {
+                                    // Formatear el teléfono del referente para la notificación
+                                    String referrerPhone = user.getReferred_by_phone();
+                                    // Agregar +57 si no tiene código de país
+                                    if (!referrerPhone.startsWith("+")) {
+                                        referrerPhone = "+57" + referrerPhone;
+                                    }
+                                    
+                                    System.out.println("DEBUG: Notificando al referente - Teléfono: " + referrerPhone + ", Código: " + user.getReferred_by_code());
+                                    
+                                    // Obtener el nombre del nuevo usuario
+                                    String newUserName = user.getName();
+                                    if (newUserName == null || newUserName.trim().isEmpty()) {
+                                        newUserName = "Un nuevo voluntario";
+                                    }
+                                    
+                                    notifyReferrer(referrerPhone, newUserName, user.getReferred_by_code());
+                                } catch (Exception e) {
+                                    System.err.println("ERROR: No se pudo notificar al referente: " + e.getMessage());
+                                }
+                            }
+                            
                             nextChatbotState = "COMPLETED";
                             return new ChatResponse(responseMessage, nextChatbotState, termsSecondaryMessage);
                         } else {
@@ -1171,7 +1216,7 @@ public class ChatbotService {
                     
                     // Enviar mensaje completo de la política de privacidad
                     responseMessage = "Perfecto " + fullName + ". Ahora necesito que aceptes nuestra política de privacidad para continuar.\n\n" +
-                        "Respetamos la ley y cuidamos tu información, vamos a mantenerla de forma confidencial, esta es nuestra política de seguridad https://danielquintero.com/privacidad. Si continuas esta conversación estás de acuerdo con ella.\n\n" +
+                        "Respetamos la ley y cuidamos tu información, vamos a mantenerla de forma confidencial, esta es nuestra política de seguridad https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo con ella.\n\n" +
                         "Acompáñame hacia una Colombia más justa, equitativa y próspera para todos. ¿Aceptas el reto de resetear la política? (Sí/No)";
                     nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
                 } catch (Exception e) {
@@ -1185,7 +1230,7 @@ public class ChatbotService {
                     }
                     
                     responseMessage = "Perfecto " + fullName + ". Ahora necesito que aceptes nuestra política de privacidad para continuar.\n\n" +
-                        "Respetamos la ley y cuidamos tu información, vamos a mantenerla de forma confidencial, esta es nuestra política de seguridad https://danielquintero.com/privacidad. Si continuas esta conversación estás de acuerdo con ella.\n\n" +
+                        "Respetamos la ley y cuidamos tu información, vamos a mantenerla de forma confidencial, esta es nuestra política de seguridad https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo con ella.\n\n" +
                         "Acompáñame hacia una Colombia más justa, equitativa y próspera para todos. ¿Aceptas el reto de resetear la política? (Sí/No)";
                     nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
                 }
@@ -1222,7 +1267,7 @@ public class ChatbotService {
                                 + encodedTelegramPayload;
 
                         String friendsInviteMessage = String.format(
-                                "Amigos, soy %s y quiero invitarte a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/%s?text=%s",
+                                "Amigos, soy %s y quiero invitarte a unirte a la campaña de Daniel Quintero a la Presidencia: https://wa.me/%s?text=%s",
                                 user.getName(),
                                 getWhatsAppInviteNumber(),
                                 URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
@@ -1240,11 +1285,11 @@ public class ChatbotService {
                         }
 
                         String aiBotIntroMessage = """
-                                ¡Atención! Ahora entrarás en conversación con una inteligencia artificial.
-                                Soy una IA de prueba para este proyecto.
-                                Mi objetivo es simular mis respuestas basadas en información clave y mi visión política.
-                                Ten en cuenta que aún estoy en etapa de prueba y mejora continua.
-                                ¡Hazme tu pregunta!
+                                Ahora entrarás en conversación con el equipo de voluntarios de la campaña.
+
+                                Ten en cuenta que eventualmente podrás recibir respuestas de DQBot, una inteligencia artificial entrenada para dar información sobre la campaña de Daniel Quintero Presidente.
+
+                                ¡Haz tu pregunta y comencemos!
                                 """;
                         additionalMessages.add(aiBotIntroMessage);
 
@@ -1270,6 +1315,30 @@ public class ChatbotService {
                     );
 
                     secondaryMessage = Optional.of(String.join("###SPLIT###", additionalMessages));
+
+                    // Notificar al referente si este usuario fue referido
+                    if (user.getReferred_by_phone() != null && user.getReferred_by_code() != null) {
+                        try {
+                            // Formatear el teléfono del referente para la notificación
+                            String referrerPhone = user.getReferred_by_phone();
+                            // Agregar +57 si no tiene código de país
+                            if (!referrerPhone.startsWith("+")) {
+                                referrerPhone = "+57" + referrerPhone;
+                            }
+                            
+                            System.out.println("DEBUG: Notificando al referente - Teléfono: " + referrerPhone + ", Código: " + user.getReferred_by_code());
+                            
+                            // Obtener el nombre del nuevo usuario
+                            String newUserName = user.getName();
+                            if (newUserName == null || newUserName.trim().isEmpty()) {
+                                newUserName = "Un nuevo voluntario";
+                            }
+                            
+                            notifyReferrer(referrerPhone, newUserName, user.getReferred_by_code());
+                        } catch (Exception e) {
+                            System.err.println("ERROR: No se pudo notificar al referente: " + e.getMessage());
+                        }
+                    }
 
                     nextChatbotState = "COMPLETED";
                 } else {
@@ -1464,6 +1533,10 @@ public class ChatbotService {
                             
                             // Usar el chatbot IA con datos de analytics
                             responseMessage = aiBotService.getAIResponseWithAnalytics(sessionId, messageText, userData);
+                            // Agregar firma para usuarios COMPLETED
+                            if (responseMessage != null && !responseMessage.trim().isEmpty()) {
+                                responseMessage = responseMessage.trim() + "\n\nTe respondió DQBot";
+                            }
                             nextChatbotState = "COMPLETED";
                             System.out.println("ChatbotService: Respuesta de analytics enviada");
                         } else {
@@ -1500,7 +1573,7 @@ public class ChatbotService {
                                 
                                 try {
                                     String tribalLinkMessage = String.format(
-                                        "Amigos, soy %s y quiero invitarte a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/%s?text=%s",
+                                        "Amigos, soy %s y quiero invitarte a unirte a la campaña de Daniel Quintero a la Presidencia: https://wa.me/%s?text=%s",
                                         user.getName(),
                                         getWhatsAppInviteNumber(),
                                         URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
@@ -1533,6 +1606,10 @@ public class ChatbotService {
                                 
                                 // Timeout de 20 segundos para respuestas realistas de ChatbotIA
                                 responseMessage = aiResponseFuture.get(20, TimeUnit.SECONDS);
+                                // Agregar firma para usuarios COMPLETED
+                                if (responseMessage != null && !responseMessage.trim().isEmpty()) {
+                                    responseMessage = responseMessage.trim() + "\n\nTe respondió DQBot";
+                                }
                                 nextChatbotState = "COMPLETED";
                                 System.out.println("ChatbotService: Respuesta de AI Bot obtenida exitosamente");
                             } catch (TimeoutException e) {
@@ -1559,7 +1636,7 @@ public class ChatbotService {
                                 
                                 try {
                                     String tribalLinkMessage = String.format(
-                                        "Amigos, soy %s y quiero invitarte a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/%s?text=%s",
+                                        "Amigos, soy %s y quiero invitarte a unirte a la campaña de Daniel Quintero a la Presidencia: https://wa.me/%s?text=%s",
                                         user.getName(),
                                         getWhatsAppInviteNumber(),
                                         URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
@@ -1584,6 +1661,10 @@ public class ChatbotService {
                                 }
                             } else {
                                 responseMessage = aiBotService.getAIResponse(sessionId, messageText);
+                                // Agregar firma para usuarios COMPLETED
+                                if (responseMessage != null && !responseMessage.trim().isEmpty()) {
+                                    responseMessage = responseMessage.trim() + "\n\nTe respondió DQBot";
+                                }
                                 nextChatbotState = "COMPLETED";
                             }
                         }
@@ -1597,29 +1678,70 @@ public class ChatbotService {
                 }
                 break;
             case "NEW":
-                // Usuario reseteado - determinar el siguiente paso basado en datos existentes
-                System.out.println("DEBUG: Usuario en estado NEW (reseteado). Datos mantenidos: " +
-                    "nombre='" + user.getName() + "', apellido='" + user.getLastname() + "', ciudad='" + user.getCity() + "'");
+                // Si el usuario está en estado NEW (reseteado), verificar si el mensaje contiene código de referido
+                System.out.println("DEBUG handleExistingUserMessage: Usuario en estado NEW, verificando si contiene código de referido");
                 
-                // Determinar el siguiente paso basado en qué datos ya tiene
-                if (user.getName() == null || user.getName().trim().isEmpty()) {
-                    // No tiene nombre, preguntar por nombre
-                    System.out.println("DEBUG: Usuario NEW sin nombre, preguntando por nombre.");
-                    return new ChatResponse("¿Cuál es tu nombre?", "WAITING_NAME");
-                } else if (user.getLastname() == null || user.getLastname().trim().isEmpty()) {
-                    // Tiene nombre pero no apellido, preguntar por apellido
-                    System.out.println("DEBUG: Usuario NEW con nombre pero sin apellido, preguntando por apellido.");
-                    return new ChatResponse("¿Cuál es tu apellido?", "WAITING_LASTNAME");
-                } else if (user.getCity() == null || user.getCity().trim().isEmpty()) {
-                    // Tiene nombre y apellido pero no ciudad, preguntar por ciudad
-                    System.out.println("DEBUG: Usuario NEW con nombre y apellido pero sin ciudad, preguntando por ciudad.");
-                    return new ChatResponse("¿En qué ciudad vives?", "WAITING_CITY");
-                } else {
-                    // Tiene todos los datos básicos, preguntar por términos
-                    System.out.println("DEBUG: Usuario NEW con todos los datos básicos, preguntando por términos.");
-                    return new ChatResponse(PRIVACY_MESSAGE, "WAITING_TERMS_ACCEPTANCE");
+                // Verificar si el mensaje contiene un código de referido (formato: 8 caracteres alfanuméricos)
+                if (messageText.matches(".*[A-F0-9]{8}.*")) {
+                    System.out.println("DEBUG handleExistingUserMessage: 🔍 Código de referido detectado en estado NEW: " + messageText);
+                    
+                    // Extraer el código de referido usando regex
+                    java.util.regex.Pattern referralPattern = java.util.regex.Pattern.compile("([A-F0-9]{8})");
+                    java.util.regex.Matcher referralMatcher = referralPattern.matcher(messageText.toUpperCase());
+                    
+                    if (referralMatcher.find()) {
+                        String referralCode = referralMatcher.group(1);
+                        System.out.println("DEBUG handleExistingUserMessage: Código extraído: " + referralCode);
+                        
+                        // Buscar el usuario referente
+                        Optional<User> referrerUser = getUserByReferralCode(referralCode);
+                        
+                        if (referrerUser.isPresent()) {
+                            // Establecer los campos de referido
+                            String referrerPhone = referrerUser.get().getPhone();
+                            System.out.println("DEBUG handleExistingUserMessage: 🔍 Número original del referente: " + referrerPhone);
+                            
+                            // Extraer solo la parte local del número (sin código de país)
+                            if (referrerPhone != null) {
+                                if (referrerPhone.startsWith("+57")) {
+                                    referrerPhone = referrerPhone.substring(3); // Quitar +57
+                                    System.out.println("DEBUG handleExistingUserMessage: 🔍 Número después de quitar +57: " + referrerPhone);
+                                } else if (referrerPhone.startsWith("57")) {
+                                    referrerPhone = referrerPhone.substring(2); // Quitar 57
+                                    System.out.println("DEBUG handleExistingUserMessage: 🔍 Número después de quitar 57: " + referrerPhone);
+                                } else if (referrerPhone.startsWith("+")) {
+                                    referrerPhone = referrerPhone.substring(1); // Quitar +
+                                    System.out.println("DEBUG handleExistingUserMessage: 🔍 Número después de quitar +: " + referrerPhone);
+                                } else {
+                                    System.out.println("DEBUG handleExistingUserMessage: 🔍 Número sin procesar (no empieza con +57, 57 o +): " + referrerPhone);
+                                }
+                            }
+                            
+                            System.out.println("DEBUG handleExistingUserMessage: 🔍 Número final a guardar: " + referrerPhone);
+                            user.setReferred_by_phone(referrerPhone);
+                            user.setReferred_by_code(referralCode);
+                            
+                            System.out.println("DEBUG handleExistingUserMessage: ✅ Referido establecido - Phone: " + user.getReferred_by_phone() + ", Code: " + user.getReferred_by_code());
+                            
+                            // Guardar usuario con referido
+                            saveUser(user);
+                            
+                            // Continuar con el flujo normal (términos de privacidad)
+                            responseMessage = "Respetamos la ley y cuidamos tu información, vamos a mantenerla de forma confidencial, esta es nuestra política de seguridad https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo con ella.";
+                            nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
+                            
+                            return new ChatResponse(responseMessage, nextChatbotState);
+                        } else {
+                            System.out.println("DEBUG handleExistingUserMessage: ⚠️ Código de referido no encontrado: " + referralCode);
+                        }
+                    }
                 }
                 
+                // Si no hay código de referido o no se pudo procesar, continuar con el flujo normal
+                System.out.println("DEBUG handleExistingUserMessage: Continuando con flujo normal para usuario NEW");
+                responseMessage = "Respetamos la ley y cuidamos tu información, vamos a mantenerla de forma confidencial, esta es nuestra política de seguridad https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo con ella.";
+                nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
+                break;
             default:
                 System.out.println("⚠️  WARNING: Usuario en estado desconocido ('" + currentChatbotState
                         + "'). Redirigiendo al flujo de inicio.");
@@ -2142,6 +2264,55 @@ public class ChatbotService {
         } catch (Exception e) {
             System.err.println("ERROR: Error al buscar usuarios referidos: " + e.getMessage());
             return 0;
+        }
+    }
+    
+    /**
+     * Cuenta cuántos usuarios han sido referidos por un usuario específico
+     *
+     * @param referralCode El código de referido del usuario
+     * @return El número de usuarios referidos
+     */
+    private int countUserReferrals(String referralCode) {
+        if (referralCode == null || referralCode.isEmpty()) {
+            return 0;
+        }
+
+        try {
+            ApiFuture<QuerySnapshot> future = firestore.collection("users")
+                    .whereEqualTo("referred_by_code", referralCode)
+                    .get();
+            
+            QuerySnapshot querySnapshot = future.get();
+            return querySnapshot.size();
+            
+        } catch (Exception e) {
+            System.err.println("ERROR: Error al contar referidos para código " + referralCode + ": " + e.getMessage());
+            return 0;
+        }
+    }
+    
+    /**
+     * Notifica al referente cuando alguien se registra usando su código
+     *
+     * @param referrerPhone El teléfono del referente (con formato +57XXXXXXXXX)
+     * @param newUserFirstName El nombre del nuevo usuario registrado
+     * @param referralCode El código de referido usado
+     */
+    private void notifyReferrer(String referrerPhone, String newUserFirstName, String referralCode) {
+        try {
+            // Contar total de referidos del referente
+            int totalReferrals = countUserReferrals(referralCode);
+            
+            // Enviar notificación
+            notificationService.sendReferralNotification(referrerPhone, newUserFirstName, totalReferrals);
+            
+            System.out.println("ChatbotService: Notificación de referido enviada a " + referrerPhone + 
+                             " para nuevo usuario " + newUserFirstName + 
+                             " (total referidos: " + totalReferrals + ")");
+            
+        } catch (Exception e) {
+            System.err.println("ERROR: Error al notificar referente " + referrerPhone + ": " + e.getMessage());
         }
     }
 
