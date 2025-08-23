@@ -242,7 +242,7 @@ public class UserDataExtractor {
         if (hasName && hasLastname && hasCity && !hasAcceptedTerms) {
             // Tiene nombre, apellido y ciudad, proceder directamente a política de privacidad
             user.setChatbot_state("WAITING_TERMS_ACCEPTANCE");
-            return ExtractionResult.incomplete("Respetamos la ley y cuidamos tu información, vamos a mantenerla de forma confidencial, esta es nuestra política de seguridad https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo con ella.\n\nAcompáñame hacia una Colombia más justa, equitativa y próspera para todos. ¿Aceptas el reto de resetear la política?");
+            return ExtractionResult.incomplete("Respetamos la ley y cuidamos tu información, vamos a mantenerla de forma confidencial, esta es nuestra política de seguridad https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo con ella.");
         }
         
         if (hasName && !hasLastname && hasCity && !hasAcceptedTerms) {
