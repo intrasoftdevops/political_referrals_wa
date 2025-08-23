@@ -952,7 +952,7 @@ public class ChatbotService {
                                 String whatsappRawReferralText = String.format("Hola, vengo referido por:%s", referralCode);
                                 String encodedWhatsappMessage = URLEncoder
                                         .encode(whatsappRawReferralText, StandardCharsets.UTF_8.toString()).replace("+", "%20");
-                                whatsappInviteLink = "https://wa.me/getWhatsAppInviteNumber()?text=" + encodedWhatsappMessage;
+                                whatsappInviteLink = "https://wa.me/" + getWhatsAppInviteNumber() + "?text=" + encodedWhatsappMessage;
 
                                 String encodedTelegramPayload = URLEncoder.encode(referralCode,
                                         StandardCharsets.UTF_8.toString());
@@ -960,8 +960,9 @@ public class ChatbotService {
                                         + encodedTelegramPayload;
 
                                 String friendsInviteMessage = String.format(
-                                        "Amigos, soy %s y quiero invitarte a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/getWhatsAppInviteNumber()?text=%s",
+                                        "Amigos, soy %s y quiero invitarte a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/%s?text=%s",
                                         user.getName(),
+                                        getWhatsAppInviteNumber(),
                                         URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
                                                 StandardCharsets.UTF_8.toString()).replace("+", "%20"));
                                 additionalMessages.add(friendsInviteMessage);
@@ -988,7 +989,7 @@ public class ChatbotService {
                             } catch (UnsupportedEncodingException e) {
                                 System.err.println("ERROR: No se pudo codificar los códigos de referido. Causa: " + e.getMessage());
                                 e.printStackTrace();
-                                whatsappInviteLink = "https://wa.me/getWhatsAppInviteNumber()?text=Error%20al%20generar%20referido";
+                                whatsappInviteLink = "https://wa.me/" + getWhatsAppInviteNumber() + "?text=Error%20al%20generar%20referido";
                                 telegramInviteLink = "https://t.me/" + TELEGRAM_BOT_USERNAME + "?start=Error";
                                 additionalMessages.clear();
                                 additionalMessages.add("Error al generar los mensajes de invitación.");
@@ -1213,7 +1214,7 @@ public class ChatbotService {
                         System.out.println("Texto crudo antes de codificar: '" + whatsappRawReferralText + "'");
                         String encodedWhatsappMessage = URLEncoder
                                 .encode(whatsappRawReferralText, StandardCharsets.UTF_8.toString()).replace("+", "%20");
-                        whatsappInviteLink = "https://wa.me/getWhatsAppInviteNumber()?text=" + encodedWhatsappMessage;
+                        whatsappInviteLink = "https://wa.me/" + getWhatsAppInviteNumber() + "?text=" + encodedWhatsappMessage;
 
                         String encodedTelegramPayload = URLEncoder.encode(referralCode,
                                 StandardCharsets.UTF_8.toString());
@@ -1221,8 +1222,9 @@ public class ChatbotService {
                                 + encodedTelegramPayload;
 
                         String friendsInviteMessage = String.format(
-                                "Amigos, soy %s y quiero invitarte a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/getWhatsAppInviteNumber()?text=%s",
+                                "Amigos, soy %s y quiero invitarte a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/%s?text=%s",
                                 user.getName(),
+                                getWhatsAppInviteNumber(),
                                 URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
                                         StandardCharsets.UTF_8.toString()).replace("+", "%20"));
                         additionalMessages.add(friendsInviteMessage);
@@ -1250,7 +1252,7 @@ public class ChatbotService {
                         System.err.println(
                                 "ERROR: No se pudo codificar los códigos de referido. Causa: " + e.getMessage());
                         e.printStackTrace();
-                        whatsappInviteLink = "https://wa.me/getWhatsAppInviteNumber()?text=Error%20al%20generar%20referido";
+                        whatsappInviteLink = "https://wa.me/" + getWhatsAppInviteNumber() + "?text=Error%20al%20generar%20referido";
                         telegramInviteLink = "https://t.me/" + TELEGRAM_BOT_USERNAME + "?start=Error";
                         additionalMessages.clear();
                         additionalMessages.add("Error al generar los mensajes de invitación.");
@@ -1498,8 +1500,9 @@ public class ChatbotService {
                                 
                                 try {
                                     String tribalLinkMessage = String.format(
-                                        "Amigos, soy %s y quiero invitarte a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/getWhatsAppInviteNumber()?text=%s",
+                                        "Amigos, soy %s y quiero invitarte a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/%s?text=%s",
                                         user.getName(),
+                                        getWhatsAppInviteNumber(),
                                         URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
                                                 StandardCharsets.UTF_8.toString()).replace("+", "%20")
                                     );
@@ -1556,8 +1559,9 @@ public class ChatbotService {
                                 
                                 try {
                                     String tribalLinkMessage = String.format(
-                                        "Amigos, soy %s y quiero invitarte a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/getWhatsAppInviteNumber()?text=%s",
+                                        "Amigos, soy %s y quiero invitarte a unirse a la campaña de Daniel Quintero a la Presidencia: https://wa.me/%s?text=%s",
                                         user.getName(),
+                                        getWhatsAppInviteNumber(),
                                         URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
                                                 StandardCharsets.UTF_8.toString()).replace("+", "%20")
                                     );
