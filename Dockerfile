@@ -10,10 +10,10 @@ COPY target/political_referrals_wa-0.0.1-SNAPSHOT.jar app.jar
 # Expone el puerto dinámico (Cloud Run proporciona PORT)
 EXPOSE 8080
 
-# Comando para ejecutar la aplicación con perfil de producción y optimizaciones para Cloud Run
+# Comando para ejecutar la aplicación con perfil dinámico y optimizaciones para Cloud Run
 ENTRYPOINT ["java", \
   "-Dserver.port=${PORT:-8080}", \
-  "-Dspring.profiles.active=prod", \
+  "-Dspring.profiles.active=${SPRING_PROFILES_ACTIVE:-dev}", \
   "-Xmx1g", \
   "-Xms512m", \
   "-XX:+UseG1GC", \
