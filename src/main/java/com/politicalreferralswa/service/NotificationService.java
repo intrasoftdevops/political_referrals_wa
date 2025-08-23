@@ -234,4 +234,37 @@ public class NotificationService {
             }
         }
     }
+    
+    /**
+     * Envía notificación de nuevo referido registrado
+     */
+    public void sendReferralNotification(String referrerPhone, String newUserFirstName, int totalReferrals) {
+        if (!notificationsEnabled) {
+            logger.info("Notifications disabled, skipping referral notification");
+            return;
+        }
+        
+        try {
+            String message = buildReferralNotificationMessage(newUserFirstName, totalReferrals);
+            
+            // Enviar notificación al referente
+            watiApiService.sendWhatsAppMessageSync(referrerPhone, message);
+            logger.info("Referral notification sent successfully to: {}", referrerPhone);
+            
+        } catch (Exception e) {
+            logger.error("Failed to send referral notification to {}: {}", referrerPhone, e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Construye mensaje de notificación de referido
+     */
+    private String buildReferralNotificationMessage(String newUserFirstName, int totalReferrals) {
+        return String.format(
+            "%s acaba de registrarse en la plataforma. 🎉\n\n" +
+            "Actualmente ya cuentas con %d voluntarios referidos.\n" +
+            "¡Gracias por seguir sumando fuerza a la campaña de Daniel Quintero Presidente!",
+            newUserFirstName, totalReferrals
+        );
+    }
 } 
