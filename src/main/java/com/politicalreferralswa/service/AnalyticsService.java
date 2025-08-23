@@ -1,12 +1,9 @@
 package com.politicalreferralswa.service;
 
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.http.MediaType;
-import org.springframework.http.HttpHeaders;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.JsonNode;
+import org.springframework.beans.factory.annotation.Value;
+
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Optional;
@@ -17,24 +14,14 @@ import java.util.Optional;
 @Service
 public class AnalyticsService {
     
-    @Value("${ANALYTICS_ENDPOINT_URL:http://localhost:8001}")
-    private String analyticsEndpointUrl;
+    private final LocalAnalyticsService localAnalyticsService;
     
-    @Value("${ANALYTICS_JWT_SECRET:your-secret-key}")
-    private String jwtSecret;
-    
-    private final WebClient webClient;
-    private final ObjectMapper objectMapper;
-    private final JWTService jwtService;
-    
-    public AnalyticsService(WebClient.Builder webClientBuilder, JWTService jwtService) {
-        this.webClient = webClientBuilder.build();
-        this.objectMapper = new ObjectMapper();
-        this.jwtService = jwtService;
+    public AnalyticsService(LocalAnalyticsService localAnalyticsService) {
+        this.localAnalyticsService = localAnalyticsService;
     }
     
     /**
-     * Obtiene las métricas del usuario desde el endpoint de analytics
+     * Obtiene las métricas del usuario usando el servicio local
      * 
      * @param userId ID del usuario (número de teléfono)
      * @param sessionId ID de sesión
@@ -44,44 +31,89 @@ public class AnalyticsService {
         try {
             System.out.println("AnalyticsService: Obteniendo métricas para usuario " + userId);
             
-            // Generar token JWT para el usuario
-            String jwtToken = jwtService.generateToken(userId);
+            // Usar el servicio local en lugar del endpoint externo
+            LocalAnalyticsService.UserStatsResponse localStats = localAnalyticsService.getUserStats(userId);
             
-            // Llamar al endpoint de analytics
-            String response = webClient.get()
-                    .uri(analyticsEndpointUrl + "/api/v1/analytics/user-stats")
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + jwtToken)
-                    .header("X-Session-ID", sessionId)
-                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                    .retrieve()
-                    .bodyToMono(String.class)
-                    .block();
-            
-            if (response != null) {
-                JsonNode responseJson = objectMapper.readTree(response);
-                
+            if (localStats != null) {
+                // Convertir la respuesta local al formato existente
                 AnalyticsData analyticsData = new AnalyticsData(
-                    responseJson.get("user_id").asText(),
-                    responseJson.get("name").asText(),
-                    extractRankingData(responseJson.get("ranking")),
-                    extractRegionData(responseJson.get("region")),
-                    extractCityData(responseJson.get("city")),
-                    extractReferralsData(responseJson.get("referrals"))
+                    localStats.getUserId(),
+                    localStats.getName(),
+                    convertRankingData(localStats.getRanking()),
+                    convertRegionData(localStats.getRegion()),
+                    convertCityData(localStats.getCity()),
+                    convertReferralsData(localStats.getReferrals())
                 );
                 
-                System.out.println("AnalyticsService: Métricas obtenidas exitosamente para " + userId);
+                System.out.println("AnalyticsService: Métricas obtenidas exitosamente del servicio local para " + userId);
                 return Optional.of(analyticsData);
                 
             } else {
-                System.err.println("AnalyticsService: Respuesta vacía del endpoint de analytics");
+                System.err.println("AnalyticsService: Respuesta vacía del servicio local");
                 return Optional.empty();
             }
             
         } catch (Exception e) {
-            System.err.println("AnalyticsService: Error al obtener métricas: " + e.getMessage());
+            System.err.println("AnalyticsService: Error al obtener métricas del servicio local: " + e.getMessage());
             e.printStackTrace();
             return Optional.empty();
         }
+    }
+    
+
+    
+    /**
+     * Métodos de conversión para compatibilidad con el formato existente
+     */
+    private RankingData convertRankingData(LocalAnalyticsService.Ranking localRanking) {
+        if (localRanking == null) return null;
+        
+        return new RankingData(
+            convertPeriodData(localRanking.getToday()),
+            convertPeriodData(localRanking.getWeek()),
+            convertPeriodData(localRanking.getMonth())
+        );
+    }
+    
+    private PeriodData convertPeriodData(LocalAnalyticsService.RankingPeriod localPeriod) {
+        if (localPeriod == null) return null;
+        
+        return new PeriodData(
+            localPeriod.getPosition(),
+            localPeriod.getPoints()
+        );
+    }
+    
+    private RegionData convertRegionData(LocalAnalyticsService.Region localRegion) {
+        if (localRegion == null) return null;
+        
+        return new RegionData(
+            localRegion.getPosition(),
+            localRegion.getTotalParticipants(),
+            localRegion.getPercentile()
+        );
+    }
+    
+    private CityData convertCityData(LocalAnalyticsService.City localCity) {
+        if (localCity == null) return null;
+        
+        return new CityData(
+            localCity.getPosition(),
+            localCity.getTotalParticipants(),
+            localCity.getPercentile()
+        );
+    }
+    
+    private ReferralsData convertReferralsData(LocalAnalyticsService.Referrals localReferrals) {
+        if (localReferrals == null) return null;
+        
+        return new ReferralsData(
+            localReferrals.getTotalInvited(),
+            localReferrals.getActiveVolunteers(),
+            localReferrals.getReferralsThisMonth(),
+            localReferrals.getConversionRate(),
+            localReferrals.getReferralPoints()
+        );
     }
     
     /**
@@ -135,56 +167,7 @@ public class AnalyticsService {
         return false;
     }
     
-    private RankingData extractRankingData(JsonNode rankingNode) {
-        if (rankingNode == null) return null;
-        
-        return new RankingData(
-            extractPeriodData(rankingNode.get("today")),
-            extractPeriodData(rankingNode.get("week")),
-            extractPeriodData(rankingNode.get("month"))
-        );
-    }
-    
-    private PeriodData extractPeriodData(JsonNode periodNode) {
-        if (periodNode == null) return null;
-        
-        return new PeriodData(
-            periodNode.get("position").asInt(),
-            periodNode.get("points").asInt()
-        );
-    }
-    
-    private RegionData extractRegionData(JsonNode regionNode) {
-        if (regionNode == null) return null;
-        
-        return new RegionData(
-            regionNode.get("position").asInt(),
-            regionNode.get("total_participants").asInt(),
-            regionNode.get("percentile").asDouble()
-        );
-    }
-    
-    private CityData extractCityData(JsonNode cityNode) {
-        if (cityNode == null) return null;
-        
-        return new CityData(
-            cityNode.get("position").asInt(),
-            cityNode.get("total_participants").asInt(),
-            cityNode.get("percentile").asDouble()
-        );
-    }
-    
-    private ReferralsData extractReferralsData(JsonNode referralsNode) {
-        if (referralsNode == null) return null;
-        
-        return new ReferralsData(
-            referralsNode.get("total_invited").asInt(),
-            referralsNode.get("active_volunteers").asInt(),
-            referralsNode.get("referrals_this_month").asInt(),
-            referralsNode.get("conversion_rate").asDouble(),
-            referralsNode.get("referral_points").asInt()
-        );
-    }
+
     
     // Clases de datos para las métricas
     public static class AnalyticsData {
