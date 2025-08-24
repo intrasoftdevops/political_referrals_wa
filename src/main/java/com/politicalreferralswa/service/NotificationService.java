@@ -17,6 +17,9 @@ public class NotificationService {
     
     @Autowired
     private WatiApiService watiApiService;
+
+    @Autowired
+    private LocalAnalyticsService localAnalyticsService;
     
     @Value("${WATI_NOTIFICATION_GROUP_ID:}")
     private String notificationGroupId;
@@ -245,7 +248,19 @@ public class NotificationService {
         }
         
         try {
-            String message = buildReferralNotificationMessage(newUserFirstName, totalReferrals);
+            // Obtener el ranking de la ciudad del referente
+            Integer cityRank = null;
+            try {
+                LocalAnalyticsService.UserStatsResponse stats = localAnalyticsService.getUserStats(referrerPhone);
+                if (stats != null && stats.getCity() != null) {
+                    cityRank = stats.getCity().getPosition();
+                }
+            } catch (Exception e) {
+                logger.error("Failed to get city rank for referrer {}: {}", referrerPhone, e.getMessage());
+                // No detener la notificación si falla la obtención del ranking
+            }
+
+            String message = buildReferralNotificationMessage(newUserFirstName, totalReferrals, cityRank);
             
             // Enviar notificación al referente
             watiApiService.sendWhatsAppMessageSync(referrerPhone, message);
@@ -259,12 +274,16 @@ public class NotificationService {
     /**
      * Construye mensaje de notificación de referido
      */
-    private String buildReferralNotificationMessage(String newUserFirstName, int totalReferrals) {
+    private String buildReferralNotificationMessage(String newUserFirstName, int totalReferrals, Integer cityRank) {
+        String rankMessage = "";
+        if (cityRank != null && cityRank > 0) {
+            rankMessage = String.format("\n\nActualmente ocupas el *puesto #%d* en tu ciudad. ¡Sigue así!", cityRank);
+        }
+
         return String.format(
             "%s acaba de registrarse en la plataforma. 🎉\n\n" +
-            "Actualmente ya cuentas con %d voluntarios referidos.\n" +
-            "¡Gracias por seguir sumando fuerza a la campaña de Daniel Quintero Presidente!",
-            newUserFirstName, totalReferrals
+            "Actualmente ya cuentas con %d voluntarios referidos.%s",
+            newUserFirstName, totalReferrals, rankMessage
         );
     }
 } 

@@ -109,6 +109,101 @@ public class GeminiService {
         }
     }
 
+    /**
+     * Valida si un mensaje de usuario es una respuesta afirmativa usando Gemini AI.
+     * @param userMessage El mensaje del usuario a validar.
+     * @return true si el mensaje es afirmativo, false en caso contrario.
+     */
+    public boolean isAffirmativeResponse(String userMessage) {
+        long startTime = System.currentTimeMillis();
+        try {
+            System.out.println("GeminiService: Validando respuesta afirmativa para: '" + userMessage + "'");
+            String prompt = buildAffirmativePrompt(userMessage);
+
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("contents", Map.of("parts", Map.of("text", prompt)));
+            
+            Map<String, Object> generationConfig = new HashMap<>();
+            generationConfig.put("temperature", 0.0);
+            generationConfig.put("topK", 1);
+            generationConfig.put("maxOutputTokens", 50);
+            requestBody.put("generationConfig", generationConfig);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            String fullUrl = geminiApiUrl + "?key=" + geminiApiKey;
+
+            String response = webClient.post()
+                    .uri(fullUrl)
+                    .headers(h -> h.addAll(headers))
+                    .bodyValue(requestBody)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
+
+            System.out.println("GeminiService: Respuesta de validación afirmativa: " + response);
+            return parseAffirmativeResponse(response);
+
+        } catch (Exception e) {
+            System.err.println("Error al validar respuesta afirmativa con Gemini: " + e.getMessage());
+            // Fallback a lógica simple si la IA falla, para no bloquear al usuario.
+            String lowerMessage = userMessage.toLowerCase().trim();
+            return lowerMessage.equals("si") || lowerMessage.equals("sí") || lowerMessage.contains("acepto") || lowerMessage.contains("de acuerdo") || lowerMessage.equals("dale") || lowerMessage.equals("sisas");
+        }
+    }
+
+    private String buildAffirmativePrompt(String userMessage) {
+        return String.format("""
+            Eres un asistente de análisis de lenguaje natural. Tu única tarea es determinar si el siguiente mensaje es una respuesta afirmativa.
+            Responde únicamente con un objeto JSON con una sola clave "is_affirmative" que sea un booleano (true/false).
+
+            EJEMPLOS POSITIVOS (is_affirmative: true):
+            - Si
+            - Sí, acepto
+            - Claro
+            - De acuerdo
+            - Acepto los términos
+            - Dale
+            - Sisas
+            - De one
+
+            EJEMPLOS NEGATIVOS O NEUTROS (is_affirmative: false):
+            - No
+            - No quiero
+            - ¿Cuáles términos?
+            - No estoy seguro
+            - Explícame más
+
+            MENSAJE DEL USUARIO: "%s"
+
+            RESPONDE SOLO CON JSON.
+            """, userMessage);
+    }
+
+    private boolean parseAffirmativeResponse(String response) {
+        try {
+            JsonNode rootNode = objectMapper.readTree(response);
+            JsonNode candidates = rootNode.path("candidates");
+
+            if (candidates.isArray() && candidates.size() > 0) {
+                JsonNode content = candidates.get(0).path("content");
+                JsonNode parts = content.path("parts");
+
+                if (parts.isArray() && parts.size() > 0) {
+                    String text = parts.get(0).path("text").asText();
+                    text = text.replaceAll("```json\\s*", "").replaceAll("```\\s*", "").trim();
+                    JsonNode affirmativeData = objectMapper.readTree(text);
+                    return affirmativeData.path("is_affirmative").asBoolean(false);
+                }
+            }
+            return false;
+        } catch (Exception e) {
+            System.err.println("Error al parsear respuesta afirmativa de Gemini: " + e.getMessage());
+            return false;
+        }
+    }
+
     private String buildExtractionPrompt(String userMessage, String previousContext, String currentState) {
         String safeUserMessage = userMessage != null ? userMessage : "";
         String safePreviousContext = previousContext != null ? previousContext : "";
@@ -117,6 +212,11 @@ public class GeminiService {
         return String.format("""
             Eres un asistente de extracción de información muy inteligente, amigable y con profundo conocimiento de Colombia.
             CONTEXTO: Sistema de registro para campaña política en Colombia.
+
+            REGLAS CRÍTICAS:
+            1.  Si el ESTADO ACTUAL es "WAITING_NAME" y el mensaje contiene tanto nombre como apellido (ej: "Soy Juan Pérez"), DEBES extraer AMBOS campos ("name": "Juan", "lastname": "Pérez"). Esta es la regla más importante.
+            2.  Responde SIEMPRE y ÚNICAMENTE con el formato JSON especificado. No incluyas texto adicional.
+
             MENSAJE: "%s"
             CONVERSACIÓN PREVIA: "%s"
             ESTADO ACTUAL: "%s"
