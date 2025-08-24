@@ -1529,12 +1529,19 @@ public class ChatbotService {
                     // Primero verificar si es una pregunta de analytics
                     if (analyticsService.isAnalyticsQuestion(messageText)) {
                         System.out.println("ChatbotService: Detectada pregunta de analytics. Obteniendo métricas...");
+                        System.out.println("ChatbotService: Mensaje original: '" + messageText + "'");
+                        
+                        // Clasificar el tipo de consulta para personalizar la respuesta
+                        AnalyticsService.AnalyticsQueryType queryType = analyticsService.classifyAnalyticsQuery(messageText);
+                        System.out.println("ChatbotService: Tipo de consulta detectada: " + queryType);
                         
                         // Obtener métricas del usuario
                         Optional<AnalyticsService.AnalyticsData> analyticsData = 
                             analyticsService.getUserStats(sessionId, sessionId);
                         
                         if (analyticsData.isPresent()) {
+                            System.out.println("ChatbotService: Métricas obtenidas exitosamente para usuario: " + user.getName());
+                            
                             // Enviar datos de analytics al chatbot IA para generar respuesta
                             Map<String, Object> userData = new HashMap<>();
                             userData.put("name", user.getName());
@@ -1542,6 +1549,10 @@ public class ChatbotService {
                             userData.put("city", user.getCity());
                             userData.put("phone", user.getPhone());
                             userData.put("analytics_data", analyticsData.get());
+                            userData.put("query_type", queryType.name()); // Enviar tipo de consulta
+                            userData.put("original_query", messageText); // Enviar consulta original
+                            
+                            System.out.println("ChatbotService: Enviando consulta personalizada al chatbot IA...");
                             
                             // Usar el chatbot IA con datos de analytics
                             responseMessage = aiBotService.getAIResponseWithAnalytics(sessionId, messageText, userData);
@@ -1550,11 +1561,13 @@ public class ChatbotService {
                                 responseMessage = responseMessage.trim() + "\n\nTe respondió DQBot";
                             }
                             nextChatbotState = "COMPLETED";
-                            System.out.println("ChatbotService: Respuesta de analytics enviada");
+                            System.out.println("ChatbotService: Respuesta de analytics personalizada enviada para tipo: " + queryType);
+                            System.out.println("ChatbotService: Longitud de respuesta: " + (responseMessage != null ? responseMessage.length() : 0) + " caracteres");
                         } else {
                             // Fallback si no se pueden obtener las métricas
                             responseMessage = "¡Hola! Veo que quieres saber sobre tu rendimiento. En este momento no puedo acceder a tus métricas, pero te puedo ayudar con otras preguntas sobre la campaña. ¿En qué más puedo ayudarte?";
                             nextChatbotState = "COMPLETED";
+                            System.out.println("ChatbotService: Fallback enviado - no se pudieron obtener métricas");
                         }
                     } else {
                         // No es pregunta de analytics, continuar con el flujo normal
