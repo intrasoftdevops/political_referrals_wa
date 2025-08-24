@@ -32,8 +32,8 @@ public class PoliticalReferralsWaApplication {
             
             // Llama al método para crear el usuario de prueba.
             // El método en ChatbotService ya verifica si el usuario existe para evitar duplicados.
-            // chatbotService.createTestReferrerUser(); // COMENTADO: No crear usuarios de prueba automáticamente
-            System.out.println("Lógica de inicio completada. Usuarios de prueba NO se crean automáticamente.");
+            chatbotService.createTestReferrerUser(); // HABILITADO: Crear usuario de prueba con TESTCODE
+            System.out.println("Lógica de inicio completada. Usuario de prueba con TESTCODE creado/verificado.");
         };
     }
 }

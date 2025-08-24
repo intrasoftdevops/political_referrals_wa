@@ -51,30 +51,38 @@ public class UserResetController {
             String currentName = (String) userData.get("name");
             String currentCity = (String) userData.get("city");
             
-            // Resetear solo campos del chatbot, MANTENER datos del usuario
+            // Resetear TODOS los campos del usuario para forzar nuevo registro completo
             Map<String, Object> resetData = new HashMap<>();
             resetData.put("chatbot_state", "NEW"); // Volver al estado inicial
             resetData.put("aceptaTerminos", false); // Resetear términos
             resetData.put("updated_at", Timestamp.now());
+            resetData.put("reset_from_deletion", true); // Marcar que viene del reseteo para preservar referral_code
             
-            // MANTENER datos del usuario (nombre, apellido, ciudad)
-            // Solo resetear el flujo del chatbot
+            // LIMPIAR datos del usuario para forzar nuevo registro
+            resetData.put("name", null);
+            resetData.put("lastname", null);
+            resetData.put("city", null);
+            resetData.put("state", null);
+            
+            // Solo preservar referral_code y datos de referido
             
             // Actualizar en Firestore
             WriteResult result = userRef.update(resetData).get();
             
             response.put("success", true);
-            response.put("message", "Usuario reseteado exitosamente. Puede volver a probar el flujo completo.");
+            response.put("message", "Usuario reseteado exitosamente. TODOS los datos han sido limpiados para forzar nuevo registro completo.");
             response.put("phone", normalizedPhone);
             response.put("documentId", documentId);
             response.put("resetFields", resetData.keySet());
             response.put("timestamp", result.getUpdateTime().toString());
+            response.put("dataCleared", "Nombre, apellido, ciudad y estado han sido limpiados");
             
+            // Mostrar datos que fueron limpiados
             if (currentName != null) {
-                response.put("userName", currentName);
+                response.put("clearedUserName", currentName);
             }
             if (currentCity != null) {
-                response.put("userCity", currentCity);
+                response.put("clearedUserCity", currentCity);
             }
             
             return ResponseEntity.ok(response);
@@ -132,6 +140,7 @@ public class UserResetController {
             response.put("created_at", userData.get("created_at"));
             response.put("updated_at", userData.get("updated_at"));
             response.put("referral_code", userData.get("referral_code"));
+            response.put("reset_from_deletion", userData.get("reset_from_deletion"));
             
             return ResponseEntity.ok(response);
             
@@ -176,6 +185,7 @@ public class UserResetController {
             resetData.put("chatbot_state", "NEW");
             resetData.put("aceptaTerminos", false);
             resetData.put("updated_at", Timestamp.now());
+            resetData.put("reset_from_deletion", true); // Marcar que viene del reseteo para preservar referral_code
             
             // MANTENER datos del usuario (nombre, apellido, ciudad)
             // Solo resetear el flujo del chatbot
