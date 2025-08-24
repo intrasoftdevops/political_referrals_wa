@@ -29,6 +29,8 @@ import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 @Service
 public class ChatbotService {
@@ -46,6 +48,8 @@ public class ChatbotService {
     private final RestTemplate restTemplate;
     private final NotificationService notificationService;
 
+    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+
     @Value("${WELCOME_VIDEO_URL}")
     private String welcomeVideoUrl;
 
@@ -59,15 +63,24 @@ public class ChatbotService {
     private String contextPath;
 
     private static final Pattern REFERRAL_MESSAGE_PATTERN = Pattern
-            .compile("(?i).*referido\\s+por\\s*:?\\s*([A-Za-z0-9]{8})");
+            .compile("(?i).*(?:referido\\s+por\\s*:?\\s*([A-Za-z0-9]{8})|codigo\\s*:?\\s*([A-Za-z0-9]{8}))");
     private static final String TELEGRAM_BOT_USERNAME = "ResetPoliticaBot";
     private static final Pattern STRICT_PHONE_NUMBER_PATTERN = Pattern.compile("^\\+\\d{10,15}$");
 
     // Nuevos mensajes de la campaña
     private static final String WELCOME_MESSAGE_BASE = "Hola. Te doy la bienvenida a nuestra campaña: Daniel Quintero Presidente!!!";
+    private static final String ADD_CONTACT_CTA = "Te pido que lo primero que hagas sea guardar este número con el nombre: Daniel Quintero Presidente.";
     
     private static final String PRIVACY_MESSAGE = """
-        Respetamos la ley y cuidamos tu información, vamos a mantenerla de forma confidencial, esta es nuestra política de seguridad https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo con ella.""";
+        Responde (Sí/No) si aceptas nuestra política de privacidad:
+
+        Respetamos la ley y cuidamos tu información, vamos a mantenerla de forma confidencial, esta es nuestra política de seguridad https://danielquinterocalle.com/privacidad.""";
+    
+    private static final String PRIVACY_MESSAGE_HEADER = "Política de Privacidad";
+    private static final String PRIVACY_MESSAGE_BODY = """
+        Responde si aceptas nuestra política de privacidad:
+
+        Respetamos la ley y cuidamos tu información, vamos a mantenerla de forma confidencial, esta es nuestra política de seguridad https://danielquinterocalle.com/privacidad.""";
 
     // Patrones para detectar solicitudes de link de tribu
     private static final List<String> TRIBAL_LINK_PATTERNS = List.of(
@@ -160,6 +173,15 @@ public class ChatbotService {
         "enlace de mi parche"
     );
     
+    /**
+     * Envía el mensaje de política de privacidad con botones interactivos SÍ/NO
+     * @param phoneNumber Número de teléfono del usuario
+     */
+    private void sendPrivacyMessageWithButtons(String phoneNumber) {
+        System.out.println("ChatbotService: Enviando mensaje de privacidad con botones interactivos");
+        watiApiService.sendInteractiveButtonMessageSync(phoneNumber, PRIVACY_MESSAGE_BODY, "✅ SÍ", "❌ NO");
+    }
+
     // Número de WhatsApp según el ambiente
     private String getWhatsAppInviteNumber() {
         if ("prod".equals(activeProfile)) {
@@ -201,7 +223,7 @@ public class ChatbotService {
      */
     public void createTestReferrerUser() {
         String testPhoneNumber = "+573100000001";
-        String testReferralCode = generateUniqueReferralCode(); // Generar código único en lugar de usar "TESTCODE"
+        String testReferralCode = "TESTCODE"; // Usar código fijo "TESTCODE" para pruebas
 
         Optional<User> existingUser = findUserByAnyIdentifier(testPhoneNumber, "WHATSAPP");
         if (existingUser.isPresent()) {
@@ -407,30 +429,45 @@ public class ChatbotService {
                 if (hasBasicData && (user.getChatbot_state() == null || "NEW_USER".equals(user.getChatbot_state()))) {
                     System.out.println("⚠️  WARNING: Usuario existente con datos pero estado inconsistente. Recuperando estado...");
                     
-                    // Intentar recuperar el estado basado en los datos disponibles
-                    if (user.getName() != null && user.getCity() != null && user.isAceptaTerminos()) {
-                        // Usuario parece estar completo, verificar si tiene código de referido
-                        if (user.getReferral_code() == null || user.getReferral_code().isEmpty()) {
-                            String referralCode = generateUniqueReferralCode();
-                            user.setReferral_code(referralCode);
-                            System.out.println("DEBUG: Generando código de referido faltante: " + referralCode);
-                        }
-                        user.setChatbot_state("COMPLETED");
+                    // IMPORTANTE: Si el usuario viene de un reseteo, limpiar TODOS los datos excepto referral_code
+                    if (user.isReset_from_deletion()) {
+                        System.out.println("DEBUG: Usuario viene de reseteo, limpiando datos y manteniendo solo referral_code");
+                        // Limpiar TODOS los datos del usuario para forzar nuevo registro completo
+                        user.setName(null);
+                        user.setLastname(null);
+                        user.setCity(null);
+                        user.setState(null);
+                        user.setAceptaTerminos(false);
+                        user.setChatbot_state("NEW");
+                        user.setReset_from_deletion(false); // Resetear el flag
                         saveUser(user);
-                        System.out.println("DEBUG: Usuario recuperado como COMPLETED");
-                    } else if (user.getName() != null && user.getCity() != null && !user.isAceptaTerminos()) {
-                        // SIEMPRE validar política de privacidad antes de completar
-                        user.setChatbot_state("WAITING_TERMS_ACCEPTANCE");
-                        saveUser(user);
-                        System.out.println("DEBUG: Usuario recuperado como WAITING_TERMS_ACCEPTANCE (validando política)");
-                    } else if (user.getName() != null && (user.getCity() == null || user.getCity().isEmpty())) {
-                        user.setChatbot_state("WAITING_CITY");
-                        saveUser(user);
-                        System.out.println("DEBUG: Usuario recuperado como WAITING_CITY");
+                        System.out.println("DEBUG: Usuario reseteado - todos los datos limpiados para nuevo registro completo");
                     } else {
-                        user.setChatbot_state("WAITING_NAME");
-                        saveUser(user);
-                        System.out.println("DEBUG: Usuario recuperado como WAITING_NAME");
+                        // Solo para usuarios que NO vienen de reseteo, intentar recuperar el estado
+                        if (user.getName() != null && user.getCity() != null && user.isAceptaTerminos()) {
+                            // Usuario parece estar completo, verificar si tiene código de referido
+                            if (user.getReferral_code() == null || user.getReferral_code().isEmpty()) {
+                                String referralCode = generateUniqueReferralCode();
+                                user.setReferral_code(referralCode);
+                                System.out.println("DEBUG: Generando código de referido faltante: " + referralCode);
+                            }
+                            user.setChatbot_state("COMPLETED");
+                            saveUser(user);
+                            System.out.println("DEBUG: Usuario recuperado como COMPLETED");
+                        } else if (user.getName() != null && user.getCity() != null && !user.isAceptaTerminos()) {
+                            // SIEMPRE validar política de privacidad antes de completar
+                            user.setChatbot_state("WAITING_TERMS_ACCEPTANCE");
+                            saveUser(user);
+                            System.out.println("DEBUG: Usuario recuperado como WAITING_TERMS_ACCEPTANCE (validando política)");
+                        } else if (user.getName() != null && (user.getCity() == null || user.getCity().isEmpty())) {
+                            user.setChatbot_state("WAITING_CITY");
+                            saveUser(user);
+                            System.out.println("DEBUG: Usuario recuperado como WAITING_CITY");
+                        } else {
+                            user.setChatbot_state("WAITING_NAME");
+                            saveUser(user);
+                            System.out.println("DEBUG: Usuario recuperado como WAITING_NAME");
+                        }
                     }
                 }
 
@@ -526,8 +563,15 @@ public class ChatbotService {
                         System.out.println("ChatbotService: Enviando mensaje secundario " + (i + 1) + "/" + messagesToSend.length + " a " + fromId + " (Canal: "
                                 + channelType + "): '" + msg + "'");
                         if ("WHATSAPP".equalsIgnoreCase(channelType)) {
-                            // Enviar de forma síncrona para garantizar el orden
-                            sendWhatsAppMessageSync(fromId, msg);
+                            // Verificar si es el mensaje de guardar contacto para enviar botones interactivos
+                            if (msg.contains("Te pido que lo primero que hagas sea guardar este número")) {
+                                // Enviar mensaje con botones interactivos
+                                System.out.println("ChatbotService: Enviando mensaje interactivo con botones para guardar contacto");
+                                watiApiService.sendInteractiveButtonMessageSync(fromId, msg, "✅ Ya guardé contacto");
+                            } else {
+                                // Enviar de forma síncrona para garantizar el orden
+                                sendWhatsAppMessageSync(fromId, msg);
+                            }
                         } else if ("TELEGRAM".equalsIgnoreCase(channelType)) {
                             telegramApiService.sendTelegramMessage(fromId, msg);
                         } else {
@@ -606,9 +650,17 @@ public class ChatbotService {
                 // Si se completó la extracción, pero aún necesitamos validar política de privacidad
                 System.out.println("DEBUG handleNewUserIntro: Usando extracción inteligente - Completado, pero validando política");
                 
-                // Preparar múltiples mensajes
-                String finalMessage = extractionResult.getMessage() + "\n\n" + PRIVACY_MESSAGE;
-                return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + finalMessage, "WAITING_TERMS_ACCEPTANCE");
+                // Enviar mensajes secuenciales: primero bienvenida, luego instrucción de contacto
+                sendWhatsAppMessageSync(user.getPhone(), WELCOME_MESSAGE_BASE);
+                sendWhatsAppMessageSync(user.getPhone(), ADD_CONTACT_CTA);
+                
+                // Programar el mensaje de privacidad con botones interactivos después de un retraso
+                final String userPhone6 = user.getPhone();
+                scheduler.schedule(() -> {
+                    sendPrivacyMessageWithButtons(userPhone6);
+                }, 10, TimeUnit.SECONDS);
+
+                return new ChatResponse("", "WAITING_TERMS_ACCEPTANCE"); // No enviar mensaje primario aquí
             } else {
                 // Si se extrajo parcialmente, verificar si hay código de referido para usar mensaje personalizado
                 if (user.getReferred_by_code() != null && user.getReferred_by_phone() != null) {
@@ -641,29 +693,54 @@ public class ChatbotService {
                         finalMessage = personalizedGreeting + "¿Me confirmas tu nombre para guardarte en mis contactos?";
                     }
                     System.out.println("⚠️  WARNING: Generando mensaje personalizado con código de referido detectado por IA");
-                    return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + finalMessage, "WAITING_NAME");
+                    
+                    sendWhatsAppMessageSync(user.getPhone(), WELCOME_MESSAGE_BASE);
+                    sendWhatsAppMessageSync(user.getPhone(), ADD_CONTACT_CTA);
+                    scheduler.schedule(() -> sendWhatsAppMessageSync(user.getPhone(), finalMessage), 10, TimeUnit.SECONDS);
+
+                    return new ChatResponse("", "WAITING_NAME");
                 } else {
                     // Si no hay código de referido, usar el mensaje de extracción de la IA
                     System.out.println("DEBUG handleNewUserIntro: Usando extracción inteligente - Parcial, sin política de privacidad");
                     
                     // Preparar múltiples mensajes para extracción parcial
                     System.out.println("⚠️  WARNING: Generando mensaje de bienvenida en extracción inteligente parcial");
-                    return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + extractionResult.getMessage(), extractionResult.getNextState());
+                    
+                    sendWhatsAppMessageSync(user.getPhone(), WELCOME_MESSAGE_BASE);
+                    sendWhatsAppMessageSync(user.getPhone(), ADD_CONTACT_CTA);
+                    scheduler.schedule(() -> sendWhatsAppMessageSync(user.getPhone(), extractionResult.getMessage()), 10, TimeUnit.SECONDS);
+
+                    return new ChatResponse("", extractionResult.getNextState());
                 }
             }
         }
         
-        System.out.println("DEBUG handleNewUserIntro: Extracción inteligente falló, usando método tradicional");
+        // Verificar si la IA detectó un código de referido aunque la extracción general falló
+        String detectedReferralCode = null;
+        
+        // Obtener el resultado de extracción de la IA para acceder a los campos extraídos
+        UserDataExtractionResult aiExtraction = geminiService.extractUserData(messageText, "", null);
+        if (aiExtraction.getReferralCode() != null && !aiExtraction.getReferralCode().trim().isEmpty()) {
+            detectedReferralCode = aiExtraction.getReferralCode().trim();
+            System.out.println("DEBUG handleNewUserIntro: 🔍 IA detectó código de referido: '" + detectedReferralCode + "'");
+        }
 
-        // Si la extracción falló, usar el método tradicional
-        Matcher matcher = REFERRAL_MESSAGE_PATTERN.matcher(messageText.trim());
+        // Si la IA no detectó código, usar el método tradicional
+        if (detectedReferralCode == null) {
+            System.out.println("DEBUG handleNewUserIntro: IA no detectó código, usando método tradicional");
+            Matcher matcher = REFERRAL_MESSAGE_PATTERN.matcher(messageText.trim());
+            System.out.println("DEBUG handleNewUserIntro: Resultado de la coincidencia del patrón Regex: " + matcher.matches());
+            
+            if (matcher.matches()) {
+                // El nuevo patrón tiene dos grupos: uno para "referido por" y otro para "codigo"
+                detectedReferralCode = matcher.group(1) != null ? matcher.group(1) : matcher.group(2);
+                System.out.println("DEBUG handleNewUserIntro: Código de referido extraído por regex: '" + detectedReferralCode + "'");
+            }
+        }
 
-        System.out.println(
-                "DEBUG handleNewUserIntro: Resultado de la coincidencia del patrón Regex: " + matcher.matches());
-
-        if (matcher.matches()) {
-            String incomingReferralCode = matcher.group(1);
-            System.out.println("DEBUG handleNewUserIntro: Código de referido extraído: '" + incomingReferralCode + "'");
+        if (detectedReferralCode != null) {
+            String incomingReferralCode = detectedReferralCode;
+            System.out.println("DEBUG handleNewUserIntro: Código de referido a procesar: '" + incomingReferralCode + "'");
 
             System.out.println(
                     "ChatbotService: Primer mensaje contiene posible código de referido: " + incomingReferralCode);
@@ -711,30 +788,26 @@ public class ChatbotService {
                     personalizedGreeting += "¡Hola " + user.getName().trim() + "! ";
                 }
                 
-                // Preparar múltiples mensajes para usuario con referido
-                String finalMessage;
-                if (user.getName() != null && !user.getName().trim().isEmpty()) {
-                    finalMessage = personalizedGreeting + "¿Me confirmas si tu nombre es el que aparece en WhatsApp " + user.getName().trim() + " o me dices cómo te llamas para guardarte en mis contactos?";
-                } else {
-                    finalMessage = personalizedGreeting + "¿Me confirmas tu nombre para guardarte en mis contactos?";
-                }
-                System.out.println("⚠️  WARNING: Generando mensaje de bienvenida con código de referido válido");
-                return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + finalMessage, "WAITING_NAME");
+                // Enviar mensaje de bienvenida personalizado primero, y mensaje de contacto como secundario
+                String responseMessage = personalizedGreeting + "¡Hola! Te doy la bienvenida a nuestra campaña: Daniel Quintero Presidente!!!";
+                String nextChatbotState = "WAITING_CONTACT_SAVE";
+                
+                // Crear ChatResponse con mensaje secundario usando el constructor correcto
+                return new ChatResponse(responseMessage, nextChatbotState, 
+                    Optional.of("Te pido que lo primero que hagas sea guardar este número con el nombre: Daniel Quintero Presidente."));
             } else {
                 System.out.println(
                         "ChatbotService: Código de referido válido en formato, pero NO ENCONTRADO en el primer mensaje: "
                                 + incomingReferralCode);
                 System.out.println("⚠️  WARNING: Generando mensaje de bienvenida con código de referido inválido");
-                // Preparar múltiples mensajes para código de referido inválido
-                String finalMessage;
-                if (user.getName() != null && !user.getName().trim().isEmpty()) {
-                    finalMessage = "Parece que el código de referido que me enviaste no es válido, pero no te preocupes, ¡podemos continuar!\n\n" +
-                        "¿Me confirmas si tu nombre es el que aparece en WhatsApp " + user.getName().trim() + " o me dices cómo te llamas para guardarte en mis contactos?";
-                } else {
-                    finalMessage = "Parece que el código de referido que me enviaste no es válido, pero no te preocupes, ¡podemos continuar!\n\n" +
-                        "¿Me confirmas tu nombre para guardarte en mis contactos?";
-                }
-                return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + finalMessage, "WAITING_NAME");
+                
+                // Enviar mensaje de bienvenida con aviso de código inválido primero, y mensaje de contacto como secundario
+                String responseMessage = "Parece que el código de referido que me enviaste no es válido, pero no te preocupes, ¡podemos continuar!\n\n¡Hola! Te doy la bienvenida a nuestra campaña: Daniel Quintero Presidente!!!";
+                String nextChatbotState = "WAITING_CONTACT_SAVE";
+                
+                // Crear ChatResponse con mensaje secundario usando el constructor correcto
+                return new ChatResponse(responseMessage, nextChatbotState, 
+                    Optional.of("Te pido que lo primero que hagas sea guardar este número con el nombre: Daniel Quintero Presidente."));
             }
         } else {
             System.out.println("DEBUG handleNewUserIntro: El mensaje no coincide con el patrón de referido.");
@@ -754,26 +827,33 @@ public class ChatbotService {
                 
                 // Si no tiene apellido, preguntarlo
                 if (user.getLastname() == null || user.getLastname().trim().isEmpty()) {
-                    // Preparar múltiples mensajes para usuario sin apellido
-                    String finalMessage = String.format("Veo que te llamas %s. ¿Cuál es tu apellido?", user.getName());
-                    return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + finalMessage, "WAITING_LASTNAME");
+                    // Enviar mensaje de bienvenida primero, y mensaje de contacto como secundario
+                    String responseMessage = "Hola. Te doy la bienvenida a nuestra campaña: Daniel Quintero Presidente!!!";
+                    String nextChatbotState = "WAITING_CONTACT_SAVE";
+                    
+                    // Crear ChatResponse con mensaje secundario usando el constructor correcto
+                    return new ChatResponse(responseMessage, nextChatbotState, 
+                        Optional.of("Te pido que lo primero que hagas sea guardar este número con el nombre: Daniel Quintero Presidente.\n\nResponde con uno de los botones de abajo cuando hayas guardado el contacto:"));
                 } else {
                     // Si ya tiene nombre y apellido, preguntar ciudad
-                    // Preparar múltiples mensajes para usuario con nombre y apellido
-                    String finalMessage = String.format("Veo que te llamas %s. ¿En qué ciudad vives?", fullName);
-                    return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + finalMessage, "WAITING_CITY");
+                    // Enviar mensaje de bienvenida primero, y mensaje de contacto como secundario
+                    String responseMessage = "Hola. Te doy la bienvenida a nuestra campaña: Daniel Quintero Presidente!!!";
+                    String nextChatbotState = "WAITING_CONTACT_SAVE";
+                    
+                    // Crear ChatResponse con mensaje secundario usando el constructor correcto
+                    return new ChatResponse(responseMessage, nextChatbotState, 
+                        Optional.of(ADD_CONTACT_CTA));
                 }
             } else {
                 System.out.println("⚠️  WARNING: Generando mensaje de bienvenida general (sin código de referido)");
-                // Preparar múltiples mensajes para usuario general
-                String finalMessage;
-                if (user.getName() != null && !user.getName().trim().isEmpty()) {
-                    finalMessage = "¿Me confirmas si tu nombre es el que aparece en WhatsApp " + user.getName().trim() + " o me dices cómo te llamas para guardarte en mis contactos?";
-                } else {
-                    finalMessage = "¿Me confirmas tu nombre para guardarte en mis contactos?";
-                }
-                System.out.println("⚠️  WARNING: Generando mensaje de bienvenida general (sin código de referido)");
-                return new ChatResponse("MULTI:" + WELCOME_MESSAGE_BASE + "|" + finalMessage, "WAITING_NAME");
+                
+                // Enviar mensaje de bienvenida primero, y mensaje de contacto como secundario
+                String responseMessage = "Hola. Te doy la bienvenida a nuestra campaña: Daniel Quintero Presidente!!!";
+                String nextChatbotState = "WAITING_CONTACT_SAVE";
+                
+                // Crear ChatResponse con mensaje secundario usando el constructor correcto
+                return new ChatResponse(responseMessage, nextChatbotState, 
+                    Optional.of(ADD_CONTACT_CTA));
             }
         }
     }
@@ -928,125 +1008,230 @@ public class ChatbotService {
                 user.setPhone(normalizedPhoneNumber);
                 user.setPhone_code(normalizedPhoneNumber.substring(0, Math.min(normalizedPhoneNumber.length(), 4)));
 
-                responseMessage = """
-                        ¡Gracias! Hemos registrado tu número de teléfono.
-                        Respetamos la ley y cuidamos tu información, vamos a mantenerla de forma confidencial, esta es nuestra política de seguridad https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo con ella.
-                        """;
-                nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
+                final String finalResponseMessage = "¡Gracias! Hemos registrado tu número de teléfono.";
+                final String finalNextChatbotState = "WAITING_TERMS_ACCEPTANCE";
+                responseMessage = finalResponseMessage;
+                nextChatbotState = finalNextChatbotState;
+                
+                // Enviar mensaje de privacidad con botones interactivos después de un retraso
+                final String userPhone0 = user.getPhone();
+                scheduler.schedule(() -> {
+                    sendPrivacyMessageWithButtons(userPhone0);
+                }, 5, TimeUnit.SECONDS);
                 break;
 
             case "WAITING_TERMS_ACCEPTANCE":
-                // Cualquier mensaje del usuario se considera como aceptación automática de términos
-                System.out.println("DEBUG: Usuario en WAITING_TERMS_ACCEPTANCE, cualquier mensaje se considera aceptación automática");
+                // Validar respuesta de botones interactivos o texto libre
+                String normalizedMessage = messageText.toLowerCase().trim();
+                boolean acceptedTerms = false;
                 
-                // Verificar si ya tiene todos los datos necesarios
-                boolean hasName = user.getName() != null && !user.getName().isEmpty();
-                boolean hasCity = user.getCity() != null && !user.getCity().isEmpty();
-                
-                System.out.println("DEBUG: Usuario tiene nombre: " + hasName + " (nombre: " + user.getName() + ")");
-                System.out.println("DEBUG: Usuario tiene ciudad: " + hasCity + " (ciudad: " + user.getCity() + ")");
-                
-                if (hasName && hasCity) {
-                    System.out.println("DEBUG: ✅ Usuario tiene todos los datos. Completando registro...");
-                    // Si ya tiene nombre y ciudad, completar el registro
-                    String referralCode = generateUniqueReferralCode();
-                    user.setReferral_code(referralCode);
-
-                    String whatsappInviteLink;
-                    String telegramInviteLink;
-                    List<String> additionalMessages = new ArrayList<>();
-
-                    try {
-                        String whatsappRawReferralText = String.format("Hola, vengo referido por:%s", referralCode);
-                        String encodedWhatsappMessage = URLEncoder
-                                .encode(whatsappRawReferralText, StandardCharsets.UTF_8.toString()).replace("+", "%20");
-                        whatsappInviteLink = "https://wa.me/" + getWhatsAppInviteNumber() + "?text=" + encodedWhatsappMessage;
-
-                        String encodedTelegramPayload = URLEncoder.encode(referralCode,
-                                StandardCharsets.UTF_8.toString());
-                        telegramInviteLink = "https://t.me/" + TELEGRAM_BOT_USERNAME + "?start="
-                                + encodedTelegramPayload;
-
-                        String friendsInviteMessage = String.format(
-                                "Amigos, soy %s y quiero invitarte a unirte a la campaña de Daniel Quintero a la Presidencia: https://wa.me/%s?text=%s",
-                                user.getName(),
-                                getWhatsAppInviteNumber(),
-                                URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
-                                        StandardCharsets.UTF_8.toString()).replace("+", "%20"));
-                        additionalMessages.add(friendsInviteMessage);
-
-                        // Enviar el video de bienvenida ANTES del mensaje de IA
-                        try {
-                            watiApiService.sendVideoMessage(user.getPhone(), welcomeVideoUrl, "Video de bienvenida a la campaña");
-                            System.out.println("DEBUG: Video de bienvenida enviado a: " + user.getPhone());
-                        } catch (Exception e) {
-                            System.err.println("DEBUG: ⚠️ Error al enviar video de bienvenida: " + e.getMessage());
-                            System.err.println("DEBUG: ⚠️ Continuando con flujo normal sin video...");
-                            // No lanzar la excepción, continuar con el flujo normal
-                        }
-
-                        String aiBotIntroMessage = """
-                                Ahora entrarás en conversación con el equipo de voluntarios de la campaña.
-
-                                Ten en cuenta que eventualmente podrás recibir respuestas de DQBot, una inteligencia artificial entrenada para dar información sobre la campaña de Daniel Quintero Presidente.
-
-                                ¡Haz tu pregunta y comencemos!
-                                """;
-                        additionalMessages.add(aiBotIntroMessage);
-
-                    } catch (UnsupportedEncodingException e) {
-                        System.err.println("ERROR: No se pudo codificar los códigos de referido. Causa: " + e.getMessage());
-                        e.printStackTrace();
-                        whatsappInviteLink = "https://wa.me/" + getWhatsAppInviteNumber() + "?text=Error%20al%20generar%20referido";
-                        telegramInviteLink = "https://t.me/" + TELEGRAM_BOT_USERNAME + "?start=Error";
-                        additionalMessages.clear();
-                        additionalMessages.add("Error al generar los mensajes de invitación.");
-                    }
-
-                    responseMessage = String.format(
-                            """
-                                    %s, gracias por unirte a la ola de cambio que estamos construyendo para Colombia. Hasta ahora tienes 0 personas referidas. Ayudanos a crecer y gana puestos dentro de la campaña.
-
-                                    Sabemos que muchos comparten la misma visión de un futuro mejor, y por eso quiero invitarte a que compartas este proyecto con tus amigos, familiares y conocidos. Juntos podemos lograr una transformación real y profunda.
-
-                                    Envíales el siguiente enlace de referido:
-                                    """,
-                            user.getName()
-                    );
-
-                    Optional<String> termsSecondaryMessage = Optional.of(String.join("###SPLIT###", additionalMessages));
+                // Verificar respuestas de botones interactivos
+                if (normalizedMessage.equals("✅ sí") || normalizedMessage.equals("sí") || 
+                    normalizedMessage.equals("si") || normalizedMessage.equals("yes") ||
+                    normalizedMessage.contains("acepto") || normalizedMessage.contains("aceptar")) {
+                    acceptedTerms = true;
+                    System.out.println("DEBUG: Usuario ACEPTÓ los términos (botón interactivo o texto afirmativo).");
+                } else if (normalizedMessage.equals("❌ no") || normalizedMessage.equals("no") || 
+                           normalizedMessage.contains("no acepto") || normalizedMessage.contains("rechazo")) {
+                    // Usuario rechazó los términos, volver a preguntar
+                    System.out.println("DEBUG: Usuario RECHAZÓ los términos, volviendo a preguntar.");
+                    responseMessage = "Entiendo que no quieres aceptar los términos. Te explico nuevamente:";
+                    nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
                     
-                    // Notificar al referente si este usuario fue referido
-                    if (user.getReferred_by_phone() != null && user.getReferred_by_code() != null) {
-                        try {
-                            // Formatear el teléfono del referente para la notificación
-                            String referrerPhone = user.getReferred_by_phone();
-                            // Agregar +57 si no tiene código de país
-                            if (!referrerPhone.startsWith("+")) {
-                                referrerPhone = "+57" + referrerPhone;
-                            }
-                            
-                            System.out.println("DEBUG: Notificando al referente - Teléfono: " + referrerPhone + ", Código: " + user.getReferred_by_code());
-                            
-                            // Obtener el nombre del nuevo usuario
-                            String newUserName = user.getName();
-                            if (newUserName == null || newUserName.trim().isEmpty()) {
-                                newUserName = "Un nuevo voluntario";
-                            }
-                            
-                            notifyReferrer(referrerPhone, newUserName, user.getReferred_by_code());
-                        } catch (Exception e) {
-                            System.err.println("ERROR: No se pudo notificar al referente: " + e.getMessage());
-                        }
-                    }
+                    // Enviar mensaje de privacidad con botones interactivos después de un retraso
+                    final String userPhone1 = user.getPhone();
+                    scheduler.schedule(() -> {
+                        sendPrivacyMessageWithButtons(userPhone1);
+                    }, 5, TimeUnit.SECONDS);
                     
-                    nextChatbotState = "COMPLETED";
-                    return new ChatResponse(responseMessage, nextChatbotState, termsSecondaryMessage);
+                    return new ChatResponse(responseMessage, nextChatbotState);
                 } else {
-                    // Si no tiene todos los datos, continuar con el flujo normal
-                    System.out.println("DEBUG: ⚠️ Usuario no tiene todos los datos. Continuando flujo...");
-                    responseMessage = "¿Cuál es tu nombre?";
+                    // Usar IA como fallback para respuestas no claras
+                    acceptedTerms = geminiService.isAffirmativeResponse(messageText);
+                    if (acceptedTerms) {
+                        System.out.println("DEBUG: Usuario ACEPTÓ los términos (validado por IA).");
+                    } else {
+                        System.out.println("DEBUG: Usuario NO ACEPTÓ los términos (validado por IA).");
+                        // Respuesta no clara, volver a preguntar
+                        responseMessage = "No entendí tu respuesta. Por favor, usa los botones SÍ o NO para confirmar si aceptas nuestra política de privacidad.";
+                        nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
+                        
+                        // Enviar mensaje de privacidad con botones interactivos después de un retraso
+                        final String userPhone2 = user.getPhone();
+                        scheduler.schedule(() -> {
+                            sendPrivacyMessageWithButtons(userPhone2);
+                        }, 5, TimeUnit.SECONDS);
+                        
+                        return new ChatResponse(responseMessage, nextChatbotState);
+                    }
+                }
+                
+                if (acceptedTerms) {
+                    
+                    user.setAceptaTerminos(true); // Marcar que aceptó
+                    System.out.println("DEBUG: Usuario ACEPTÓ los términos (validado por IA).");
+
+                    // Verificar si ya tiene todos los datos necesarios
+                    boolean hasName = user.getName() != null && !user.getName().isEmpty();
+                    boolean hasCity = user.getCity() != null && !user.getCity().isEmpty();
+                    
+                    System.out.println("DEBUG: Usuario tiene nombre: " + hasName + " (nombre: " + user.getName() + ")");
+                    System.out.println("DEBUG: Usuario tiene ciudad: " + hasCity + " (ciudad: " + user.getCity() + ")");
+                    
+                    if (hasName && hasCity) {
+                        System.out.println("DEBUG: ✅ Usuario tiene todos los datos. Completando registro...");
+                        // Si ya tiene nombre y ciudad, completar el registro
+                        // IMPORTANTE: Si el usuario ya tiene referral_code (viene del reseteo), NO generar uno nuevo
+                        String referralCode;
+                        if (user.getReferral_code() != null && !user.getReferral_code().isEmpty()) {
+                            referralCode = user.getReferral_code(); // Mantener el existente
+                            System.out.println("DEBUG: ✅ Usuario reseteado, manteniendo referral_code existente: " + referralCode);
+                        } else {
+                            referralCode = generateUniqueReferralCode(); // Generar nuevo solo si no existe
+                            user.setReferral_code(referralCode);
+                            System.out.println("DEBUG: ✅ Generando nuevo referral_code: " + referralCode);
+                        }
+
+                        String whatsappInviteLink;
+                        String telegramInviteLink;
+                        List<String> additionalMessages = new ArrayList<>();
+
+                        try {
+                            String whatsappRawReferralText = String.format("Hola, vengo referido por %s, codigo: %s", user.getName(), referralCode);
+                            String encodedWhatsappMessage = URLEncoder
+                                    .encode(whatsappRawReferralText, StandardCharsets.UTF_8.toString()).replace("+", "%20");
+                            whatsappInviteLink = "https://wa.me/" + getWhatsAppInviteNumber() + "?text=" + encodedWhatsappMessage;
+
+                            String encodedTelegramPayload = URLEncoder.encode(referralCode,
+                                    StandardCharsets.UTF_8.toString());
+                            telegramInviteLink = "https://t.me/" + TELEGRAM_BOT_USERNAME + "?start="
+                                    + encodedTelegramPayload;
+
+                            String friendsInviteMessage = String.format(
+                                    "Amigos, soy %s y quiero invitarte a unirte a la campaña de Daniel Quintero a la Presidencia: %s",
+                                    user.getName(),
+                                    whatsappInviteLink);
+                            additionalMessages.add(friendsInviteMessage);
+
+                            // Enviar el video de bienvenida ANTES del mensaje de IA
+                            try {
+                                watiApiService.sendVideoMessage(user.getPhone(), welcomeVideoUrl, " ");
+                                System.out.println("DEBUG: Video de bienvenida enviado a: " + user.getPhone());
+                            } catch (Exception e) {
+                                System.err.println("DEBUG: ⚠️ Error al enviar video de bienvenida: " + e.getMessage());
+                                System.err.println("DEBUG: ⚠️ Continuando con flujo normal sin video...");
+                                // No lanzar la excepción, continuar con el flujo normal
+                            }
+
+                        } catch (UnsupportedEncodingException e) {
+                            System.err.println("ERROR: No se pudo codificar los códigos de referido. Causa: " + e.getMessage());
+                            e.printStackTrace();
+                            whatsappInviteLink = "https://wa.me/" + getWhatsAppInviteNumber() + "?text=Error%20al%20generar%20referido";
+                            telegramInviteLink = "https://t.me/" + TELEGRAM_BOT_USERNAME + "?start=Error";
+                            additionalMessages.clear();
+                            additionalMessages.add("Error al generar los mensajes de invitación.");
+                        }
+
+                        responseMessage = String.format(
+                                "%s, gracias por unirte como voluntario. Tu primera misión es enviar el siguiente link a tus amigos de modo que más personas se sumen.",
+                                user.getName()
+                        );
+
+                        Optional<String> termsSecondaryMessage = Optional.of(String.join("###SPLIT###", additionalMessages));
+                        
+                        // Notificar al referente si este usuario fue referido
+                        if (user.getReferred_by_phone() != null && user.getReferred_by_code() != null) {
+                            try {
+                                // Formatear el teléfono del referente para la notificación
+                                String referrerPhone = user.getReferred_by_phone();
+                                
+                                // --- INICIO DE LA NUEVA LÓGICA DE LIMPIEZA ---
+                                // 1. Quitar todos los caracteres que no sean dígitos
+                                String digitsOnly = referrerPhone.replaceAll("[^\\d]", "");
+                                // 2. Si empieza con "57" y tiene 12 dígitos, es un número colombiano completo.
+                                if (digitsOnly.startsWith("57") && digitsOnly.length() == 12) {
+                                    // Tomar solo los últimos 10 dígitos y añadir el prefijo correcto.
+                                    referrerPhone = "+57" + digitsOnly.substring(2);
+                                } else if (digitsOnly.length() == 10) {
+                                    // Si solo tiene 10 dígitos, es un número local. Añadir prefijo.
+                                    referrerPhone = "+57" + digitsOnly;
+                                } else if (!referrerPhone.startsWith("+")) {
+                                    // Como última opción, si no empieza con +, añadirlo.
+                                    referrerPhone = "+" + referrerPhone;
+                                }
+                                // --- FIN DE LA NUEVA LÓGICA DE LIMPIEZA ---
+                                
+                                System.out.println("DEBUG: Notificando al referente - Teléfono: " + referrerPhone + ", Código: " + user.getReferred_by_code());
+                                
+                                // Obtener el nombre del nuevo usuario
+                                String newUserName = user.getName();
+                                if (newUserName == null || newUserName.trim().isEmpty()) {
+                                    newUserName = "Un nuevo voluntario";
+                                }
+                                
+                                notifyReferrer(referrerPhone, newUserName, user.getReferred_by_code());
+                            } catch (Exception e) {
+                                System.err.println("ERROR: No se pudo notificar al referente: " + e.getMessage());
+                            }
+                        }
+                        
+                        nextChatbotState = "COMPLETED";
+                        return new ChatResponse(responseMessage, nextChatbotState, termsSecondaryMessage);
+                    } else {
+                        // Si no tiene todos los datos, continuar con el flujo normal
+                        System.out.println("DEBUG: ⚠️ Usuario no tiene todos los datos. Continuando flujo...");
+                        responseMessage = "¿Cuál es tu nombre?";
+                        nextChatbotState = "WAITING_NAME";
+                    }
+                } else {
+                    // El usuario no aceptó explícitamente.
+                    System.out.println("DEBUG: Usuario NO aceptó los términos explícitamente (validado por IA). Mensaje: '" + messageText + "'");
+                    responseMessage = "Entendido. Para continuar y unirte a nuestra campaña, es necesario que aceptes nuestra política de tratamiento de datos respondiendo 'Sí'. Si cambias de opinión, estaré aquí para ayudarte.";
+                    nextChatbotState = "WAITING_TERMS_ACCEPTANCE"; // Se mantiene en el mismo estado.
+                }
+                break;
+            case "WAITING_CONTACT_SAVE":
+                // En WAITING_CONTACT_SAVE esperamos confirmación de que guardó el contacto
+                System.out.println("DEBUG: Procesando respuesta en estado WAITING_CONTACT_SAVE");
+                System.out.println("DEBUG: 🔍 Mensaje original del usuario: '" + messageText + "'");
+                
+                // Procesar respuesta del usuario (puede ser texto libre o botón interactivo)
+                String lowerContactMessage = messageText.toLowerCase().trim();
+                System.out.println("DEBUG: 🔍 Mensaje normalizado: '" + lowerContactMessage + "'");
+                
+                // Verificar si es respuesta de botón interactivo o texto libre
+                if (lowerContactMessage.contains("ya guardé") || lowerContactMessage.contains("guardé") || 
+                    lowerContactMessage.contains("listo") || lowerContactMessage.contains("hecho") ||
+                    lowerContactMessage.contains("ok") || lowerContactMessage.contains("perfecto") ||
+                    lowerContactMessage.contains("si") || lowerContactMessage.contains("sí") ||
+                    lowerContactMessage.contains("ya") || lowerContactMessage.contains("completado")) {
+                    
+                    // Usuario confirmó que guardó el contacto
+                    System.out.println("DEBUG: ✅ Usuario confirmó que guardó el contacto, continuando al siguiente paso");
+                    responseMessage = "¿Me confirmas tu nombre para guardarte en mis contactos?";
                     nextChatbotState = "WAITING_NAME";
+                    System.out.println("DEBUG: 🔄 Cambiando estado a WAITING_NAME");
+                } else if (lowerContactMessage.contains("necesito más tiempo") || lowerContactMessage.contains("más tiempo") ||
+                           lowerContactMessage.contains("espera") || lowerContactMessage.contains("esperar")) {
+                    
+                    // Usuario necesita más tiempo
+                    System.out.println("DEBUG: ⏰ Usuario necesita más tiempo");
+                    responseMessage = "No hay problema, tómate tu tiempo. Cuando hayas guardado el contacto, responde con 'Ya guardé' o simplemente escribe cualquier mensaje para continuar.";
+                    nextChatbotState = "WAITING_CONTACT_SAVE"; // Se mantiene en el mismo estado
+                } else if (lowerContactMessage.contains("no sé cómo") || lowerContactMessage.contains("no se como") ||
+                           lowerContactMessage.contains("ayuda") || lowerContactMessage.contains("cómo") ||
+                           lowerContactMessage.contains("como")) {
+                    
+                    // Usuario necesita ayuda
+                    System.out.println("DEBUG: ❓ Usuario necesita ayuda");
+                    responseMessage = "Te explico paso a paso:\n\n1️⃣ Abre tu aplicación de contactos\n2️⃣ Toca el botón '+' o 'Agregar contacto'\n3️⃣ En el campo 'Nombre' escribe: Daniel Quintero Presidente\n4️⃣ En el campo 'Teléfono' escribe: +573224029924\n5️⃣ Guarda el contacto\n\nCuando termines, responde con 'Ya guardé' o cualquier mensaje para continuar.";
+                    nextChatbotState = "WAITING_CONTACT_SAVE"; // Se mantiene en el mismo estado
+                } else {
+                    // Cualquier otra respuesta se considera como confirmación
+                    System.out.println("DEBUG: ✅ Usuario respondió en WAITING_CONTACT_SAVE, continuando al siguiente paso");
+                    responseMessage = "¿Me confirmas tu nombre para guardarte en mis contactos?";
+                    nextChatbotState = "WAITING_NAME";
+                    System.out.println("DEBUG: 🔄 Cambiando estado a WAITING_NAME");
                 }
                 break;
             case "WAITING_NAME":
@@ -1058,7 +1243,6 @@ public class ChatbotService {
                     UserDataExtractionResult extraction = geminiService.extractUserData(messageText, null, "WAITING_NAME");
                     
                     if (extraction.isSuccessful()) {
-                        // IMPORTANTE: SIEMPRE guardar los datos extraídos si están presentes
                         boolean dataUpdated = false;
                         
                         if (extraction.getName() != null) {
@@ -1074,25 +1258,109 @@ public class ChatbotService {
                         }
                         
                         if (extraction.getIsConfirmation() != null && extraction.getIsConfirmation()) {
-                            // Usuario confirma el nombre existente
                             System.out.println("DEBUG: IA detectó confirmación del nombre existente: " + user.getName());
                         } else {
-                            // Usuario proporciona un nombre diferente
                             System.out.println("DEBUG: IA detectó nuevo nombre/apellido");
                         }
                         
-                        // Si tenemos nombre Y apellido, continuar a ciudad
-                        if (user.getName() != null && user.getLastname() != null) {
-                            responseMessage = "¿En qué ciudad vives?";
-                            nextChatbotState = "WAITING_CITY";
+                        // LÓGICA OBLIGATORIA: SIEMPRE pedir nombre completo (nombre + apellido)
+                        System.out.println("DEBUG: 🔍 Evaluando lógica de nombre completo:");
+                        System.out.println("DEBUG:   - Nombre actual: '" + user.getName() + "'");
+                        System.out.println("DEBUG:   - Apellido actual: '" + user.getLastname() + "'");
+                        System.out.println("DEBUG:   - ¿Tiene ambos?: " + (user.getName() != null && !user.getName().isEmpty() && user.getLastname() != null && !user.getLastname().isEmpty()));
+                        System.out.println("DEBUG: 🔍 Mensaje original del usuario: '" + messageText + "'");
+                        System.out.println("DEBUG: 🔍 Resultado de extracción de IA - Success: " + extraction.isSuccessful() + ", Name: " + extraction.getName() + ", Lastname: " + extraction.getLastname());
+                        System.out.println("DEBUG: 🔍 Estado del usuario - Reset: " + user.isReset_from_deletion() + ", Referral: " + user.getReferral_code());
+                        
+                        // VERIFICACIÓN CRÍTICA: Si el usuario viene del reseteo, NO debería tener datos previos
+                        // PERO si la IA acaba de extraer datos del mensaje actual, NO limpiarlos
+                        if (user.isReset_from_deletion() && extraction.getName() == null && extraction.getLastname() == null) {
+                            System.out.println("⚠️  WARNING: Usuario marcado como reseteo pero aún tiene datos previos. Limpiando...");
+                            user.setName(null);
+                            user.setLastname(null);
+                            user.setCity(null);
+                            user.setState(null);
+                            user.setAceptaTerminos(false);
+                            // NO limpiar referral_code - es su identificación única
+                            // SÍ limpiar referred_by_phone y referred_by_code - son referencias de quién lo invitó
+                            user.setReferred_by_phone(null);
+                            user.setReferred_by_code(null);
+                            user.setReset_from_deletion(false);
+                            saveUser(user);
+                            System.out.println("DEBUG: ✅ Datos previos limpiados forzadamente");
+                        } else if (user.isReset_from_deletion()) {
+                            System.out.println("DEBUG: Usuario viene del reseteo pero la IA extrajo datos del mensaje actual. NO limpiando datos extraídos.");
+                            // NO resetear el flag aquí - mantenerlo para la lógica de evaluación
+                            saveUser(user);
+                        }
+                        
+                        // LÓGICA MEJORADA: Si el usuario viene del reseteo, siempre pedir apellido después del nombre
+                        // para asegurar que los datos sean actuales y correctos
+                        if (user.getName() != null && !user.getName().isEmpty() && user.getLastname() != null && !user.getLastname().isEmpty()) {
+                            // Solo si tenemos AMBOS campos Y no viene del reseteo, ir a ciudad
+                            if (!user.isReset_from_deletion()) {
+                                System.out.println("DEBUG: ✅ Usuario tiene nombre Y apellido (no reseteo), yendo a ciudad");
+                                responseMessage = "¿En qué ciudad vives?";
+                                nextChatbotState = "WAITING_CITY";
+                            } else {
+                                // Usuario viene del reseteo, pedir apellido para confirmar/actualizar
+                                System.out.println("DEBUG: ⚠️ Usuario viene del reseteo, pidiendo apellido para confirmar/actualizar");
+                                responseMessage = "¿Cuál es tu apellido?";
+                                nextChatbotState = "WAITING_LASTNAME";
+                            }
                         } else {
-                            // Si solo tenemos nombre, preguntar por apellido
-                            responseMessage = "¿Cuál es tu apellido?";
-                            nextChatbotState = "WAITING_LASTNAME";
+                            // Si falta nombre O apellido, preguntar por apellido
+                            if (user.getName() == null || user.getName().isEmpty()) {
+                                // Si no hay nombre, preguntar por nombre completo
+                                System.out.println("DEBUG: ⚠️ No hay nombre, pidiendo nombre completo");
+                                responseMessage = "¿Cuál es tu nombre completo? (nombre y apellido)";
+                                nextChatbotState = "WAITING_NAME";
+                            } else {
+                                // Si hay nombre pero no apellido, preguntar por apellido
+                                System.out.println("DEBUG: ⚠️ Hay nombre pero NO apellido, pidiendo apellido");
+                                responseMessage = "¿Cuál es tu apellido?";
+                                nextChatbotState = "WAITING_LASTNAME";
+                            }
+                        }
+                        
+                        // Resetear el flag de reseteo después de la evaluación de la lógica
+                        if (user.isReset_from_deletion()) {
+                            System.out.println("DEBUG: Reseteando flag de reseteo después de la evaluación de la lógica");
+                            user.setReset_from_deletion(false);
+                            saveUser(user);
                         }
                     } else {
                         // Fallback: usar lógica tradicional si la IA falla
                         System.out.println("DEBUG: IA falló, usando lógica tradicional");
+                        System.out.println("DEBUG: 🔍 Mensaje original del usuario: '" + messageText + "'");
+                        System.out.println("DEBUG: 🔍 Estado del usuario (fallback) - Reset: " + user.isReset_from_deletion() + ", Referral: " + user.getReferral_code());
+                        
+                        // VERIFICACIÓN CRÍTICA: Si el usuario viene del reseteo, NO debería tener datos previos
+                        // PERO si el mensaje actual contiene datos, NO limpiarlos
+                        if (user.isReset_from_deletion()) {
+                            System.out.println("DEBUG: Usuario viene del reseteo en fallback. Verificando si el mensaje actual contiene datos...");
+                            // Solo limpiar si el mensaje actual no contiene datos útiles
+                            if (messageText.trim().isEmpty() || messageText.trim().equals("si") || messageText.trim().equals("sí")) {
+                                System.out.println("⚠️  WARNING: Usuario marcado como reseteo y mensaje sin datos útiles. Limpiando...");
+                                user.setName(null);
+                                user.setLastname(null);
+                                user.setCity(null);
+                                user.setState(null);
+                                user.setAceptaTerminos(false);
+                                // NO limpiar referral_code - es su identificación única
+                                // SÍ limpiar referred_by_phone y referred_by_code - son referencias de quién lo invitó
+                                user.setReferred_by_phone(null);
+                                user.setReferred_by_code(null);
+                                user.setReset_from_deletion(false);
+                                saveUser(user);
+                                System.out.println("DEBUG: ✅ Datos previos limpiados forzadamente (fallback)");
+                            } else {
+                                System.out.println("DEBUG: Usuario viene del reseteo pero mensaje actual contiene datos. NO limpiando datos.");
+                                user.setReset_from_deletion(false); // Solo resetear el flag
+                                saveUser(user);
+                            }
+                        }
+                        
                         String lowerNameMessage = messageText.toLowerCase().trim();
                         
                         if (lowerNameMessage.equals("si") || lowerNameMessage.equals("sí") || 
@@ -1101,21 +1369,62 @@ public class ChatbotService {
                             lowerNameMessage.contains("si,") || lowerNameMessage.contains("sí,") ||
                             lowerNameMessage.contains(", es correcto") || lowerNameMessage.contains(",es correcto")) {
                             
-                            // Usuario confirma el nombre existente
                             System.out.println("DEBUG: Usuario confirmó el nombre existente: " + user.getName());
                             responseMessage = "¿Cuál es tu apellido?";
                             nextChatbotState = "WAITING_LASTNAME";
                         } else {
-                            // Usuario proporciona un nombre diferente
-                            user.setName(messageText.trim());
-                            System.out.println("DEBUG: Usuario proporcionó nuevo nombre: " + messageText.trim());
-                            responseMessage = "¿Cuál es tu apellido?";
-                            nextChatbotState = "WAITING_LASTNAME";
+                            // Intentar extraer nombre y apellido del mensaje completo
+                            String[] nameParts = messageText.trim().split("\\s+");
+                            System.out.println("DEBUG: 🔍 Fallback - Palabras detectadas: " + nameParts.length + " - Contenido: [" + String.join(", ", nameParts) + "]");
+                            
+                            if (nameParts.length >= 2) {
+                                // Si hay al menos 2 palabras, asumir que son nombre y apellido
+                                user.setName(nameParts[0]);
+                                user.setLastname(nameParts[1]);
+                                System.out.println("DEBUG: ✅ Fallback - Extraído nombre: " + nameParts[0] + " y apellido: " + nameParts[1] + " - Yendo a ciudad");
+                                responseMessage = "¿En qué ciudad vives?";
+                                nextChatbotState = "WAITING_CITY";
+                            } else {
+                                // Si solo hay una palabra, asumir que es solo el nombre
+                                user.setName(messageText.trim());
+                                System.out.println("DEBUG: ⚠️ Fallback - Usuario proporcionó solo nombre: " + messageText.trim() + " - Yendo a apellido");
+                                responseMessage = "¿Cuál es tu apellido?";
+                                nextChatbotState = "WAITING_LASTNAME";
+                            }
                         }
                     }
                 } catch (Exception e) {
                     System.err.println("ERROR: Fallo en extracción IA para WAITING_NAME: " + e.getMessage());
-                    // Fallback: usar lógica tradicional
+                    System.out.println("DEBUG: 🔍 Exception - Mensaje original del usuario: '" + messageText + "'");
+                    System.out.println("DEBUG: 🔍 Estado del usuario (exception) - Reset: " + user.isReset_from_deletion() + ", Referral: " + user.getReferral_code());
+                    
+                    // VERIFICACIÓN CRÍTICA: Si el usuario viene del reseteo, NO debería tener datos previos
+                    // PERO si el mensaje actual contiene datos, NO limpiarlos
+                    if (user.isReset_from_deletion()) {
+                        System.out.println("DEBUG: Usuario viene del reseteo en exception. Verificando si el mensaje actual contiene datos...");
+                        // Solo limpiar si el mensaje actual no contiene datos útiles
+                        if (messageText.trim().isEmpty() || messageText.trim().equals("si") || messageText.trim().equals("sí")) {
+                            System.out.println("⚠️  WARNING: Usuario marcado como reseteo y mensaje sin datos útiles. Limpiando...");
+                            user.setName(null);
+                            user.setLastname(null);
+                            user.setCity(null);
+                            user.setState(null);
+                            user.setAceptaTerminos(false);
+                            // NO limpiar referral_code - es su identificación única
+                            // SÍ limpiar referred_by_phone y referred_by_code - son referencias de quién lo invitó
+                            user.setReferred_by_phone(null);
+                            user.setReferred_by_code(null);
+                            user.setReset_from_deletion(false);
+                            saveUser(user);
+                            System.out.println("DEBUG: ✅ Datos previos limpiados forzadamente (exception)");
+                        } else {
+                            System.out.println("DEBUG: Usuario viene del reseteo pero mensaje actual contiene datos. NO limpiando datos.");
+                            user.setReset_from_deletion(false); // Solo resetear el flag
+                            saveUser(user);
+                        }
+                    }
+                    
+                    // Fallback en caso de error
                     String lowerNameMessage = messageText.toLowerCase().trim();
                     
                     if (lowerNameMessage.equals("si") || lowerNameMessage.equals("sí") || 
@@ -1124,43 +1433,77 @@ public class ChatbotService {
                         lowerNameMessage.contains("si,") || lowerNameMessage.contains("sí,") ||
                         lowerNameMessage.contains(", es correcto") || lowerNameMessage.contains(",es correcto")) {
                         
-                        // Usuario confirma el nombre existente
-                        System.out.println("DEBUG: Usuario confirmó el nombre existente: " + user.getName());
+                        System.out.println("DEBUG: Exception - Usuario confirmó el nombre existente: " + user.getName());
                         responseMessage = "¿Cuál es tu apellido?";
                         nextChatbotState = "WAITING_LASTNAME";
                     } else {
-                        // Usuario proporciona un nombre diferente
-                        user.setName(messageText.trim());
-                        System.out.println("DEBUG: Usuario proporcionó nuevo nombre: " + messageText.trim());
-                        responseMessage = "¿Cuál es tu apellido?";
-                        nextChatbotState = "WAITING_LASTNAME";
+                        // Intentar extraer nombre y apellido del mensaje completo
+                        String[] nameParts = messageText.trim().split("\\s+");
+                        System.out.println("DEBUG: 🔍 Exception - Fallback - Palabras detectadas: " + nameParts.length + " - Contenido: [" + String.join(", ", nameParts) + "]");
+                        
+                        if (nameParts.length >= 2) {
+                            // Si hay al menos 2 palabras, asumir que son nombre y apellido
+                            user.setName(nameParts[0]);
+                            user.setLastname(nameParts[1]);
+                            System.out.println("DEBUG: ✅ Exception - Fallback - Extraído nombre: " + nameParts[0] + " y apellido: " + nameParts[1] + " - Yendo a ciudad");
+                            responseMessage = "¿En qué ciudad vives?";
+                            nextChatbotState = "WAITING_CITY";
+                        } else {
+                            // Si solo hay una palabra, asumir que es solo el nombre
+                            user.setName(messageText.trim());
+                            System.out.println("DEBUG: ⚠️ Exception - Fallback - Usuario proporcionó solo nombre: " + messageText.trim() + " - Yendo a apellido");
+                            responseMessage = "¿Cuál es tu apellido?";
+                            nextChatbotState = "WAITING_LASTNAME";
+                        }
                     }
                 }
                 break;
             case "WAITING_LASTNAME":
                 // En WAITING_LASTNAME usar extracción inteligente para apellido
                 System.out.println("DEBUG: Procesando apellido en estado WAITING_LASTNAME con IA");
+                System.out.println("DEBUG: 🔍 Mensaje original del usuario: '" + messageText + "'");
+                System.out.println("DEBUG: 🔍 Estado del usuario - Reset: " + user.isReset_from_deletion() + ", Referral: " + user.getReferral_code());
+                
+                // VERIFICACIÓN CRÍTICA: Si el usuario viene del reseteo, NO debería tener datos previos
+                if (user.isReset_from_deletion()) {
+                    System.out.println("⚠️  WARNING: Usuario marcado como reseteo pero aún tiene datos previos en WAITING_LASTNAME. Limpiando...");
+                    user.setName(null);
+                    user.setLastname(null);
+                    user.setCity(null);
+                    user.setState(null);
+                    user.setAceptaTerminos(false);
+                    // NO limpiar referral_code - es su identificación única
+                    // SÍ limpiar referred_by_phone y referred_by_code - son referencias de quién lo invitó
+                    user.setReferred_by_phone(null);
+                    user.setReferred_by_code(null);
+                    user.setReset_from_deletion(false);
+                    saveUser(user);
+                    System.out.println("DEBUG: ✅ Datos previos limpiados forzadamente en WAITING_LASTNAME");
+                }
                 
                 try {
                     UserDataExtractionResult extraction = geminiService.extractUserData(messageText, null, "WAITING_LASTNAME");
+                    System.out.println("DEBUG: 🔍 Resultado de extracción de IA para apellido - Success: " + extraction.isSuccessful() + ", Lastname: " + extraction.getLastname());
                     
                     if (extraction.isSuccessful() && extraction.getLastname() != null) {
                         user.setLastname(extraction.getLastname());
-                        System.out.println("DEBUG: IA extrajo apellido: " + extraction.getLastname());
+                        System.out.println("DEBUG: ✅ IA extrajo apellido: " + extraction.getLastname() + " - Yendo a ciudad");
                         responseMessage = "¿En qué ciudad vives?";
                         nextChatbotState = "WAITING_CITY";
                     } else {
                         // Fallback: usar texto completo si la IA falla
-                        System.out.println("DEBUG: IA falló, usando fallback para apellido");
+                        System.out.println("DEBUG: ⚠️ IA falló, usando fallback para apellido");
                         user.setLastname(messageText.trim());
-                        System.out.println("DEBUG: Apellido establecido (fallback): " + messageText.trim());
+                        System.out.println("DEBUG: ✅ Apellido establecido (fallback): " + messageText.trim() + " - Yendo a ciudad");
                         responseMessage = "¿En qué ciudad vives?";
                         nextChatbotState = "WAITING_CITY";
                     }
                 } catch (Exception e) {
                     System.err.println("Error en extracción IA para apellido: " + e.getMessage());
+                    System.out.println("DEBUG: 🔍 Exception - Mensaje original del usuario: '" + messageText + "'");
                     // Fallback en caso de error
                     user.setLastname(messageText.trim());
+                    System.out.println("DEBUG: ✅ Exception - Apellido establecido (fallback): " + messageText.trim() + " - Yendo a ciudad");
                     responseMessage = "¿En qué ciudad vives?";
                     nextChatbotState = "WAITING_CITY";
                 }
@@ -1168,22 +1511,43 @@ public class ChatbotService {
             case "WAITING_CITY":
                 // En WAITING_CITY usar extracción inteligente para ciudad
                 System.out.println("DEBUG: Procesando ciudad en estado WAITING_CITY con IA");
+                System.out.println("DEBUG: 🔍 Mensaje original del usuario: '" + messageText + "'");
+                System.out.println("DEBUG: 🔍 Usuario actual - Nombre: '" + user.getName() + "', Apellido: '" + user.getLastname() + "'");
+                System.out.println("DEBUG: 🔍 Estado del usuario - Reset: " + user.isReset_from_deletion() + ", Referral: " + user.getReferral_code());
+                
+                // VERIFICACIÓN CRÍTICA: Si el usuario viene del reseteo, NO debería tener datos previos
+                if (user.isReset_from_deletion()) {
+                    System.out.println("⚠️  WARNING: Usuario marcado como reseteo pero aún tiene datos previos en WAITING_CITY. Limpiando...");
+                    user.setName(null);
+                    user.setLastname(null);
+                    user.setCity(null);
+                    user.setState(null);
+                    user.setAceptaTerminos(false);
+                    // NO limpiar referral_code - es su identificación única
+                    // SÍ limpiar referred_by_phone y referred_by_code - son referencias de quién lo invitó
+                    user.setReferred_by_phone(null);
+                    user.setReferred_by_code(null);
+                    user.setReset_from_deletion(false);
+                    saveUser(user);
+                    System.out.println("DEBUG: ✅ Datos previos limpiados forzadamente en WAITING_CITY");
+                }
                 
                 try {
                     UserDataExtractionResult extraction = geminiService.extractUserData(messageText, null, "WAITING_CITY");
+                    System.out.println("DEBUG: 🔍 Resultado de extracción de IA para ciudad - Success: " + extraction.isSuccessful() + ", City: " + extraction.getCity() + ", State: " + extraction.getState());
                     
                     if (extraction.isSuccessful() && extraction.getCity() != null) {
                         user.setCity(extraction.getCity());
                         if (extraction.getState() != null) {
                             user.setState(extraction.getState());
                         }
-                        System.out.println("DEBUG: IA extrajo ciudad: " + extraction.getCity() + 
+                        System.out.println("DEBUG: ✅ IA extrajo ciudad: " + extraction.getCity() + 
                                          (extraction.getState() != null ? ", estado: " + extraction.getState() : ""));
                     } else {
                         // Fallback: usar texto completo si la IA falla
-                        System.out.println("DEBUG: IA falló, usando fallback para ciudad");
+                        System.out.println("DEBUG: ⚠️ IA falló, usando fallback para ciudad");
                         user.setCity(messageText.trim());
-                        System.out.println("DEBUG: Ciudad establecida (fallback): " + messageText.trim());
+                        System.out.println("DEBUG: ✅ Ciudad establecida (fallback): " + messageText.trim());
                     }
                     
                     // Construir nombre completo para mostrar
@@ -1191,13 +1555,40 @@ public class ChatbotService {
                     if (user.getLastname() != null && !user.getLastname().trim().isEmpty()) {
                         fullName += " " + user.getLastname();
                     }
+                    System.out.println("DEBUG: 🔍 Nombre completo construido: '" + fullName + "'");
                     
-                    // Enviar mensaje completo de la política de privacidad
-                    responseMessage = "Perfecto " + fullName + ". Ahora necesito que aceptes nuestra política de privacidad para continuar.\n\n" +
-                        "Respetamos la ley y cuidamos tu información, vamos a mantenerla de forma confidencial, esta es nuestra política de seguridad https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo con ella.";
+                    // Enviar mensaje de confirmación y luego política de privacidad con botones
+                    responseMessage = "Perfecto " + fullName + ".";
                     nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
+                    System.out.println("DEBUG: ✅ Yendo a WAITING_TERMS_ACCEPTANCE");
+                    
+                    // Enviar mensaje de privacidad con botones interactivos después de un retraso
+                    final String userPhone3 = user.getPhone();
+                    scheduler.schedule(() -> {
+                        sendPrivacyMessageWithButtons(userPhone3);
+                    }, 5, TimeUnit.SECONDS);
                 } catch (Exception e) {
                     System.err.println("Error en extracción IA para ciudad: " + e.getMessage());
+                    System.out.println("DEBUG: 🔍 Exception - Mensaje original del usuario: '" + messageText + "'");
+                    System.out.println("DEBUG: 🔍 Estado del usuario (exception) - Reset: " + user.isReset_from_deletion() + ", Referral: " + user.getReferral_code());
+                    
+                    // VERIFICACIÓN CRÍTICA: Si el usuario viene del reseteo, NO debería tener datos previos
+                    if (user.isReset_from_deletion()) {
+                        System.out.println("⚠️  WARNING: Usuario marcado como reseteo pero aún tiene datos previos en WAITING_CITY (exception). Limpiando...");
+                        user.setName(null);
+                        user.setLastname(null);
+                        user.setCity(null);
+                        user.setState(null);
+                        user.setAceptaTerminos(false);
+                        // NO limpiar referral_code - es su identificación única
+                        // SÍ limpiar referred_by_phone y referred_by_code - son referencias de quién lo invitó
+                        user.setReferred_by_phone(null);
+                        user.setReferred_by_code(null);
+                        user.setReset_from_deletion(false);
+                        saveUser(user);
+                        System.out.println("DEBUG: ✅ Datos previos limpiados forzadamente en WAITING_CITY (exception)");
+                    }
+                    
                     // Fallback en caso de error
                     user.setCity(messageText.trim());
                     
@@ -1205,25 +1596,47 @@ public class ChatbotService {
                     if (user.getLastname() != null && !user.getLastname().trim().isEmpty()) {
                         fullName += " " + user.getLastname();
                     }
+                    System.out.println("DEBUG: 🔍 Exception - Nombre completo construido: '" + fullName + "'");
                     
-                    responseMessage = "Perfecto " + fullName + ". Ahora necesito que aceptes nuestra política de privacidad para continuar.\n\n" +
-                        "Respetamos la ley y cuidamos tu información, vamos a mantenerla de forma confidencial, esta es nuestra política de seguridad https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo con ella.";
+                    responseMessage = "Perfecto " + fullName + ".";
                     nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
+                    System.out.println("DEBUG: ✅ Exception - Yendo a WAITING_TERMS_ACCEPTANCE");
+                    
+                    // Enviar mensaje de privacidad con botones interactivos después de un retraso
+                    final String userPhone4 = user.getPhone();
+                    scheduler.schedule(() -> {
+                        sendPrivacyMessageWithButtons(userPhone4);
+                    }, 5, TimeUnit.SECONDS);
                 }
                 break;
             case "CONFIRM_DATA":
                 if (messageText.equalsIgnoreCase("Sí") || messageText.equalsIgnoreCase("Si")) {
                     // Verificar si ya aceptó los términos
                     if (!user.isAceptaTerminos()) {
-                        // Si no aceptó términos, pedirle que los acepte
-                        responseMessage = "Respetamos la ley y cuidamos tu información, vamos a mantenerla de forma confidencial, esta es nuestra política de seguridad https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo con ella.";
+                        // Si no aceptó términos, pedirle que los acepte con botones interactivos
+                        responseMessage = "Necesito que aceptes nuestra política de privacidad para continuar.";
                         nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
+                        
+                        // Enviar mensaje de privacidad con botones interactivos después de un retraso
+                        final String userPhone5 = user.getPhone();
+                        scheduler.schedule(() -> {
+                            sendPrivacyMessageWithButtons(userPhone5);
+                        }, 5, TimeUnit.SECONDS);
+                        
                         return new ChatResponse(responseMessage, nextChatbotState);
                     }
                     
                     // Si ya aceptó términos, completar el registro
-                    String referralCode = generateUniqueReferralCode();
-                    user.setReferral_code(referralCode);
+                    // IMPORTANTE: Si el usuario ya tiene referral_code (viene del reseteo), NO generar uno nuevo
+                    String referralCode;
+                    if (user.getReferral_code() != null && !user.getReferral_code().isEmpty()) {
+                        referralCode = user.getReferral_code(); // Mantener el existente
+                        System.out.println("DEBUG: ✅ Usuario reseteado en CONFIRM_DATA, manteniendo referral_code existente: " + referralCode);
+                    } else {
+                        referralCode = generateUniqueReferralCode(); // Generar nuevo solo si no existe
+                        user.setReferral_code(referralCode);
+                        System.out.println("DEBUG: ✅ Generando nuevo referral_code en CONFIRM_DATA: " + referralCode);
+                    }
 
                     String whatsappInviteLink;
                     String telegramInviteLink;
@@ -1231,7 +1644,7 @@ public class ChatbotService {
                     List<String> additionalMessages = new ArrayList<>();
 
                     try {
-                        String whatsappRawReferralText = String.format("Hola, vengo referido por:%s", referralCode);
+                        String whatsappRawReferralText = String.format("Hola, vengo referido por %s, codigo: %s", user.getName(), referralCode);
                         System.out.println("Texto crudo antes de codificar: '" + whatsappRawReferralText + "'");
                         String encodedWhatsappMessage = URLEncoder
                                 .encode(whatsappRawReferralText, StandardCharsets.UTF_8.toString()).replace("+", "%20");
@@ -1243,11 +1656,9 @@ public class ChatbotService {
                                 + encodedTelegramPayload;
 
                         String friendsInviteMessage = String.format(
-                                "Amigos, soy %s y quiero invitarte a unirte a la campaña de Daniel Quintero a la Presidencia: https://wa.me/%s?text=%s",
+                                "Amigos, soy %s y quiero invitarte a unirte a la campaña de Daniel Quintero a la Presidencia: %s",
                                 user.getName(),
-                                getWhatsAppInviteNumber(),
-                                URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
-                                        StandardCharsets.UTF_8.toString()).replace("+", "%20"));
+                                whatsappInviteLink);
                         additionalMessages.add(friendsInviteMessage);
 
                         // Enviar el video de bienvenida ANTES del mensaje de IA
@@ -1260,15 +1671,6 @@ public class ChatbotService {
                             // No lanzar la excepción, continuar con el flujo normal
                         }
 
-                        String aiBotIntroMessage = """
-                                Ahora entrarás en conversación con el equipo de voluntarios de la campaña.
-
-                                Ten en cuenta que eventualmente podrás recibir respuestas de DQBot, una inteligencia artificial entrenada para dar información sobre la campaña de Daniel Quintero Presidente.
-
-                                ¡Haz tu pregunta y comencemos!
-                                """;
-                        additionalMessages.add(aiBotIntroMessage);
-
                     } catch (UnsupportedEncodingException e) {
                         System.err.println(
                                 "ERROR: No se pudo codificar los códigos de referido. Causa: " + e.getMessage());
@@ -1280,13 +1682,7 @@ public class ChatbotService {
                     }
 
                     responseMessage = String.format(
-                            """
-                                    %s, gracias por unirte a la ola de cambio que estamos construyendo para Colombia. Hasta ahora tienes 0 personas referidas. Ayudanos a crecer y gana puestos dentro de la campaña.
-
-                                    Sabemos que muchos comparten la misma visión de un futuro mejor, y por eso quiero invitarte a que compartas este proyecto con tus amigos, familiares y conocidos. Juntos podemos lograr una transformación real y profunda.
-
-                                    Envíales el siguiente enlace de referido:
-                                    """,
+                            "%s, gracias por unirte como voluntario. Tu primera misión es enviar el siguiente link a tus amigos de modo que más personas se sumen.",
                             user.getName()
                     );
 
@@ -1297,10 +1693,22 @@ public class ChatbotService {
                         try {
                             // Formatear el teléfono del referente para la notificación
                             String referrerPhone = user.getReferred_by_phone();
-                            // Agregar +57 si no tiene código de país
-                            if (!referrerPhone.startsWith("+")) {
-                                referrerPhone = "+57" + referrerPhone;
+                            
+                            // --- INICIO DE LA NUEVA LÓGICA DE LIMPIEZA ---
+                            // 1. Quitar todos los caracteres que no sean dígitos
+                            String digitsOnly = referrerPhone.replaceAll("[^\\d]", "");
+                            // 2. Si empieza con "57" y tiene 12 dígitos, es un número colombiano completo.
+                            if (digitsOnly.startsWith("57") && digitsOnly.length() == 12) {
+                                // Tomar solo los últimos 10 dígitos y añadir el prefijo correcto.
+                                referrerPhone = "+57" + digitsOnly.substring(2);
+                            } else if (digitsOnly.length() == 10) {
+                                // Si solo tiene 10 dígitos, es un número local. Añadir prefijo.
+                                referrerPhone = "+57" + digitsOnly;
+                            } else if (!referrerPhone.startsWith("+")) {
+                                // Como última opción, si no empieza con +, añadirlo.
+                                referrerPhone = "+" + referrerPhone;
                             }
+                            // --- FIN DE LA NUEVA LÓGICA DE LIMPIEZA ---
                             
                             System.out.println("DEBUG: Notificando al referente - Teléfono: " + referrerPhone + ", Código: " + user.getReferred_by_code());
                             
@@ -1559,9 +1967,18 @@ public class ChatbotService {
                                 // Generar el link de referido para el usuario
                                 String referralCode = user.getReferral_code();
                                 if (referralCode == null || referralCode.isEmpty()) {
-                                    referralCode = generateUniqueReferralCode();
-                                    user.setReferral_code(referralCode);
-                                    saveUser(user);
+                                    // IMPORTANTE: Si el usuario viene del reseteo, NO generar nuevo referral_code
+                                    if (user.isReset_from_deletion()) {
+                                        System.out.println("DEBUG: ⚠️ Usuario reseteado solicitando link de tribu sin referral_code. No se puede generar link.");
+                                        responseMessage = "Lo siento, no puedo generar el link de tu tribu en este momento. Por favor, completa el proceso de registro primero.";
+                                        nextChatbotState = "COMPLETED";
+                                        return new ChatResponse(responseMessage, nextChatbotState);
+                                    } else {
+                                        referralCode = generateUniqueReferralCode();
+                                        user.setReferral_code(referralCode);
+                                        saveUser(user);
+                                        System.out.println("DEBUG: ✅ Generando nuevo referral_code para solicitud de tribu: " + referralCode);
+                                    }
                                 }
                                 
                                 try {
@@ -1622,9 +2039,18 @@ public class ChatbotService {
                                 // Lógica tradicional de tribus
                                 String referralCode = user.getReferral_code();
                                 if (referralCode == null || referralCode.isEmpty()) {
-                                    referralCode = generateUniqueReferralCode();
-                                    user.setReferral_code(referralCode);
-                                    saveUser(user);
+                                    // IMPORTANTE: Si el usuario viene del reseteo, NO generar nuevo referral_code
+                                    if (user.isReset_from_deletion()) {
+                                        System.out.println("DEBUG: ⚠️ Usuario reseteado solicitando link de tribu (fallback) sin referral_code. No se puede generar link.");
+                                        responseMessage = "Lo siento, no puedo generar el link de tu tribu en este momento. Por favor, completa el proceso de registro primero.";
+                                        nextChatbotState = "COMPLETED";
+                                        return new ChatResponse(responseMessage, nextChatbotState);
+                                    } else {
+                                        referralCode = generateUniqueReferralCode();
+                                        user.setReferral_code(referralCode);
+                                        saveUser(user);
+                                        System.out.println("DEBUG: ✅ Generando nuevo referral_code para solicitud de tribu (fallback): " + referralCode);
+                                    }
                                 }
                                 
                                 try {
@@ -1670,99 +2096,128 @@ public class ChatbotService {
                     nextChatbotState = "COMPLETED";
                 }
                 break;
+                
             case "NEW":
                 // Si el usuario está en estado NEW, verificar si viene del reseteo
                 System.out.println("DEBUG handleExistingUserMessage: Usuario en estado NEW, verificando si viene del reseteo");
+                System.out.println("DEBUG: 🔍 Usuario en estado NEW - Nombre: '" + user.getName() + "', Apellido: '" + user.getLastname() + "', Ciudad: '" + user.getCity() + "', Reset: " + user.isReset_from_deletion());
                 
-                // Si viene del reseteo, pedir datos nuevamente aunque existan en DB
-                if (user.isReset_from_deletion()) {
-                    System.out.println("DEBUG handleExistingUserMessage: Usuario viene del reseteo, pidiendo datos nuevamente");
-                    
-                    // Limpiar datos existentes para forzar nuevo registro
-                    user.setName(null);
-                    user.setLastname(null);
-                    user.setCity(null);
-                    user.setReset_from_deletion(false); // Resetear el flag
-                    saveUser(user);
-                    
-                    responseMessage = "MULTI:Hola. Te doy la bienvenida a nuestra campaña: Daniel Quintero Presidente!!!|¿Me confirmas tu nombre para guardarte en mis contactos?";
-                    nextChatbotState = "WAITING_NAME";
-                    break;
-                }
-                
-                // Si el usuario está en estado NEW (reseteado), verificar si el mensaje contiene código de referido
+                // PRIMERO: Verificar si el mensaje contiene código de referido (independientemente del reseteo)
                 System.out.println("DEBUG handleExistingUserMessage: Usuario en estado NEW, verificando si contiene código de referido");
+                System.out.println("DEBUG: 🔍 Mensaje original del usuario: '" + messageText + "'");
                 
-                // Verificar si el mensaje contiene un código de referido (formato: 8 caracteres alfanuméricos)
-                if (messageText.matches(".*[A-F0-9]{8}.*")) {
-                    System.out.println("DEBUG handleExistingUserMessage: 🔍 Código de referido detectado en estado NEW: " + messageText);
-                    
-                    // Extraer el código de referido usando regex
-                    java.util.regex.Pattern referralPattern = java.util.regex.Pattern.compile("([A-F0-9]{8})");
-                    java.util.regex.Matcher referralMatcher = referralPattern.matcher(messageText.toUpperCase());
-                    
-                    if (referralMatcher.find()) {
-                        String referralCode = referralMatcher.group(1);
-                        System.out.println("DEBUG handleExistingUserMessage: Código extraído: " + referralCode);
+                // Usar el mismo patrón que se usa para usuarios nuevos
+                Matcher newMatcher = REFERRAL_MESSAGE_PATTERN.matcher(messageText.trim());
+                System.out.println("DEBUG handleExistingUserMessage: Resultado de la coincidencia del patrón Regex: " + newMatcher.matches());
+                
+                if (newMatcher.matches()) {
+                    // El nuevo patrón tiene dos grupos: uno para "referido por" y otro para "codigo"
+                    String referralCode = newMatcher.group(1) != null ? newMatcher.group(1) : newMatcher.group(2);
+                    System.out.println("DEBUG handleExistingUserMessage: 🔍 Código de referido detectado en estado NEW: " + referralCode);
+                    System.out.println("DEBUG: 🔍 Mensaje original del usuario: '" + messageText + "'");
                         
-                        // Buscar el usuario referente
-                        Optional<User> referrerUser = getUserByReferralCode(referralCode);
+                    // Buscar el usuario referente
+                    Optional<User> referrerUser = getUserByReferralCode(referralCode);
                         
-                        if (referrerUser.isPresent()) {
-                            // Establecer los campos de referido
-                            String referrerPhone = referrerUser.get().getPhone();
-                            System.out.println("DEBUG handleExistingUserMessage: 🔍 Número original del referente: " + referrerPhone);
+                    if (referrerUser.isPresent()) {
+                        // Establecer los campos de referido
+                        String referrerPhone = referrerUser.get().getPhone();
+                        System.out.println("DEBUG handleExistingUserMessage: 🔍 Número original del referente: " + referrerPhone);
                             
-                            // Extraer solo la parte local del número (sin código de país)
-                            if (referrerPhone != null) {
-                                if (referrerPhone.startsWith("+57")) {
-                                    referrerPhone = referrerPhone.substring(3); // Quitar +57
-                                    System.out.println("DEBUG handleExistingUserMessage: 🔍 Número después de quitar +57: " + referrerPhone);
-                                } else if (referrerPhone.startsWith("57")) {
-                                    referrerPhone = referrerPhone.substring(2); // Quitar 57
-                                    System.out.println("DEBUG handleExistingUserMessage: 🔍 Número después de quitar 57: " + referrerPhone);
-                                } else if (referrerPhone.startsWith("+")) {
-                                    referrerPhone = referrerPhone.substring(1); // Quitar +
-                                    System.out.println("DEBUG handleExistingUserMessage: 🔍 Número después de quitar +: " + referrerPhone);
-                                } else {
-                                    System.out.println("DEBUG handleExistingUserMessage: 🔍 Número sin procesar (no empieza con +57, 57 o +): " + referrerPhone);
-                                }
+                        // Extraer solo la parte local del número (sin código de país)
+                        if (referrerPhone != null) {
+                            if (referrerPhone.startsWith("+57")) {
+                                referrerPhone = referrerPhone.substring(3); // Quitar +57
+                                System.out.println("DEBUG handleExistingUserMessage: 🔍 Número después de quitar +57: " + referrerPhone);
+                            } else if (referrerPhone.startsWith("57")) {
+                                referrerPhone = referrerPhone.substring(2); // Quitar 57
+                                System.out.println("DEBUG handleExistingUserMessage: 🔍 Número después de quitar 57: " + referrerPhone);
+                            } else if (referrerPhone.startsWith("+")) {
+                                referrerPhone = referrerPhone.substring(1); // Quitar +
+                                System.out.println("DEBUG handleExistingUserMessage: 🔍 Número después de quitar +: " + referrerPhone);
+                            } else {
+                                System.out.println("DEBUG handleExistingUserMessage: 🔍 Número sin procesar (no empieza con +57, 57 o +): " + referrerPhone);
                             }
-                            
-                            System.out.println("DEBUG handleExistingUserMessage: 🔍 Número final a guardar: " + referrerPhone);
-                            user.setReferred_by_phone(referrerPhone);
-                            user.setReferred_by_code(referralCode);
-                            
-                            System.out.println("DEBUG handleExistingUserMessage: ✅ Referido establecido - Phone: " + user.getReferred_by_phone() + ", Code: " + user.getReferred_by_code());
-                            
-                            // Guardar usuario con referido
-                            saveUser(user);
-                            
-                            // Continuar con el flujo normal (términos de privacidad)
-                            responseMessage = "Respetamos la ley y cuidamos tu información, vamos a mantenerla de forma confidencial, esta es nuestra política de seguridad https://danielquinterocalle.com/privacidad. Si continuas esta conversación estás de acuerdo con ella.";
-                            nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
-                            
-                            return new ChatResponse(responseMessage, nextChatbotState);
-                        } else {
-                            System.out.println("DEBUG handleExistingUserMessage: ⚠️ Código de referido no encontrado: " + referralCode);
                         }
+                            
+                        System.out.println("DEBUG handleExistingUserMessage: 🔍 Número final a guardar: " + referrerPhone);
+                        user.setReferred_by_phone(referrerPhone);
+                        user.setReferred_by_code(referralCode);
+                            
+                        System.out.println("DEBUG handleExistingUserMessage: ✅ Referido establecido - Phone: " + user.getReferred_by_phone() + ", Code: " + user.getReferred_by_code());
+                            
+                        // Guardar usuario con referido
+                        saveUser(user);
+                            
+                        // Continuar con el flujo normal (pedir datos básicos primero)
+                        System.out.println("DEBUG handleExistingUserMessage: Código de referido procesado, continuando con flujo de datos básicos");
+                        // Redirigir a handleNewUserIntro para seguir el flujo estándar
+                        return handleNewUserIntro(user, messageText);
+                    } else {
+                        System.out.println("DEBUG handleExistingUserMessage: ⚠️ Código de referido no encontrado: " + referralCode);
+                        System.out.println("DEBUG: 🔍 Continuando con flujo normal sin referido válido");
                     }
                 }
                 
-                // Si no hay código de referido o no se pudo procesar, continuar con el flujo normal
+                // SEGUNDO: Si no hay código de referido o no se pudo procesar, verificar si viene del reseteo
+                System.out.println("DEBUG: 🔍 Verificando si usuario viene del reseteo: " + user.isReset_from_deletion());
+                if (user.isReset_from_deletion()) {
+                    System.out.println("DEBUG handleExistingMessage: Usuario viene del reseteo, pidiendo datos nuevamente");
+                    System.out.println("DEBUG: 🔍 Usuario antes del reseteo - Nombre: '" + user.getName() + "', Apellido: '" + user.getLastname() + "', Ciudad: '" + user.getCity() + "'");
+                    
+                    // IMPORTANTE: Limpiar datos personales y referencias, MANTENER el referral_code del usuario
+                    // El referral_code es su identificación única y NUNCA debe resetearse
+                    user.setName(null);
+                    user.setLastname(null);
+                    user.setCity(null);
+                    user.setState(null);
+                    user.setAceptaTerminos(false);
+                    // NO limpiar referral_code - es su identificación única
+                    // SÍ limpiar referred_by_phone y referred_by_code - son referencias de quién lo invitó
+                    user.setReferred_by_phone(null);
+                    user.setReferred_by_code(null);
+                    user.setReset_from_deletion(false); // Resetear el flag
+                    System.out.println("DEBUG: ✅ Usuario reseteado - datos personales limpiados, manteniendo referral_code");
+                    System.out.println("DEBUG: 🔍 Usuario después del reseteo - Nombre: '" + user.getName() + "', Apellido: '" + user.getLastname() + "', Ciudad: '" + user.getCity() + "', Referral: '" + user.getReferral_code() + "'");
+                    saveUser(user);
+                    
+                    // Enviar mensaje de bienvenida primero, y mensaje de contacto como secundario
+                    responseMessage = "Hola. Te doy la bienvenida a nuestra campaña: Daniel Quintero Presidente!!!";
+                    nextChatbotState = "WAITING_CONTACT_SAVE";
+                    System.out.println("DEBUG: 🔄 Usuario reseteado - Cambiando estado a WAITING_CONTACT_SAVE");
+                    
+                    // Crear ChatResponse con mensaje secundario usando el constructor correcto
+                    return new ChatResponse(responseMessage, nextChatbotState, 
+                        Optional.of(ADD_CONTACT_CTA));
+                }
+                
+                // TERCERO: Si no hay código de referido y no viene del reseteo, continuar con el flujo normal
                 System.out.println("DEBUG handleExistingUserMessage: Continuando con flujo normal para usuario NEW");
+                System.out.println("DEBUG: 🔍 Usuario sin código de referido ni reseteo - Nombre: '" + user.getName() + "', Apellido: '" + user.getLastname() + "', Ciudad: '" + user.getCity() + "'");
                 // Para usuarios en estado NEW sin código de referido, usar el flujo de bienvenida estándar
                 System.out.println("DEBUG handleExistingUserMessage: Redirigiendo a handleNewUserIntro para flujo estándar");
+                System.out.println("DEBUG: 🔄 Estado final: " + nextChatbotState);
                 return handleNewUserIntro(user, messageText);
-            default:
-                System.out.println("⚠️  WARNING: Usuario en estado desconocido ('" + currentChatbotState
+                
+                
+            case "UNKNOWN_STATE":
+                // Caso especial para estados no manejados
+                System.out.println("⚠️  WARNING: Usuario en estado no manejado ('" + currentChatbotState
                         + "'). Redirigiendo al flujo de inicio.");
-                System.out.println("⚠️  WARNING: Llamando handleNewUserIntro desde estado desconocido para usuario existente");
+                System.out.println("⚠️  WARNING: Llamando handleNewUserIntro desde estado no manejado para usuario existente");
+                return handleNewUserIntro(user, messageText);
+                
+            default:
+                // Caso por defecto para cualquier estado no manejado
+                System.out.println("⚠️  WARNING: Usuario en estado no manejado ('" + currentChatbotState
+                        + "'). Redirigiendo al flujo de inicio.");
+                System.out.println("⚠️  WARNING: Llamando handleNewUserIntro desde estado no manejado para usuario existente");
                 return handleNewUserIntro(user, messageText);
         }
-
+        
         return new ChatResponse(responseMessage, nextChatbotState, secondaryMessage);
     }
+    
 
     // --- Métodos Auxiliares para búsqueda de usuario ---
 
@@ -1873,22 +2328,34 @@ public class ChatbotService {
             } else {
                 System.out.println("DEBUG: Usuario NO encontrado por campo 'phone': " + phoneNumberToSearch);
             }
+            
+            // BÚSQUEDA ADICIONAL: Buscar también por ID de documento sin el '+'
+            String docIdWithoutPlus = phoneNumberToSearch.startsWith("+") ? phoneNumberToSearch.substring(1) : phoneNumberToSearch;
+            System.out.println("DEBUG: Búsqueda adicional por ID de documento (sin '+'): " + docIdWithoutPlus);
+            user = findUserByDocumentId(docIdWithoutPlus);
+            System.out.println("DEBUG: Búsqueda por ID de documento (sin '+') completada, resultado: " + (user.isPresent() ? "ENCONTRADO" : "NO ENCONTRADO"));
+            if (user.isPresent()) {
+                System.out.println("DEBUG: Usuario encontrado por ID de documento (sin '+'): " + docIdWithoutPlus);
+                return user;
+            } else {
+                System.out.println("DEBUG: Usuario NO encontrado por ID de documento (sin '+'): " + docIdWithoutPlus);
+            }
         } else {
             System.out.println("DEBUG: FromId '" + fromId + "' normalizado a '" + phoneNumberToSearch
                     + "' no es un formato de teléfono válido para búsqueda por 'phone'.");
         }
 
-        System.out.println("DEBUG: Continuando con búsqueda por ID de documento...");
+        System.out.println("DEBUG: Continuando con búsqueda por ID de documento original...");
 
         if (!user.isPresent()) {
-            System.out.println("DEBUG: Buscando usuario por ID de documento: " + fromId);
+            System.out.println("DEBUG: Buscando usuario por ID de documento original: " + fromId);
             user = findUserByDocumentId(fromId);
-            System.out.println("DEBUG: Búsqueda por ID de documento completada, resultado: " + (user.isPresent() ? "ENCONTRADO" : "NO ENCONTRADO"));
+            System.out.println("DEBUG: Búsqueda por ID de documento original completada, resultado: " + (user.isPresent() ? "ENCONTRADO" : "NO ENCONTRADO"));
             if (user.isPresent()) {
-                System.out.println("DEBUG: Usuario encontrado por ID de documento: " + fromId);
+                System.out.println("DEBUG: Usuario encontrado por ID de documento original: " + fromId);
                 return user;
             } else {
-                System.out.println("DEBUG: Usuario NO encontrado por ID de documento: " + fromId);
+                System.out.println("DEBUG: Usuario NO encontrado por ID de documento original: " + fromId);
             }
         }
 
@@ -2327,6 +2794,4 @@ public class ChatbotService {
             System.err.println("ERROR: Error al notificar referente " + referrerPhone + ": " + e.getMessage());
         }
     }
-
-
 }
