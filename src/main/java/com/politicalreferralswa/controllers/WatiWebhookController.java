@@ -122,7 +122,7 @@ public class WatiWebhookController {
                     messageText = rootNode.path("text").asText();
                 } else if ("button".equals(messageType) && rootNode.has("buttonReply") && rootNode.path("buttonReply").has("body")) {
                     messageText = rootNode.path("buttonReply").path("body").asText();
-                } else if ("interactiveButtonReply".equals(messageType) && rootNode.has("interactiveButtonReply") && rootNode.path("interactiveButtonReply").has("title")) {
+                } else if ("interactive".equals(messageType) && rootNode.has("interactiveButtonReply") && rootNode.path("interactiveButtonReply").has("title")) {
                     messageText = rootNode.path("interactiveButtonReply").path("title").asText();
                 } else {
                     System.out.println("WatiWebhookController: Recibido mensaje de tipo no soportado ('" + messageType + "') o sin contenido de texto relevante. Ignorando.");

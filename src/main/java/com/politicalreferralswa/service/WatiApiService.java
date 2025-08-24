@@ -398,4 +398,158 @@ public class WatiApiService {
             throw e; // Re-lanzar la excepción para que el ChatbotService la capture
         }
     }
+
+    /**
+     * Envía un mensaje de WhatsApp con botones interactivos usando la API de Wati.
+     * Los botones permiten al usuario responder de forma más clara y fácil.
+     *
+     * @param toPhoneNumber El número de teléfono del destinatario
+     * @param messageText El texto del mensaje principal
+     * @param buttonTexts Array de textos para los botones (máximo 3 botones)
+     */
+    public void sendInteractiveButtonMessage(String toPhoneNumber, String messageText, String... buttonTexts) {
+        System.out.println("WatiApiService: Preparando para enviar mensaje con botones interactivos a " + toPhoneNumber + " a través de Wati.");
+
+        if (buttonTexts == null || buttonTexts.length == 0) {
+            System.err.println("WatiApiService: Error: No se proporcionaron textos para los botones");
+            return;
+        }
+
+        if (buttonTexts.length > 3) {
+            System.err.println("WatiApiService: Error: Máximo 3 botones permitidos, se proporcionaron " + buttonTexts.length);
+            return;
+        }
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(watiApiToken);
+        headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+
+        // Construir la URL para enviar mensaje interactivo usando sendInteractiveButtonsMessage
+        URI fullApiUri = UriComponentsBuilder.fromUriString(watiApiBaseEndpoint)
+                                            .pathSegment(watiApiTenantId)
+                                            .path("/api/v1/sendInteractiveButtonsMessage")
+                                            .queryParam("whatsappNumber", toPhoneNumber)
+                                            .encode()
+                                            .build()
+                                            .toUri();
+
+        System.out.println("WatiApiService: URL de Wati para mensaje interactivo construida: " + fullApiUri.toString());
+
+        try {
+            // Construir el cuerpo JSON para el mensaje interactivo según la documentación de Wati
+            StringBuilder jsonBody = new StringBuilder();
+            jsonBody.append("{");
+            jsonBody.append("\"header\":{\"type\":\"Text\",\"text\":\"Daniel Quintero Presidente\"},");
+            jsonBody.append("\"body\":\"").append(cleanMessageForWati(messageText)).append("\",");
+            jsonBody.append("\"footer\":\"\",");
+            jsonBody.append("\"buttons\":[");
+            
+            for (int i = 0; i < buttonTexts.length; i++) {
+                if (i > 0) jsonBody.append(",");
+                jsonBody.append("{\"text\":\"").append(cleanMessageForWati(buttonTexts[i])).append("\"}");
+            }
+            
+            jsonBody.append("]}");
+
+            System.out.println("WatiApiService: Cuerpo JSON para mensaje interactivo: " + jsonBody.toString());
+
+            // Enviar el mensaje interactivo
+            String response = webClient.post()
+                    .uri(fullApiUri)
+                    .headers(h -> h.addAll(headers))
+                    .bodyValue(jsonBody.toString())
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .timeout(Duration.ofSeconds(60))
+                    .retryWhen(reactor.util.retry.Retry.backoff(1, Duration.ofMillis(500)))
+                    .doOnSuccess(resp -> System.out.println("WatiApiService: Mensaje interactivo enviado exitosamente. Respuesta de Wati: " + resp))
+                    .doOnError(error -> System.err.println("WatiApiService: Error al enviar mensaje interactivo a Wati: " + error.getMessage()))
+                    .block(Duration.ofSeconds(60));
+
+            if (response != null) {
+                System.out.println("WatiApiService: Mensaje interactivo enviado completado exitosamente");
+            }
+        } catch (Exception e) {
+            System.err.println("WatiApiService: Error en envío de mensaje interactivo: " + e.getMessage());
+            e.printStackTrace();
+            throw e; // Re-lanzar la excepción para que el ChatbotService la capture
+        }
+    }
+
+    /**
+     * Envía un mensaje de WhatsApp con botones interactivos de forma síncrona.
+     * Este método bloquea hasta que el mensaje se envía completamente.
+     *
+     * @param toPhoneNumber El número de teléfono del destinatario
+     * @param messageText El texto del mensaje principal
+     * @param buttonTexts Array de textos para los botones (máximo 3 botones)
+     */
+    public void sendInteractiveButtonMessageSync(String toPhoneNumber, String messageText, String... buttonTexts) {
+        System.out.println("WatiApiService: Preparando para enviar mensaje interactivo síncrono a " + toPhoneNumber + " a través de Wati.");
+
+        if (buttonTexts == null || buttonTexts.length == 0) {
+            System.err.println("WatiApiService: Error: No se proporcionaron textos para los botones");
+            return;
+        }
+
+        if (buttonTexts.length > 3) {
+            System.err.println("WatiApiService: Error: Máximo 3 botones permitidos, se proporcionaron " + buttonTexts.length);
+            return;
+        }
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(watiApiToken);
+        headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+
+        // Construir la URL para enviar mensaje interactivo usando sendInteractiveButtonsMessage
+        URI fullApiUri = UriComponentsBuilder.fromUriString(watiApiBaseEndpoint)
+                                            .pathSegment(watiApiTenantId)
+                                            .path("/api/v1/sendInteractiveButtonsMessage")
+                                            .queryParam("whatsappNumber", toPhoneNumber)
+                                            .encode()
+                                            .build()
+                                            .toUri();
+
+        System.out.println("WatiApiService: URL de Wati para mensaje interactivo construida: " + fullApiUri.toString());
+
+        try {
+            // Construir el cuerpo JSON para el mensaje interactivo según la documentación de Wati
+            StringBuilder jsonBody = new StringBuilder();
+            jsonBody.append("{");
+            jsonBody.append("\"header\":{\"type\":\"Text\",\"text\":\"Daniel Quintero Presidente\"},");
+            jsonBody.append("\"body\":\"").append(cleanMessageForWati(messageText)).append("\",");
+            jsonBody.append("\"footer\":\"\",");
+            jsonBody.append("\"buttons\":[");
+            
+            for (int i = 0; i < buttonTexts.length; i++) {
+                if (i > 0) jsonBody.append(",");
+                jsonBody.append("{\"text\":\"").append(cleanMessageForWati(buttonTexts[i])).append("\"}");
+            }
+            
+            jsonBody.append("]}");
+
+            System.out.println("WatiApiService: Cuerpo JSON para mensaje interactivo: " + jsonBody.toString());
+
+            // Enviar el mensaje interactivo de forma síncrona
+            String response = webClient.post()
+                    .uri(fullApiUri)
+                    .headers(h -> h.addAll(headers))
+                    .bodyValue(jsonBody.toString())
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .timeout(Duration.ofSeconds(60))
+                    .retryWhen(reactor.util.retry.Retry.backoff(1, Duration.ofMillis(500)))
+                    .doOnSuccess(resp -> System.out.println("WatiApiService: Mensaje interactivo síncrono enviado exitosamente. Respuesta de Wati: " + resp))
+                    .doOnError(error -> System.err.println("WatiApiService: Error al enviar mensaje interactivo síncrono a Wati: " + error.getMessage()))
+                    .block(Duration.ofSeconds(60));
+
+            if (response != null) {
+                System.out.println("WatiApiService: Mensaje interactivo síncrono enviado completado exitosamente");
+            }
+        } catch (Exception e) {
+            System.err.println("WatiApiService: Error en envío de mensaje interactivo síncrono: " + e.getMessage());
+            e.printStackTrace();
+            throw e; // Re-lanzar la excepción para que el ChatbotService la capture
+        }
+    }
 }
