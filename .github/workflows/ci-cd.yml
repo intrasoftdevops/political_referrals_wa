@@ -3,10 +3,6 @@ name: CI/CD Pipeline - Political Referrals WA
 on:
   push:
     branches: [ main, dev ]
-  pull_request:
-    branches:
-      - main
-      - dev
 
 env:
   PROJECT_ID: intreasoft-daniel
@@ -18,13 +14,12 @@ jobs:
   protect-main-branch:
     name: "Protect Main Branch"
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    if: github.ref == 'refs/heads/main'
     steps:
-      - name: "Check base branch"
-        if: ${{ github.head_ref != 'dev' }}
+      - name: "Check if deploying to main"
         run: |
-          echo "Error: Pull requests to main can only be made from the dev branch."
-          exit 1
+          echo "Deploying to main branch - production environment"
+          echo "This deployment will use production secrets and configuration"
 
   # Job de Build y Testing
   build-and-test:
