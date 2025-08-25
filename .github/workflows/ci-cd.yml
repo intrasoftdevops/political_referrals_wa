@@ -6,6 +6,7 @@ on:
   pull_request:
     branches:
       - main
+      - dev
 
 env:
   PROJECT_ID: intreasoft-daniel
@@ -22,9 +23,10 @@ jobs:
       - name: "Check base branch"
         if: ${{ github.head_ref != 'dev' }}
         run: |
-          echo "Error: Pull requests to main can only be made from the dev branch."
+          echo "❌ ERROR: Pull requests to main can only be made from the dev branch."
           echo "Current branch: ${{ github.head_ref }}"
           echo "This PR will be blocked from merging."
+          echo "Please create the PR from the dev branch instead."
           exit 1
       - name: "Allow PR from dev branch"
         if: ${{ github.head_ref == 'dev' }}
@@ -32,12 +34,14 @@ jobs:
           echo "✅ PR from dev branch is allowed"
           echo "This PR can proceed to merge"
 
+
+
   # Job de Build y Testing
   build-and-test:
     name: Build and Test
     runs-on: ubuntu-latest
     needs: [protect-main-branch]
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' && github.head_ref == 'dev')
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main')
     
     steps:
     - name: Checkout code
