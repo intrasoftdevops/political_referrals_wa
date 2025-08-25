@@ -565,9 +565,16 @@ public class ChatbotService {
                         if ("WHATSAPP".equalsIgnoreCase(channelType)) {
                             // Verificar si es el mensaje de guardar contacto para enviar botones interactivos
                             if (msg.contains("Te pido que lo primero que hagas sea guardar este número")) {
-                                // Enviar mensaje con botones interactivos
-                                System.out.println("ChatbotService: Enviando mensaje interactivo con botones para guardar contacto");
-                                watiApiService.sendInteractiveButtonMessageSync(fromId, msg, "✅ Ya guardé contacto");
+                                // Enviar mensaje sin botones interactivos
+                                System.out.println("ChatbotService: Enviando mensaje de guardar contacto sin botones interactivos");
+                                sendWhatsAppMessageSync(fromId, msg);
+                                
+                                // Programar el siguiente mensaje automáticamente después de 5 segundos
+                                final String userPhone = fromId;
+                                scheduler.schedule(() -> {
+                                    System.out.println("ChatbotService: Enviando mensaje automático de confirmación de nombre después de 5 segundos");
+                                    sendWhatsAppMessageSync(userPhone, "¿Me confirmas tu nombre para guardarte en mis contactos?");
+                                }, 5, TimeUnit.SECONDS);
                             } else {
                                 // Enviar de forma síncrona para garantizar el orden
                                 sendWhatsAppMessageSync(fromId, msg);
@@ -790,7 +797,7 @@ public class ChatbotService {
                 
                 // Enviar mensaje de bienvenida personalizado primero, y mensaje de contacto como secundario
                 String responseMessage = personalizedGreeting + "¡Hola! Te doy la bienvenida a nuestra campaña: Daniel Quintero Presidente!!!";
-                String nextChatbotState = "WAITING_CONTACT_SAVE";
+                String nextChatbotState = "WAITING_NAME";
                 
                 // Crear ChatResponse con mensaje secundario usando el constructor correcto
                 return new ChatResponse(responseMessage, nextChatbotState, 
@@ -803,7 +810,7 @@ public class ChatbotService {
                 
                 // Enviar mensaje de bienvenida con aviso de código inválido primero, y mensaje de contacto como secundario
                 String responseMessage = "Parece que el código de referido que me enviaste no es válido, pero no te preocupes, ¡podemos continuar!\n\n¡Hola! Te doy la bienvenida a nuestra campaña: Daniel Quintero Presidente!!!";
-                String nextChatbotState = "WAITING_CONTACT_SAVE";
+                String nextChatbotState = "WAITING_NAME";
                 
                 // Crear ChatResponse con mensaje secundario usando el constructor correcto
                 return new ChatResponse(responseMessage, nextChatbotState, 
@@ -829,7 +836,7 @@ public class ChatbotService {
                 if (user.getLastname() == null || user.getLastname().trim().isEmpty()) {
                     // Enviar mensaje de bienvenida primero, y mensaje de contacto como secundario
                     String responseMessage = "Hola. Te doy la bienvenida a nuestra campaña: Daniel Quintero Presidente!!!";
-                    String nextChatbotState = "WAITING_CONTACT_SAVE";
+                    String nextChatbotState = "WAITING_NAME";
                     
                     // Crear ChatResponse con mensaje secundario usando el constructor correcto
                     return new ChatResponse(responseMessage, nextChatbotState, 
@@ -838,7 +845,7 @@ public class ChatbotService {
                     // Si ya tiene nombre y apellido, preguntar ciudad
                     // Enviar mensaje de bienvenida primero, y mensaje de contacto como secundario
                     String responseMessage = "Hola. Te doy la bienvenida a nuestra campaña: Daniel Quintero Presidente!!!";
-                    String nextChatbotState = "WAITING_CONTACT_SAVE";
+                    String nextChatbotState = "WAITING_NAME";
                     
                     // Crear ChatResponse con mensaje secundario usando el constructor correcto
                     return new ChatResponse(responseMessage, nextChatbotState, 
@@ -849,7 +856,7 @@ public class ChatbotService {
                 
                 // Enviar mensaje de bienvenida primero, y mensaje de contacto como secundario
                 String responseMessage = "Hola. Te doy la bienvenida a nuestra campaña: Daniel Quintero Presidente!!!";
-                String nextChatbotState = "WAITING_CONTACT_SAVE";
+                String nextChatbotState = "WAITING_NAME";
                 
                 // Crear ChatResponse con mensaje secundario usando el constructor correcto
                 return new ChatResponse(responseMessage, nextChatbotState, 
@@ -1190,50 +1197,50 @@ public class ChatbotService {
                     nextChatbotState = "WAITING_TERMS_ACCEPTANCE"; // Se mantiene en el mismo estado.
                 }
                 break;
-            case "WAITING_CONTACT_SAVE":
-                // En WAITING_CONTACT_SAVE esperamos confirmación de que guardó el contacto
-                System.out.println("DEBUG: Procesando respuesta en estado WAITING_CONTACT_SAVE");
-                System.out.println("DEBUG: 🔍 Mensaje original del usuario: '" + messageText + "'");
-                
-                // Procesar respuesta del usuario (puede ser texto libre o botón interactivo)
-                String lowerContactMessage = messageText.toLowerCase().trim();
-                System.out.println("DEBUG: 🔍 Mensaje normalizado: '" + lowerContactMessage + "'");
-                
-                // Verificar si es respuesta de botón interactivo o texto libre
-                if (lowerContactMessage.contains("ya guardé") || lowerContactMessage.contains("guardé") || 
-                    lowerContactMessage.contains("listo") || lowerContactMessage.contains("hecho") ||
-                    lowerContactMessage.contains("ok") || lowerContactMessage.contains("perfecto") ||
-                    lowerContactMessage.contains("si") || lowerContactMessage.contains("sí") ||
-                    lowerContactMessage.contains("ya") || lowerContactMessage.contains("completado")) {
-                    
-                    // Usuario confirmó que guardó el contacto
-                    System.out.println("DEBUG: ✅ Usuario confirmó que guardó el contacto, continuando al siguiente paso");
-                    responseMessage = "¿Me confirmas tu nombre para guardarte en mis contactos?";
-                    nextChatbotState = "WAITING_NAME";
-                    System.out.println("DEBUG: 🔄 Cambiando estado a WAITING_NAME");
-                } else if (lowerContactMessage.contains("necesito más tiempo") || lowerContactMessage.contains("más tiempo") ||
-                           lowerContactMessage.contains("espera") || lowerContactMessage.contains("esperar")) {
-                    
-                    // Usuario necesita más tiempo
-                    System.out.println("DEBUG: ⏰ Usuario necesita más tiempo");
-                    responseMessage = "No hay problema, tómate tu tiempo. Cuando hayas guardado el contacto, responde con 'Ya guardé' o simplemente escribe cualquier mensaje para continuar.";
-                    nextChatbotState = "WAITING_CONTACT_SAVE"; // Se mantiene en el mismo estado
-                } else if (lowerContactMessage.contains("no sé cómo") || lowerContactMessage.contains("no se como") ||
-                           lowerContactMessage.contains("ayuda") || lowerContactMessage.contains("cómo") ||
-                           lowerContactMessage.contains("como")) {
-                    
-                    // Usuario necesita ayuda
-                    System.out.println("DEBUG: ❓ Usuario necesita ayuda");
-                    responseMessage = "Te explico paso a paso:\n\n1️⃣ Abre tu aplicación de contactos\n2️⃣ Toca el botón '+' o 'Agregar contacto'\n3️⃣ En el campo 'Nombre' escribe: Daniel Quintero Presidente\n4️⃣ En el campo 'Teléfono' escribe: +573224029924\n5️⃣ Guarda el contacto\n\nCuando termines, responde con 'Ya guardé' o cualquier mensaje para continuar.";
-                    nextChatbotState = "WAITING_CONTACT_SAVE"; // Se mantiene en el mismo estado
-                } else {
-                    // Cualquier otra respuesta se considera como confirmación
-                    System.out.println("DEBUG: ✅ Usuario respondió en WAITING_CONTACT_SAVE, continuando al siguiente paso");
-                    responseMessage = "¿Me confirmas tu nombre para guardarte en mis contactos?";
-                    nextChatbotState = "WAITING_NAME";
-                    System.out.println("DEBUG: 🔄 Cambiando estado a WAITING_NAME");
-                }
-                break;
+            // case "WAITING_CONTACT_SAVE": - ESTADO ELIMINADO - El bot ahora envía automáticamente el siguiente mensaje después de 5 segundos
+            // En WAITING_CONTACT_SAVE esperamos confirmación de que guardó el contacto
+            // System.out.println("DEBUG: Procesando respuesta en estado WAITING_CONTACT_SAVE");
+            // System.out.println("DEBUG: 🔍 Mensaje original del usuario: '" + messageText + "'");
+            
+            // Procesar respuesta del usuario (puede ser texto libre o botón interactivo)
+            // String lowerContactMessage = messageText.toLowerCase().trim();
+            // System.out.println("DEBUG: 🔍 Mensaje normalizado: '" + lowerContactMessage + "'");
+            
+            // Verificar si es respuesta de botón interactivo o texto libre
+            // if (lowerContactMessage.contains("ya guardé") || lowerContactMessage.contains("guardé") || 
+            //     lowerContactMessage.contains("listo") || lowerContactMessage.contains("hecho") ||
+            //     lowerContactMessage.contains("ok") || lowerContactMessage.contains("perfecto") ||
+            //     lowerContactMessage.contains("si") || lowerContactMessage.contains("sí") ||
+            //     lowerContactMessage.contains("ya") || lowerContactMessage.contains("completado")) {
+            
+            //     // Usuario confirmó que guardó el contacto
+            //     System.out.println("DEBUG: ✅ Usuario confirmó que guardó el contacto, continuando al siguiente paso");
+            //     responseMessage = "¿Me confirmas tu nombre para guardarte en mis contactos?";
+            //     nextChatbotState = "WAITING_NAME";
+            //     System.out.println("DEBUG: 🔄 Cambiando estado a WAITING_NAME");
+            // } else if (lowerContactMessage.contains("necesito más tiempo") || lowerContactMessage.contains("más tiempo") ||
+            //            lowerContactMessage.contains("espera") || lowerContactMessage.contains("esperar")) {
+            
+            //     // Usuario necesita más tiempo
+            //     System.out.println("DEBUG: ⏰ Usuario necesita más tiempo");
+            //     responseMessage = "No hay problema, tómate tu tiempo. Cuando hayas guardado el contacto, responde con 'Ya guardé' o simplemente escribe cualquier mensaje para continuar.";
+            //     nextChatbotState = "WAITING_CONTACT_SAVE"; // Se mantiene en el mismo estado
+            // } else if (lowerContactMessage.contains("no sé cómo") || lowerContactMessage.contains("no se como") ||
+            //            lowerContactMessage.contains("ayuda") || lowerContactMessage.contains("cómo") ||
+            //            lowerContactMessage.contains("como")) {
+            
+            //     // Usuario necesita ayuda
+            //     System.out.println("DEBUG: ❓ Usuario necesita ayuda");
+            //     responseMessage = "Te explico paso a paso:\n\n1️⃣ Abre tu aplicación de contactos\n2️⃣ Toca el botón '+' o 'Agregar contacto'\n3️⃣ En el campo 'Nombre' escribe: Daniel Quintero Presidente\n\nCuando termines, responde con 'Ya guardé' o cualquier mensaje para continuar.";
+            //     nextChatbotState = "WAITING_CONTACT_SAVE"; // Se mantiene en el mismo estado
+            // } else {
+            //     // Cualquier otra respuesta se considera como confirmación
+            //     System.out.println("DEBUG: ✅ Usuario respondió en WAITING_CONTACT_SAVE, continuando al siguiente paso");
+            //     responseMessage = "¿Me confirmas tu nombre para guardarte en mis contactos?";
+            //     nextChatbotState = "WAITING_NAME";
+            //     System.out.println("DEBUG: 🔄 Cambiando estado a WAITING_NAME");
+            // }
+            // break;
             case "WAITING_NAME":
                 // En WAITING_NAME usamos IA para detectar si es confirmación o nuevo nombre
                 System.out.println("DEBUG: Procesando confirmación de nombre en estado WAITING_NAME con IA");
@@ -2183,8 +2190,8 @@ public class ChatbotService {
                     
                     // Enviar mensaje de bienvenida primero, y mensaje de contacto como secundario
                     responseMessage = "Hola. Te doy la bienvenida a nuestra campaña: Daniel Quintero Presidente!!!";
-                    nextChatbotState = "WAITING_CONTACT_SAVE";
-                    System.out.println("DEBUG: 🔄 Usuario reseteado - Cambiando estado a WAITING_CONTACT_SAVE");
+                                nextChatbotState = "WAITING_NAME";
+            System.out.println("DEBUG: 🔄 Usuario reseteado - Cambiando estado a WAITING_NAME");
                     
                     // Crear ChatResponse con mensaje secundario usando el constructor correcto
                     return new ChatResponse(responseMessage, nextChatbotState, 
