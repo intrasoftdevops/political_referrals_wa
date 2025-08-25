@@ -405,7 +405,7 @@ public class WatiApiService {
      *
      * @param toPhoneNumber El número de teléfono del destinatario
      * @param messageText El texto del mensaje principal
-     * @param buttonTexts Array de textos para los botones (máximo 3 botones)
+     * @param buttonTexts Array de textos para los botones (máximo 7 botones)
      */
     public void sendInteractiveButtonMessage(String toPhoneNumber, String messageText, String... buttonTexts) {
         System.out.println("WatiApiService: Preparando para enviar mensaje con botones interactivos a " + toPhoneNumber + " a través de Wati.");
@@ -415,8 +415,8 @@ public class WatiApiService {
             return;
         }
 
-        if (buttonTexts.length > 3) {
-            System.err.println("WatiApiService: Error: Máximo 3 botones permitidos, se proporcionaron " + buttonTexts.length);
+        if (buttonTexts.length > 7) {
+            System.err.println("WatiApiService: Error: Máximo 7 botones permitidos, se proporcionaron " + buttonTexts.length);
             return;
         }
 
@@ -482,7 +482,7 @@ public class WatiApiService {
      *
      * @param toPhoneNumber El número de teléfono del destinatario
      * @param messageText El texto del mensaje principal
-     * @param buttonTexts Array de textos para los botones (máximo 3 botones)
+     * @param buttonTexts Array de textos para los botones (máximo 7 botones)
      */
     public void sendInteractiveButtonMessageSync(String toPhoneNumber, String messageText, String... buttonTexts) {
         System.out.println("WatiApiService: Preparando para enviar mensaje interactivo síncrono a " + toPhoneNumber + " a través de Wati.");
@@ -492,8 +492,8 @@ public class WatiApiService {
             return;
         }
 
-        if (buttonTexts.length > 3) {
-            System.err.println("WatiApiService: Error: Máximo 3 botones permitidos, se proporcionaron " + buttonTexts.length);
+        if (buttonTexts.length > 7) {
+            System.err.println("WatiApiService: Error: Máximo 7 botones permitidos, se proporcionaron " + buttonTexts.length);
             return;
         }
 

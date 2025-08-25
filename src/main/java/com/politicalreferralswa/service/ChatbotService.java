@@ -47,6 +47,7 @@ public class ChatbotService {
     private final SystemConfigService systemConfigService;
     private final RestTemplate restTemplate;
     private final NotificationService notificationService;
+    private final PostRegistrationMenuService postRegistrationMenuService;
 
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
@@ -224,7 +225,8 @@ public class ChatbotService {
                           NameValidationService nameValidationService,
                           TribalAnalysisService tribalAnalysisService, AnalyticsService analyticsService,
                           SystemConfigService systemConfigService, RestTemplate restTemplate,
-                          NotificationService notificationService) {
+                          NotificationService notificationService,
+                          PostRegistrationMenuService postRegistrationMenuService) {
         this.firestore = firestore;
         this.watiApiService = watiApiService;
         this.telegramApiService = telegramApiService;
@@ -237,6 +239,7 @@ public class ChatbotService {
         this.systemConfigService = systemConfigService;
         this.restTemplate = restTemplate;
         this.notificationService = notificationService;
+        this.postRegistrationMenuService = postRegistrationMenuService;
     }
 
     /**
@@ -1204,6 +1207,22 @@ public class ChatbotService {
                         }
                         
                         nextChatbotState = "COMPLETED";
+                        
+                        // Enviar el menú post-registro después de completar el registro
+                        try {
+                            String userPhone = user.getPhone();
+                            if (userPhone != null && !userPhone.isEmpty()) {
+                                // Programar el envío del menú después de un breve retraso para asegurar que el mensaje anterior se envíe primero
+                                scheduler.schedule(() -> {
+                                    postRegistrationMenuService.showPostRegistrationMenu(userPhone);
+                                }, 3, TimeUnit.SECONDS);
+                                System.out.println("DEBUG: ✅ Menú post-registro programado para enviarse en 3 segundos a: " + userPhone);
+                            }
+                        } catch (Exception e) {
+                            System.err.println("DEBUG: ⚠️ Error al programar envío del menú post-registro: " + e.getMessage());
+                            // No lanzar la excepción, continuar con el flujo normal
+                        }
+                        
                         return new ChatResponse(responseMessage, nextChatbotState, termsSecondaryMessage);
                     } else {
                         // Si no tiene todos los datos, continuar con el flujo normal
@@ -1644,7 +1663,6 @@ public class ChatbotService {
                     // Verificar si ya aceptó los términos
                     if (!user.isAceptaTerminos()) {
                         // Si no aceptó términos, pedirle que los acepte con botones interactivos
-                        responseMessage = "Necesito que aceptes nuestra política de privacidad para continuar.";
                         nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
                         
                         // Enviar mensaje de privacidad con botones interactivos después de un retraso
@@ -1653,7 +1671,7 @@ public class ChatbotService {
                             sendPrivacyMessageWithButtons(userPhone5);
                         }, 5, TimeUnit.SECONDS);
                         
-                                            return new ChatResponse(responseMessage, nextChatbotState);
+                        return new ChatResponse("", nextChatbotState);
                 } else if (messageText.equalsIgnoreCase("No") || messageText.equals("❌ NO")) {
                     // Usuario necesita corregir datos. Repitiendo desde tomar el nombre.
                     responseMessage = "Entendido. Empecemos de nuevo. ¿Cuál es tu nombre?";
@@ -1767,6 +1785,21 @@ public class ChatbotService {
                     }
 
                     nextChatbotState = "COMPLETED";
+                    
+                    // Enviar el menú post-registro después de completar el registro
+                    try {
+                        String userPhone = user.getPhone();
+                        if (userPhone != null && !userPhone.isEmpty()) {
+                            // Programar el envío del menú después de un breve retraso para asegurar que el mensaje anterior se envíe primero
+                            scheduler.schedule(() -> {
+                                postRegistrationMenuService.showPostRegistrationMenu(userPhone);
+                            }, 3, TimeUnit.SECONDS);
+                            System.out.println("DEBUG: ✅ Menú post-registro programado para enviarse en 3 segundos a: " + userPhone);
+                        }
+                    } catch (Exception e) {
+                        System.err.println("DEBUG: ⚠️ Error al programar envío del menú post-registro: " + e.getMessage());
+                        // No lanzar la excepción, continuar con el flujo normal
+                    }
                 } else {
                     // Usuario dijo "No" - repetir desde tomar el nombre
                     System.out.println("DEBUG: Usuario necesita corregir datos. Repitiendo desde tomar el nombre.");
@@ -1784,6 +1817,46 @@ public class ChatbotService {
             // case "WAITING_CORRECTION_TYPE": - ESTADO ELIMINADO - Ahora se repite desde el nombre cuando el usuario dice "No"
             case "COMPLETED":
                 System.out.println("ChatbotService: Usuario COMPLETED. Verificando configuración del sistema...");
+                
+                // NUEVA LÓGICA: Verificar si es una respuesta de botón del menú post-registro
+                if (isPostRegistrationMenuButton(messageText)) {
+                    System.out.println("ChatbotService: Detectada respuesta de botón del menú post-registro: " + messageText);
+                    
+                    // Obtener el número de teléfono del usuario
+                    String phoneNumber = user.getPhone();
+                    if (phoneNumber == null || phoneNumber.isEmpty()) {
+                        phoneNumber = user.getTelegram_chat_id();
+                    }
+                    
+                    if (phoneNumber != null && !phoneNumber.isEmpty()) {
+                        // Procesar la selección del botón
+                        postRegistrationMenuService.handleMenuSelection(phoneNumber, messageText, user);
+                        
+                        // Mantener estado COMPLETED y no enviar respuesta adicional
+                        nextChatbotState = "COMPLETED";
+                        return new ChatResponse("", nextChatbotState, secondaryMessage);
+                    }
+                }
+                
+                // NUEVA LÓGICA: Verificar si DQBot está activo para este usuario
+                if (postRegistrationMenuService.isDQBotActive(user)) {
+                    System.out.println("ChatbotService: DQBot activo para usuario COMPLETED. Procesando mensaje con IA...");
+                    
+                    // Obtener el número de teléfono del usuario
+                    String phoneNumber = user.getPhone();
+                    if (phoneNumber == null || phoneNumber.isEmpty()) {
+                        phoneNumber = user.getTelegram_chat_id();
+                    }
+                    
+                    if (phoneNumber != null && !phoneNumber.isEmpty()) {
+                        // Procesar mensaje con DQBot
+                        postRegistrationMenuService.processDQBotMessage(phoneNumber, messageText, user);
+                        
+                        // Mantener estado COMPLETED y no enviar respuesta adicional
+                        nextChatbotState = "COMPLETED";
+                        return new ChatResponse("", nextChatbotState, secondaryMessage);
+                    }
+                }
                 
                 // Obtener session ID para el análisis
                 String sessionId = user.getPhone();
@@ -1868,210 +1941,23 @@ public class ChatbotService {
                         return new ChatResponse(responseMessage, nextChatbotState, secondaryMessage);
                     }
                     
-                    // FORZAR sincronización del estado de IA desde BD ANTES de verificar
-                    System.out.println("ChatbotService: Sincronizando estado de IA desde BD...");
-                    systemConfigService.refreshAIStateFromDatabase();
+                    // Si no es eliminación y no es DQBot, delegar la selección de botones al PostRegistrationMenuService
+                    System.out.println("ChatbotService: Usuario COMPLETED sin DQBot activo. Delegando selección de botones al PostRegistrationMenuService...");
                     
-                    // Verificar si la IA está habilitada globalmente en el sistema (estado actualizado)
-                    if (!systemConfigService.isAIEnabled()) {
-                        System.out.println("ChatbotService: IA del sistema DESHABILITADA. Redirigiendo a agente humano...");
-                        
-                        // No enviar mensaje automático, el agente responderá directamente
-                        nextChatbotState = "COMPLETED";
-                        
-                        // Aquí podrías implementar la lógica para enviar el mensaje a WATI para que lo vean los agentes humanos
-                        // Retornar sin mensaje para que el agente responda
-                        return new ChatResponse("", nextChatbotState, secondaryMessage);
+                    // Obtener el número de teléfono del usuario
+                    String phoneNumber = user.getPhone();
+                    if (phoneNumber == null || phoneNumber.isEmpty()) {
+                        phoneNumber = user.getTelegram_chat_id();
                     }
                     
-                    System.out.println("ChatbotService: IA del sistema HABILITADA. Procesando con IA...");
-
-                    // Primero verificar si es una pregunta de analytics
-                    if (analyticsService.isAnalyticsQuestion(messageText)) {
-                        System.out.println("ChatbotService: Detectada pregunta de analytics. Obteniendo métricas...");
-                        System.out.println("ChatbotService: Mensaje original: '" + messageText + "'");
-                        
-                        // Clasificar el tipo de consulta para personalizar la respuesta
-                        AnalyticsService.AnalyticsQueryType queryType = analyticsService.classifyAnalyticsQuery(messageText);
-                        System.out.println("ChatbotService: Tipo de consulta detectada: " + queryType);
-                        
-                        // Obtener métricas del usuario
-                        Optional<AnalyticsService.AnalyticsData> analyticsData = 
-                            analyticsService.getUserStats(sessionId, sessionId);
-                        
-                        if (analyticsData.isPresent()) {
-                            System.out.println("ChatbotService: Métricas obtenidas exitosamente para usuario: " + user.getName());
-                            
-                            // Enviar datos de analytics al chatbot IA para generar respuesta
-                            Map<String, Object> userData = new HashMap<>();
-                            userData.put("name", user.getName());
-                            userData.put("referral_code", user.getReferral_code());
-                            userData.put("city", user.getCity());
-                            userData.put("phone", user.getPhone());
-                            userData.put("analytics_data", analyticsData.get());
-                            userData.put("query_type", queryType.name()); // Enviar tipo de consulta
-                            userData.put("original_query", messageText); // Enviar consulta original
-                            
-                            System.out.println("ChatbotService: Enviando consulta personalizada al chatbot IA...");
-                            
-                            // Usar el chatbot IA con datos de analytics
-                            responseMessage = aiBotService.getAIResponseWithAnalytics(sessionId, messageText, userData);
-                            // Agregar firma para usuarios COMPLETED
-                            if (responseMessage != null && !responseMessage.trim().isEmpty()) {
-                                responseMessage = responseMessage.trim() + "\n\nTe respondió DQBot";
-                            }
-                            nextChatbotState = "COMPLETED";
-                            System.out.println("ChatbotService: Respuesta de analytics personalizada enviada para tipo: " + queryType);
-                            System.out.println("ChatbotService: Longitud de respuesta: " + (responseMessage != null ? responseMessage.length() : 0) + " caracteres");
-                        } else {
-                            // Fallback si no se pueden obtener las métricas
-                            responseMessage = "¡Hola! Veo que quieres saber sobre tu rendimiento. En este momento no puedo acceder a tus métricas, pero te puedo ayudar con otras preguntas sobre la campaña. ¿En qué más puedo ayudarte?";
-                            nextChatbotState = "COMPLETED";
-                            System.out.println("ChatbotService: Fallback enviado - no se pudieron obtener métricas");
-                        }
-                    } else {
-                        // No es pregunta de analytics, continuar con el flujo normal
-                        // Preparar datos del usuario para el análisis
-                        Map<String, Object> userData = new HashMap<>();
-                        userData.put("name", user.getName());
-                        userData.put("referral_code", user.getReferral_code());
-                        userData.put("city", user.getCity());
-                        userData.put("phone", user.getPhone());
-                        
-                        // Analizar la consulta con el servicio de IA
-                        Optional<TribalAnalysisService.TribalAnalysisResult> analysisResult = 
-                            tribalAnalysisService.analyzeTribalRequest(messageText, sessionId, userData);
-                        
-                        if (analysisResult.isPresent()) {
-                            TribalAnalysisService.TribalAnalysisResult result = analysisResult.get();
-                            
-                            if (result.isTribalRequest()) {
-                                System.out.println("ChatbotService: IA detectó solicitud de tribu. Generando link...");
-                                
-                                // Generar el link de referido para el usuario
-                                String referralCode = user.getReferral_code();
-                                if (referralCode == null || referralCode.isEmpty()) {
-                                    // IMPORTANTE: Si el usuario viene del reseteo, NO generar nuevo referral_code
-                                    if (user.isReset_from_deletion()) {
-                                        System.out.println("DEBUG: ⚠️ Usuario reseteado solicitando link de tribu sin referral_code. No se puede generar link.");
-                                        responseMessage = "Lo siento, no puedo generar el link de tu tribu en este momento. Por favor, completa el proceso de registro primero.";
-                                        nextChatbotState = "COMPLETED";
-                                        return new ChatResponse(responseMessage, nextChatbotState);
-                                    } else {
-                                        referralCode = generateUniqueReferralCode();
-                                        user.setReferral_code(referralCode);
-                                        saveUser(user);
-                                        System.out.println("DEBUG: ✅ Generando nuevo referral_code para solicitud de tribu: " + referralCode);
-                                    }
-                                }
-                                
-                                try {
-                                    String tribalLinkMessage = String.format(
-                                        "Amigos, soy %s y quiero invitarte a unirte a la campaña de Daniel Quintero a la Presidencia: https://wa.me/%s?text=%s",
-                                        user.getName(),
-                                        getWhatsAppInviteNumber(),
-                                        URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
-                                                StandardCharsets.UTF_8.toString()).replace("+", "%20")
-                                    );
-
-                                    // Enviar SIEMPRE en dos mensajes: 1) saludo/explicación, 2) mensaje de 'Amigos...'
-                                    secondaryMessage = Optional.of(tribalLinkMessage);
-                                    responseMessage = result.getAiResponse();
-                                    nextChatbotState = "COMPLETED";
-                                    System.out.println("ChatbotService: Respuesta de tribu con IA enviada (2 mensajes)");
-                                    return new ChatResponse(responseMessage, nextChatbotState, secondaryMessage);
-                                } catch (UnsupportedEncodingException e) {
-                                    System.err.println("ERROR: No se pudo codificar el link de tribu: " + e.getMessage());
-                                    responseMessage = result.getAiResponse() + "\n\nLo siento, tuve un problema al generar el link. Por favor, intenta de nuevo.";
-                                    nextChatbotState = "COMPLETED";
-                                }
-                                                    } else {
-                            // No es solicitud de tribu, usar respuesta IA normal con timeout optimizado
-                            System.out.println("ChatbotService: IA detectó consulta normal. Procesando con AI Bot...");
-                            try {
-                                // Crear variables finales para el lambda
-                                final String finalSessionId = sessionId;
-                                final String finalMessageText = messageText;
-                                
-                                // Usar CompletableFuture con timeout para evitar bloqueos largos
-                                CompletableFuture<String> aiResponseFuture = CompletableFuture.supplyAsync(() -> 
-                                    aiBotService.getAIResponse(finalSessionId, finalMessageText)
-                                );
-                                
-                                // Timeout de 20 segundos para respuestas realistas de ChatbotIA
-                                responseMessage = aiResponseFuture.get(20, TimeUnit.SECONDS);
-                                // Agregar firma para usuarios COMPLETED
-                                if (responseMessage != null && !responseMessage.trim().isEmpty()) {
-                                    responseMessage = responseMessage.trim() + "\n\nTe respondió DQBot";
-                                }
-                                nextChatbotState = "COMPLETED";
-                                System.out.println("ChatbotService: Respuesta de AI Bot obtenida exitosamente");
-                            } catch (TimeoutException e) {
-                                System.err.println("ChatbotService: Timeout en AI Bot después de 20 segundos, usando fallback");
-                                responseMessage = "Lo siento, tuve un problema al conectar con la inteligencia artificial. Por favor, intenta de nuevo más tarde.";
-                                nextChatbotState = "COMPLETED";
-                            } catch (Exception e) {
-                                System.err.println("ChatbotService: Error en AI Bot: " + e.getMessage());
-                                responseMessage = "Lo siento, tuve un problema al conectar con la inteligencia artificial. Por favor, intenta de nuevo más tarde.";
-                                nextChatbotState = "COMPLETED";
-                            }
-                        }
-                        } else {
-                            // Fallback si el análisis falla
-                            System.err.println("ChatbotService: Fallback - Análisis de IA falló, usando detección tradicional");
-                            if (isTribalLinkRequest(messageText)) {
-                                // Lógica tradicional de tribus
-                                String referralCode = user.getReferral_code();
-                                if (referralCode == null || referralCode.isEmpty()) {
-                                    // IMPORTANTE: Si el usuario viene del reseteo, NO generar nuevo referral_code
-                                    if (user.isReset_from_deletion()) {
-                                        System.out.println("DEBUG: ⚠️ Usuario reseteado solicitando link de tribu (fallback) sin referral_code. No se puede generar link.");
-                                        responseMessage = "Lo siento, no puedo generar el link de tu tribu en este momento. Por favor, completa el proceso de registro primero.";
-                                        nextChatbotState = "COMPLETED";
-                                        return new ChatResponse(responseMessage, nextChatbotState);
-                                    } else {
-                                        referralCode = generateUniqueReferralCode();
-                                        user.setReferral_code(referralCode);
-                                        saveUser(user);
-                                        System.out.println("DEBUG: ✅ Generando nuevo referral_code para solicitud de tribu (fallback): " + referralCode);
-                                    }
-                                }
-                                
-                                try {
-                                    String tribalLinkMessage = String.format(
-                                        "Amigos, soy %s y quiero invitarte a unirte a la campaña de Daniel Quintero a la Presidencia: https://wa.me/%s?text=%s",
-                                        user.getName(),
-                                        getWhatsAppInviteNumber(),
-                                        URLEncoder.encode(String.format("Hola, vengo referido por:%s", referralCode),
-                                                StandardCharsets.UTF_8.toString()).replace("+", "%20")
-                                    );
-
-                                    // Fallback tradicional: también en dos mensajes
-                                    String greeting;
-                                    if (user.getName() != null && !user.getName().trim().isEmpty()) {
-                                        greeting = "Hola " + user.getName().trim() + ", aquí tienes el link de tu tribu.";
-                                    } else {
-                                        greeting = "Hola, aquí tienes el link de tu tribu.";
-                                    }
-                                    secondaryMessage = Optional.of(tribalLinkMessage);
-                                    responseMessage = greeting;
-                                    nextChatbotState = "COMPLETED";
-                                    return new ChatResponse(responseMessage, nextChatbotState, secondaryMessage);
-                                } catch (UnsupportedEncodingException e) {
-                                    System.err.println("ERROR: No se pudo codificar el link de tribu: " + e.getMessage());
-                                    responseMessage = "Lo siento, tuve un problema al generar el link. Por favor, intenta de nuevo.";
-                                    nextChatbotState = "COMPLETED";
-                                }
-                            } else {
-                                responseMessage = aiBotService.getAIResponse(sessionId, messageText);
-                                // Agregar firma para usuarios COMPLETED
-                                if (responseMessage != null && !responseMessage.trim().isEmpty()) {
-                                    responseMessage = responseMessage.trim() + "\n\nTe respondió DQBot";
-                                }
-                                nextChatbotState = "COMPLETED";
-                            }
-                        }
+                    if (phoneNumber != null && !phoneNumber.isEmpty()) {
+                        // Delegar la selección de botones al PostRegistrationMenuService
+                        postRegistrationMenuService.handleMenuSelection(phoneNumber, messageText, user);
                     }
+                    
+                    // Mantener estado COMPLETED
+                    nextChatbotState = "COMPLETED";
+                    return new ChatResponse("", nextChatbotState, secondaryMessage);
                 } else {
                     System.err.println(
                             "ERROR CRÍTICO: Usuario COMPLETED sin un ID de sesión válido (ni teléfono, ni Telegram ID). Doc ID: "
@@ -2563,6 +2449,25 @@ public class ChatbotService {
         }
         
         return false;
+    }
+
+    /**
+     * Verifica si un mensaje es una respuesta de botón del menú post-registro
+     */
+    private boolean isPostRegistrationMenuButton(String messageText) {
+        if (messageText == null || messageText.trim().isEmpty()) {
+            return false;
+        }
+        
+        String normalizedMessage = messageText.trim();
+        
+        // Botones del menú post-registro y submenú
+        return normalizedMessage.equals("✅ ¿Cómo voy?") ||
+               normalizedMessage.equals("📣 Compartir link") ||
+               normalizedMessage.equals("🤖 Más opciones") ||
+               normalizedMessage.equals("🤖 DQBot") ||
+               normalizedMessage.equals("🧑‍💼 Agente") ||
+               normalizedMessage.equals("↩️ Volver");
     }
 
     /**
