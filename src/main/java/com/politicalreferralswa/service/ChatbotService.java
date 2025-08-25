@@ -1207,6 +1207,22 @@ public class ChatbotService {
                         }
                         
                         nextChatbotState = "COMPLETED";
+                        
+                        // Enviar el menú post-registro después de completar el registro
+                        try {
+                            String userPhone = user.getPhone();
+                            if (userPhone != null && !userPhone.isEmpty()) {
+                                // Programar el envío del menú después de un breve retraso para asegurar que el mensaje anterior se envíe primero
+                                scheduler.schedule(() -> {
+                                    postRegistrationMenuService.showPostRegistrationMenu(userPhone);
+                                }, 3, TimeUnit.SECONDS);
+                                System.out.println("DEBUG: ✅ Menú post-registro programado para enviarse en 3 segundos a: " + userPhone);
+                            }
+                        } catch (Exception e) {
+                            System.err.println("DEBUG: ⚠️ Error al programar envío del menú post-registro: " + e.getMessage());
+                            // No lanzar la excepción, continuar con el flujo normal
+                        }
+                        
                         return new ChatResponse(responseMessage, nextChatbotState, termsSecondaryMessage);
                     } else {
                         // Si no tiene todos los datos, continuar con el flujo normal
@@ -1647,7 +1663,6 @@ public class ChatbotService {
                     // Verificar si ya aceptó los términos
                     if (!user.isAceptaTerminos()) {
                         // Si no aceptó términos, pedirle que los acepte con botones interactivos
-                        responseMessage = "Necesito que aceptes nuestra política de privacidad para continuar.";
                         nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
                         
                         // Enviar mensaje de privacidad con botones interactivos después de un retraso
@@ -1656,7 +1671,7 @@ public class ChatbotService {
                             sendPrivacyMessageWithButtons(userPhone5);
                         }, 5, TimeUnit.SECONDS);
                         
-                                            return new ChatResponse(responseMessage, nextChatbotState);
+                        return new ChatResponse("", nextChatbotState);
                 } else if (messageText.equalsIgnoreCase("No") || messageText.equals("❌ NO")) {
                     // Usuario necesita corregir datos. Repitiendo desde tomar el nombre.
                     responseMessage = "Entendido. Empecemos de nuevo. ¿Cuál es tu nombre?";
@@ -1770,6 +1785,21 @@ public class ChatbotService {
                     }
 
                     nextChatbotState = "COMPLETED";
+                    
+                    // Enviar el menú post-registro después de completar el registro
+                    try {
+                        String userPhone = user.getPhone();
+                        if (userPhone != null && !userPhone.isEmpty()) {
+                            // Programar el envío del menú después de un breve retraso para asegurar que el mensaje anterior se envíe primero
+                            scheduler.schedule(() -> {
+                                postRegistrationMenuService.showPostRegistrationMenu(userPhone);
+                            }, 3, TimeUnit.SECONDS);
+                            System.out.println("DEBUG: ✅ Menú post-registro programado para enviarse en 3 segundos a: " + userPhone);
+                        }
+                    } catch (Exception e) {
+                        System.err.println("DEBUG: ⚠️ Error al programar envío del menú post-registro: " + e.getMessage());
+                        // No lanzar la excepción, continuar con el flujo normal
+                    }
                 } else {
                     // Usuario dijo "No" - repetir desde tomar el nombre
                     System.out.println("DEBUG: Usuario necesita corregir datos. Repitiendo desde tomar el nombre.");
