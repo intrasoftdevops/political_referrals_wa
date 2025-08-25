@@ -182,6 +182,27 @@ public class ChatbotService {
         watiApiService.sendInteractiveButtonMessageSync(phoneNumber, PRIVACY_MESSAGE_BODY, "✅ SÍ", "❌ NO");
     }
 
+    /**
+     * Envía mensaje de confirmación de datos con botones interactivos
+     */
+    private void sendDataConfirmationMessage(String phoneNumber, User user) {
+        System.out.println("ChatbotService: Enviando mensaje de confirmación de datos");
+        
+        // Construir el mensaje de confirmación
+        String confirmationMessage = "Confírmame si tus datos están correctos:\n";
+        confirmationMessage += "Nombre: " + user.getName();
+        if (user.getLastname() != null && !user.getLastname().trim().isEmpty()) {
+            confirmationMessage += " " + user.getLastname();
+        }
+        confirmationMessage += "\nCiudad: " + user.getCity();
+        if (user.getState() != null && !user.getState().trim().isEmpty()) {
+            confirmationMessage += "\nDepartamento: " + user.getState();
+        }
+        confirmationMessage += "\n\n(Sí/No)";
+        
+        watiApiService.sendInteractiveButtonMessageSync(phoneNumber, confirmationMessage, "✅ SÍ", "❌ NO");
+    }
+
     // Número de WhatsApp según el ambiente
     private String getWhatsAppInviteNumber() {
         if ("prod".equals(activeProfile)) {
@@ -522,7 +543,7 @@ public class ChatbotService {
                 System.out.println("ChatbotService: Enviando mensaje principal a " + fromId + " (Canal: " + channelType + ")");
                 
                 // Detectar si es un mensaje múltiple
-                if (primaryMessage.startsWith("MULTI:")) {
+                if (primaryMessage != null && primaryMessage.startsWith("MULTI:")) {
                     // Remover el prefijo "MULTI:" y dividir por "|"
                     String messagesContent = primaryMessage.substring(6); // Remover "MULTI:"
                     String[] messages = messagesContent.split("\\|");
@@ -595,7 +616,7 @@ public class ChatbotService {
 
             // Limpiar el prefijo MULTI: del mensaje de retorno para logs
             String returnMessage = chatResponse.getPrimaryMessage();
-            if (returnMessage.startsWith("MULTI:")) {
+            if (returnMessage != null && returnMessage.startsWith("MULTI:")) {
                 String[] messages = returnMessage.substring(6).split("\\|");
                 returnMessage = messages[0].trim(); // Retornar solo el primer mensaje
             }
@@ -1564,16 +1585,17 @@ public class ChatbotService {
                     }
                     System.out.println("DEBUG: 🔍 Nombre completo construido: '" + fullName + "'");
                     
-                    // Enviar mensaje de confirmación y luego política de privacidad con botones
-                    responseMessage = "Perfecto " + fullName + ".";
-                    nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
-                    System.out.println("DEBUG: ✅ Yendo a WAITING_TERMS_ACCEPTANCE");
+                    // Ir directamente a confirmación de datos sin mensaje intermedio
+                    responseMessage = null; // Sin mensaje de transición
+                    nextChatbotState = "CONFIRM_DATA";
+                    System.out.println("DEBUG: ✅ Yendo a CONFIRM_DATA para confirmación");
                     
-                    // Enviar mensaje de privacidad con botones interactivos después de un retraso
+                    // Enviar resumen de datos para confirmación inmediatamente
                     final String userPhone3 = user.getPhone();
+                    final User finalUser = user;
                     scheduler.schedule(() -> {
-                        sendPrivacyMessageWithButtons(userPhone3);
-                    }, 5, TimeUnit.SECONDS);
+                        sendDataConfirmationMessage(userPhone3, finalUser);
+                    }, 1, TimeUnit.SECONDS); // Reducido a 1 segundo
                 } catch (Exception e) {
                     System.err.println("Error en extracción IA para ciudad: " + e.getMessage());
                     System.out.println("DEBUG: 🔍 Exception - Mensaje original del usuario: '" + messageText + "'");
@@ -1605,19 +1627,20 @@ public class ChatbotService {
                     }
                     System.out.println("DEBUG: 🔍 Exception - Nombre completo construido: '" + fullName + "'");
                     
-                    responseMessage = "Perfecto " + fullName + ".";
-                    nextChatbotState = "WAITING_TERMS_ACCEPTANCE";
-                    System.out.println("DEBUG: ✅ Exception - Yendo a WAITING_TERMS_ACCEPTANCE");
+                    responseMessage = null; // Sin mensaje de transición
+                    nextChatbotState = "CONFIRM_DATA";
+                    System.out.println("DEBUG: ✅ Exception - Yendo a CONFIRM_DATA para confirmación");
                     
-                    // Enviar mensaje de privacidad con botones interactivos después de un retraso
+                    // Enviar resumen de datos para confirmación inmediatamente
                     final String userPhone4 = user.getPhone();
+                    final User finalUser2 = user;
                     scheduler.schedule(() -> {
-                        sendPrivacyMessageWithButtons(userPhone4);
-                    }, 5, TimeUnit.SECONDS);
+                        sendDataConfirmationMessage(userPhone4, finalUser2);
+                    }, 1, TimeUnit.SECONDS); // Reducido a 1 segundo
                 }
                 break;
             case "CONFIRM_DATA":
-                if (messageText.equalsIgnoreCase("Sí") || messageText.equalsIgnoreCase("Si")) {
+                if (messageText.equalsIgnoreCase("Sí") || messageText.equalsIgnoreCase("Si") || messageText.equals("✅ SÍ")) {
                     // Verificar si ya aceptó los términos
                     if (!user.isAceptaTerminos()) {
                         // Si no aceptó términos, pedirle que los acepte con botones interactivos
@@ -1630,10 +1653,22 @@ public class ChatbotService {
                             sendPrivacyMessageWithButtons(userPhone5);
                         }, 5, TimeUnit.SECONDS);
                         
-                        return new ChatResponse(responseMessage, nextChatbotState);
-                    }
+                                            return new ChatResponse(responseMessage, nextChatbotState);
+                } else if (messageText.equalsIgnoreCase("No") || messageText.equals("❌ NO")) {
+                    // Usuario necesita corregir datos. Repitiendo desde tomar el nombre.
+                    responseMessage = "Entendido. Empecemos de nuevo. ¿Cuál es tu nombre?";
+                    nextChatbotState = "WAITING_NAME";
                     
-                    // Si ya aceptó términos, completar el registro
+                    // Limpiar datos del usuario para empezar de nuevo
+                    user.setName(null);
+                    user.setLastname(null);
+                    user.setCity(null);
+                    user.setState(null);
+                    
+                    return new ChatResponse(responseMessage, nextChatbotState);
+                }
+                
+                // Si ya aceptó términos, completar el registro
                     // IMPORTANTE: Si el usuario ya tiene referral_code (viene del reseteo), NO generar uno nuevo
                     String referralCode;
                     if (user.getReferral_code() != null && !user.getReferral_code().isEmpty()) {
@@ -1733,78 +1768,20 @@ public class ChatbotService {
 
                     nextChatbotState = "COMPLETED";
                 } else {
-                    // Usuario dijo "No" - necesita corregir datos
-                    System.out.println("DEBUG: Usuario necesita corregir datos. Mensaje: '" + messageText + "'");
+                    // Usuario dijo "No" - repetir desde tomar el nombre
+                    System.out.println("DEBUG: Usuario necesita corregir datos. Repitiendo desde tomar el nombre.");
                     
-                    // Intentar extraer información del mensaje para identificar qué corregir
-                    String lowerMessage = messageText.toLowerCase();
+                    // Limpiar datos y volver a empezar desde el nombre
+                    user.setName(null);
+                    user.setLastname(null);
+                    user.setCity(null);
+                    user.setState(null);
                     
-                    if (lowerMessage.contains("ciudad") || lowerMessage.contains("vivo") || lowerMessage.contains("soy de") || 
-                        lowerMessage.contains("bogota") || lowerMessage.contains("medellin") || lowerMessage.contains("cali") ||
-                        lowerMessage.contains("barranquilla") || lowerMessage.contains("cartagena") || lowerMessage.contains("pereira") ||
-                        lowerMessage.contains("manizales") || lowerMessage.contains("bucaramanga") || lowerMessage.contains("villavicencio") ||
-                        lowerMessage.contains("ibague") || lowerMessage.contains("past") || lowerMessage.contains("neiva") ||
-                        lowerMessage.contains("monteria") || lowerMessage.contains("valledupar") || lowerMessage.contains("popayan") ||
-                        lowerMessage.contains("tunja") || lowerMessage.contains("florencia") || lowerMessage.contains("yopal") ||
-                        lowerMessage.contains("mocoa") || lowerMessage.contains("leticia") || lowerMessage.contains("mit") ||
-                        lowerMessage.contains("quibdo") || lowerMessage.contains("arauca") || lowerMessage.contains("inirida") ||
-                        lowerMessage.contains("puerto carreno") || lowerMessage.contains("san andres") || lowerMessage.contains("providencia")) {
-                        
-                        System.out.println("DEBUG: Usuario quiere corregir la ciudad");
-                        
-                        // Intentar extraer la nueva ciudad del mensaje
-                        String newCity = extractCityFromCorrectionMessage(messageText);
-                        if (newCity != null && !newCity.isEmpty()) {
-                            System.out.println("DEBUG: Ciudad extraída automáticamente: '" + newCity + "'");
-                            user.setCity(newCity);
-                            responseMessage = "Confirmamos tus datos: " + user.getName() + ", de " + user.getCity()
-                                    + ". ¿Es correcto? (Sí/No)";
-                            nextChatbotState = "CONFIRM_DATA";
-                        } else {
-                            responseMessage = "¿En qué ciudad vives?";
-                            nextChatbotState = "WAITING_CITY";
-                        }
-                    } else if (lowerMessage.contains("nombre") || lowerMessage.contains("me llamo") || lowerMessage.contains("soy")) {
-                        System.out.println("DEBUG: Usuario quiere corregir el nombre");
-                        
-                        // Intentar extraer el nuevo nombre del mensaje
-                        String newName = extractNameFromCorrectionMessage(messageText);
-                        if (newName != null && !newName.isEmpty()) {
-                            System.out.println("DEBUG: Nombre extraído automáticamente: '" + newName + "'");
-                            user.setName(newName);
-                            responseMessage = "Confirmamos tus datos: " + user.getName() + ", de " + user.getCity()
-                                    + ". ¿Es correcto? (Sí/No)";
-                            nextChatbotState = "CONFIRM_DATA";
-                        } else {
-                            responseMessage = "¿Cuál es tu nombre?";
-                            nextChatbotState = "WAITING_NAME";
-                        }
-                    } else {
-                        // Si no se puede identificar específicamente, preguntar qué quiere corregir
-                        System.out.println("DEBUG: No se pudo identificar qué corregir, preguntando al usuario");
-                        responseMessage = "¿Qué dato quieres corregir? Escribe 'nombre' o 'ciudad'.";
-                        nextChatbotState = "WAITING_CORRECTION_TYPE";
-                    }
-                }
-                break;
-            case "WAITING_CORRECTION_TYPE":
-                String correctionType = messageText.toLowerCase().trim();
-                System.out.println("DEBUG: Usuario especificó tipo de corrección: '" + correctionType + "'");
-                
-                if (correctionType.contains("nombre") || correctionType.equals("n")) {
-                    System.out.println("DEBUG: Usuario quiere corregir el nombre");
-                    responseMessage = "¿Cuál es tu nombre?";
+                    responseMessage = "Entendido. Empecemos de nuevo. ¿Cuál es tu nombre?";
                     nextChatbotState = "WAITING_NAME";
-                } else if (correctionType.contains("ciudad") || correctionType.equals("c")) {
-                    System.out.println("DEBUG: Usuario quiere corregir la ciudad");
-                    responseMessage = "¿En qué ciudad vives?";
-                    nextChatbotState = "WAITING_CITY";
-                } else {
-                    System.out.println("DEBUG: Tipo de corrección no reconocido: '" + correctionType + "'");
-                    responseMessage = "Por favor, escribe 'nombre' o 'ciudad' para especificar qué quieres corregir.";
-                    nextChatbotState = "WAITING_CORRECTION_TYPE";
                 }
                 break;
+            // case "WAITING_CORRECTION_TYPE": - ESTADO ELIMINADO - Ahora se repite desde el nombre cuando el usuario dice "No"
             case "COMPLETED":
                 System.out.println("ChatbotService: Usuario COMPLETED. Verificando configuración del sistema...");
                 
