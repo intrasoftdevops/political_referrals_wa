@@ -414,9 +414,9 @@ public class ChatbotService {
                 chatResponse = handleExistingUserMessage(user, messageText);
             } else {
                 // Verificar si el usuario tiene datos básicos pero estado inconsistente
+                // IMPORTANTE: NO considerar referral_code como dato básico que requiera recuperación de estado
                 boolean hasBasicData = (user.getName() != null && !user.getName().isEmpty()) ||
-                                     (user.getCity() != null && !user.getCity().isEmpty()) ||
-                                     (user.getReferral_code() != null && !user.getReferral_code().isEmpty());
+                                     (user.getCity() != null && !user.getCity().isEmpty());
                 
                 if (hasBasicData && (user.getChatbot_state() == null || "NEW_USER".equals(user.getChatbot_state()))) {
                     // IMPORTANTE: Si el usuario viene de un reseteo, limpiar TODOS los datos excepto referral_code
@@ -1731,7 +1731,89 @@ public class ChatbotService {
             case "COMPLETED":
                 System.out.println("ChatbotService: Usuario COMPLETED. Verificando configuración del sistema...");
                 
-                // NUEVA LÓGICA: Verificar si es una respuesta de botón del menú post-registro
+                // PRIMERO: Verificar si es una solicitud de eliminación - ESTO DEBE FUNCIONAR SIEMPRE
+                System.out.println("ChatbotService: Verificando si '" + messageText + "' es solicitud de eliminación...");
+                DeleteRequestResult deleteResult = isDeleteRequest(messageText);
+                System.out.println("ChatbotService: Resultado de verificación: " + deleteResult.isDeleteRequest() + ", Tipo: " + deleteResult.getDeleteType());
+                
+                if (deleteResult.isDeleteRequest()) {
+                    System.out.println("ChatbotService: Detectada solicitud de eliminación tipo: " + deleteResult.getDeleteType());
+                    
+                    // Construir la URL del endpoint de reset usando la configuración del servidor
+                    String baseUrl = "http://localhost:" + serverPort;
+                    if (contextPath != null && !contextPath.isEmpty()) {
+                        baseUrl += contextPath;
+                    }
+                    
+                    try {
+                        if ("PERSONAL".equals(deleteResult.getDeleteType())) {
+                            // Eliminación personal - solo resetear el usuario
+                            String resetUrl = baseUrl + "/api/admin/reset/" + user.getPhone().substring(1);
+                            System.out.println("ChatbotService: Llamando al endpoint de reset personal: " + resetUrl);
+                            
+                            ResponseEntity<Map> resetResponse = restTemplate.exchange(resetUrl, org.springframework.http.HttpMethod.DELETE, null, Map.class);
+                            
+                            if (resetResponse.getStatusCode() == HttpStatus.OK) {
+                                // Actualizar el estado del usuario en la sesión actual para que no continúe como COMPLETED
+                                user.setChatbot_state("NEW");
+                                user.setAceptaTerminos(false);
+                                user.setUpdated_at(Timestamp.now());
+                                // Marcar que viene del reseteo para pedir datos nuevamente
+                                user.setReset_from_deletion(true);
+                                
+                                // IMPORTANTE: Guardar el usuario reseteado en la base de datos para que el cambio persista
+                                saveUser(user);
+                                
+                                responseMessage = "Tu solicitud de eliminación ha sido procesada exitosamente. Tu cuenta ha sido reseteada y puedes volver a comenzar el proceso cuando quieras.";
+                                nextChatbotState = "NEW";
+                                System.out.println("ChatbotService: Usuario eliminado/reseteado exitosamente, estado cambiado a NEW con flag de reseteo y guardado en BD");
+                            } else {
+                                responseMessage = "Lo siento, hubo un problema al procesar tu solicitud de eliminación. Por favor, intenta de nuevo más tarde.";
+                                nextChatbotState = "COMPLETED";
+                                System.out.println("ChatbotService: Error al eliminar/resetear usuario");
+                            }
+                        } else if ("TRIBU".equals(deleteResult.getDeleteType())) {
+                            // Eliminación de tribu - resetear usuario y todos sus referidos
+                            System.out.println("ChatbotService: Procesando eliminación de tribu completa...");
+                            
+                            // Primero resetear al usuario principal
+                            String resetUrl = baseUrl + "/api/admin/reset/" + user.getPhone().substring(1);
+                            ResponseEntity<Map> resetResponse = restTemplate.exchange(resetUrl, org.springframework.http.HttpMethod.DELETE, null, Map.class);
+                            
+                            if (resetResponse.getStatusCode() == HttpStatus.OK) {
+                                // Buscar y resetear todos los usuarios referidos
+                                int referredUsersReset = resetReferredUsers(user.getReferral_code());
+                                System.out.println("ChatbotService: Usuarios referidos reseteados: " + referredUsersReset);
+                                
+                                // Actualizar el estado del usuario en la sesión actual
+                                user.setChatbot_state("NEW");
+                                user.setAceptaTerminos(false);
+                                user.setUpdated_at(Timestamp.now());
+                                // Marcar que viene del reseteo para pedir datos nuevamente
+                                user.setReset_from_deletion(true);
+                                
+                                // IMPORTANTE: Guardar el usuario reseteado en la base de datos para que el cambio persista
+                                saveUser(user);
+                                
+                                responseMessage = "Tu solicitud de eliminación de tribu ha sido procesada exitosamente. Tu cuenta y la de " + referredUsersReset + " usuarios referidos han sido reseteadas.";
+                                nextChatbotState = "NEW";
+                                System.out.println("ChatbotService: Tribu eliminada exitosamente, " + referredUsersReset + " usuarios referidos reseteados con flag de reseteo y guardado en BD");
+                            } else {
+                                responseMessage = "Lo siento, hubo un problema al procesar tu solicitud de eliminación de tribu. Por favor, intenta de nuevo más tarde.";
+                                nextChatbotState = "COMPLETED";
+                                System.out.println("ChatbotService: Error al eliminar tribu");
+                            }
+                        }
+                    } catch (Exception e) {
+                        System.err.println("ERROR: Error al llamar al endpoint de reset: " + e.getMessage());
+                        responseMessage = "Lo siento, hubo un problema al procesar tu solicitud de eliminación. Por favor, intenta de nuevo más tarde.";
+                        nextChatbotState = "COMPLETED";
+                    }
+                    
+                    return new ChatResponse(responseMessage, nextChatbotState, secondaryMessage);
+                }
+                
+                // SEGUNDO: Verificar si es una respuesta de botón del menú post-registro
                 if (isPostRegistrationMenuButton(messageText)) {
                     System.out.println("ChatbotService: Detectada respuesta de botón del menú post-registro: " + messageText);
                     
@@ -1789,105 +1871,23 @@ public class ChatbotService {
                     sessionId = user.getTelegram_chat_id();
                 }
 
-                if (sessionId != null && !sessionId.isEmpty()) {
-                    // PRIMERO verificar si es una solicitud de eliminación - ESTO DEBE FUNCIONAR SIEMPRE
-                    DeleteRequestResult deleteResult = isDeleteRequest(messageText);
-                    if (deleteResult.isDeleteRequest()) {
-                        System.out.println("ChatbotService: Detectada solicitud de eliminación tipo: " + deleteResult.getDeleteType());
-                        
-                        // Construir la URL del endpoint de reset usando la configuración del servidor
-                        String baseUrl = "http://localhost:" + serverPort;
-                        if (contextPath != null && !contextPath.isEmpty()) {
-                            baseUrl += contextPath;
-                        }
-                        
-                        try {
-                            if ("PERSONAL".equals(deleteResult.getDeleteType())) {
-                                // Eliminación personal - solo resetear el usuario
-                                String resetUrl = baseUrl + "/api/admin/reset/" + user.getPhone().substring(1);
-                                System.out.println("ChatbotService: Llamando al endpoint de reset personal: " + resetUrl);
-                                
-                                ResponseEntity<Map> resetResponse = restTemplate.exchange(resetUrl, org.springframework.http.HttpMethod.DELETE, null, Map.class);
-                                
-                                if (resetResponse.getStatusCode() == HttpStatus.OK) {
-                                    // Actualizar el estado del usuario en la sesión actual para que no continúe como COMPLETED
-                                    user.setChatbot_state("NEW");
-                                    user.setAceptaTerminos(false);
-                                    user.setUpdated_at(Timestamp.now());
-                                    // Marcar que viene del reseteo para pedir datos nuevamente
-                                    user.setReset_from_deletion(true);
-                                    
-                                    responseMessage = "Tu solicitud de eliminación ha sido procesada exitosamente. Tu cuenta ha sido reseteada y puedes volver a comenzar el proceso cuando quieras.";
-                                    nextChatbotState = "NEW";
-                                    System.out.println("ChatbotService: Usuario eliminado/reseteado exitosamente, estado cambiado a NEW con flag de reseteo");
-                                } else {
-                                    responseMessage = "Lo siento, hubo un problema al procesar tu solicitud de eliminación. Por favor, intenta de nuevo más tarde.";
-                                    nextChatbotState = "COMPLETED";
-                                    System.out.println("ChatbotService: Error al eliminar/resetear usuario");
-                                }
-                            } else if ("TRIBU".equals(deleteResult.getDeleteType())) {
-                                // Eliminación de tribu - resetear usuario y todos sus referidos
-                                System.out.println("ChatbotService: Procesando eliminación de tribu completa...");
-                                
-                                // Primero resetear al usuario principal
-                                String resetUrl = baseUrl + "/api/admin/reset/" + user.getPhone().substring(1);
-                                ResponseEntity<Map> resetResponse = restTemplate.exchange(resetUrl, org.springframework.http.HttpMethod.DELETE, null, Map.class);
-                                
-                                if (resetResponse.getStatusCode() == HttpStatus.OK) {
-                                    // Buscar y resetear todos los usuarios referidos
-                                    int referredUsersReset = resetReferredUsers(user.getReferral_code());
-                                    System.out.println("ChatbotService: Usuarios referidos reseteados: " + referredUsersReset);
-                                    
-                                    // Actualizar el estado del usuario en la sesión actual
-                                    user.setChatbot_state("NEW");
-                                    user.setAceptaTerminos(false);
-                                    user.setUpdated_at(Timestamp.now());
-                                    // Marcar que viene del reseteo para pedir datos nuevamente
-                                    user.setReset_from_deletion(true);
-                                    
-                                    responseMessage = "Tu solicitud de eliminación de tribu ha sido procesada exitosamente. Tu cuenta y la de " + referredUsersReset + " usuarios referidos han sido reseteadas.";
-                                    nextChatbotState = "NEW";
-                                    System.out.println("ChatbotService: Tribu eliminada exitosamente, " + referredUsersReset + " usuarios referidos reseteados con flag de reseteo");
-                                } else {
-                                    responseMessage = "Lo siento, hubo un problema al procesar tu solicitud de eliminación de tribu. Por favor, intenta de nuevo más tarde.";
-                                    nextChatbotState = "COMPLETED";
-                                    System.out.println("ChatbotService: Error al eliminar tribu");
-                                }
-                            }
-                        } catch (Exception e) {
-                            System.err.println("ERROR: Error al llamar al endpoint de reset: " + e.getMessage());
-                            responseMessage = "Lo siento, hubo un problema al procesar tu solicitud de eliminación. Por favor, intenta de nuevo más tarde.";
-                            nextChatbotState = "COMPLETED";
-                        }
-                        
-                        return new ChatResponse(responseMessage, nextChatbotState, secondaryMessage);
-                    }
-                    
-                    // Si no es eliminación y no es DQBot, delegar la selección de botones al PostRegistrationMenuService
-                    System.out.println("ChatbotService: Usuario COMPLETED sin DQBot activo. Delegando selección de botones al PostRegistrationMenuService...");
-                    
-                    // Obtener el número de teléfono del usuario
-                    String phoneNumber = user.getPhone();
-                    if (phoneNumber == null || phoneNumber.isEmpty()) {
-                        phoneNumber = user.getTelegram_chat_id();
-                    }
-                    
-                    if (phoneNumber != null && !phoneNumber.isEmpty()) {
-                        // Delegar la selección de botones al PostRegistrationMenuService
-                        postRegistrationMenuService.handleMenuSelection(phoneNumber, messageText, user);
-                    }
-                    
-                    // Mantener estado COMPLETED
-                    nextChatbotState = "COMPLETED";
-                    return new ChatResponse("", nextChatbotState, secondaryMessage);
-                } else {
-                    System.err.println(
-                            "ERROR CRÍTICO: Usuario COMPLETED sin un ID de sesión válido (ni teléfono, ni Telegram ID). Doc ID: "
-                                    + user.getId());
-                    responseMessage = "Lo siento, hemos encontrado un problema con tu registro y no puedo continuar la conversación. Por favor, contacta a soporte.";
-                    nextChatbotState = "COMPLETED";
+                // TERCERO: Si no es eliminación, no es botón del menú y no es DQBot, delegar al PostRegistrationMenuService
+                System.out.println("ChatbotService: Usuario COMPLETED sin DQBot activo. Delegando selección de botones al PostRegistrationMenuService...");
+                
+                // Obtener el número de teléfono del usuario
+                String phoneNumber = user.getPhone();
+                if (phoneNumber == null || phoneNumber.isEmpty()) {
+                    phoneNumber = user.getTelegram_chat_id();
                 }
-                break;
+                
+                if (phoneNumber != null && !phoneNumber.isEmpty()) {
+                    // Delegar la selección de botones al PostRegistrationMenuService
+                    postRegistrationMenuService.handleMenuSelection(phoneNumber, messageText, user);
+                }
+                
+                // Mantener estado COMPLETED
+                nextChatbotState = "COMPLETED";
+                return new ChatResponse("", nextChatbotState, secondaryMessage);
                 
             case "NEW":
                 // Si el usuario está en estado NEW, verificar si viene del reseteo
@@ -2400,12 +2400,16 @@ public class ChatbotService {
      * @return DeleteRequestResult con información sobre el tipo de eliminación solicitada
      */
     private DeleteRequestResult isDeleteRequest(String messageText) {
+        System.out.println("ChatbotService: isDeleteRequest - Mensaje recibido: '" + messageText + "'");
+        
         if (messageText == null || messageText.trim().isEmpty()) {
+            System.out.println("ChatbotService: isDeleteRequest - Mensaje nulo o vacío");
             return new DeleteRequestResult(false, null);
         }
         
         // Normalizar el mensaje para comparación
         String normalizedMessage = messageText.trim().toLowerCase();
+        System.out.println("ChatbotService: isDeleteRequest - Mensaje normalizado: '" + normalizedMessage + "'");
         
         // Verificar "eliminarme 2026"
         if (normalizedMessage.equals("eliminarme 2026")) {
@@ -2419,13 +2423,14 @@ public class ChatbotService {
             return new DeleteRequestResult(true, "TRIBU");
         }
         
+        System.out.println("ChatbotService: isDeleteRequest - No se encontró coincidencia con patrones de eliminación");
         return new DeleteRequestResult(false, null);
     }
 
     /**
      * Clase interna para representar el resultado de la verificación de eliminación
      */
-    private static class DeleteRequestResult {
+    public static class DeleteRequestResult {
         private final boolean isDeleteRequest;
         private final String deleteType; // "PERSONAL" o "TRIBU"
 
@@ -2603,6 +2608,106 @@ public class ChatbotService {
             
         } catch (Exception e) {
             System.err.println("ERROR: Error al notificar referente " + referrerPhone + ": " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Procesa una solicitud de eliminación desde DQBot
+     * Este método es llamado por PostRegistrationMenuService para garantizar consistencia
+     */
+    public void processDeleteRequestFromDQBot(String phoneNumber, User user, DeleteRequestResult deleteResult) {
+        System.out.println("ChatbotService: Procesando eliminación desde DQBot tipo: " + deleteResult.getDeleteType());
+        
+        try {
+            if ("PERSONAL".equals(deleteResult.getDeleteType())) {
+                // Eliminación personal - solo resetear el usuario
+                String baseUrl = "http://localhost:" + serverPort;
+                if (contextPath != null && !contextPath.isEmpty()) {
+                    baseUrl += contextPath;
+                }
+                String resetUrl = baseUrl + "/api/admin/reset/" + user.getPhone().substring(1);
+                System.out.println("ChatbotService: Llamando al endpoint de reset personal: " + resetUrl);
+                
+                ResponseEntity<Map> resetResponse = restTemplate.exchange(resetUrl, org.springframework.http.HttpMethod.DELETE, null, Map.class);
+                
+                if (resetResponse.getStatusCode() == HttpStatus.OK) {
+                    // El endpoint de reset ya limpió los datos y preservó el referral_code
+                    // Solo actualizar el estado local para la sesión actual
+                    user.setChatbot_state("NEW");
+                    user.setAceptaTerminos(false);
+                    user.setUpdated_at(Timestamp.now());
+                    // Marcar que viene del reseteo para pedir datos nuevamente
+                    user.setReset_from_deletion(true);
+                    
+                    // NO guardar aquí - el endpoint ya se encargó de todo
+                    // saveUser(user); // COMENTADO: El endpoint ya limpió y preservó referral_code
+                    
+                    String successMessage = """
+                        ✅ *Eliminación Personal Completada*
+                        
+                        Tu solicitud de eliminación ha sido procesada exitosamente.
+                        
+                        Tu cuenta ha sido reseteada y puedes volver a comenzar el proceso cuando quieras.
+                        
+                        Escribe cualquier mensaje para continuar.
+                        """;
+                    
+                    watiApiService.sendWhatsAppMessageSync(phoneNumber, successMessage);
+                    System.out.println("ChatbotService: Usuario eliminado/reseteado exitosamente desde DQBot, estado cambiado a NEW con flag de reseteo y guardado en BD");
+                } else {
+                    String errorMessage = "Lo siento, hubo un problema al procesar tu solicitud de eliminación. Por favor, intenta de nuevo más tarde.";
+                    watiApiService.sendWhatsAppMessageSync(phoneNumber, errorMessage);
+                    System.out.println("ChatbotService: Error al eliminar/resetear usuario desde DQBot");
+                }
+            } else if ("TRIBU".equals(deleteResult.getDeleteType())) {
+                // Eliminación de tribu - resetear usuario y todos sus referidos
+                System.out.println("ChatbotService: Procesando eliminación de tribu completa desde DQBot...");
+                
+                String baseUrl = "http://localhost:" + serverPort;
+                if (contextPath != null && !contextPath.isEmpty()) {
+                    baseUrl += contextPath;
+                }
+                String resetUrl = baseUrl + "/api/admin/reset/" + user.getPhone().substring(1);
+                ResponseEntity<Map> resetResponse = restTemplate.exchange(resetUrl, org.springframework.http.HttpMethod.DELETE, null, Map.class);
+                
+                if (resetResponse.getStatusCode() == HttpStatus.OK) {
+                    // Buscar y resetear todos los usuarios referidos
+                    int referredUsersReset = resetReferredUsers(user.getReferral_code());
+                    System.out.println("ChatbotService: Usuarios referidos reseteados: " + referredUsersReset);
+                    
+                    // El endpoint de reset ya limpió los datos y preservó el referral_code
+                    // Solo actualizar el estado local para la sesión actual
+                    user.setChatbot_state("NEW");
+                    user.setAceptaTerminos(false);
+                    user.setUpdated_at(Timestamp.now());
+                    // Marcar que viene del reseteo para pedir datos nuevamente
+                    user.setReset_from_deletion(true);
+                    
+                    // NO guardar aquí - el endpoint ya se encargó de todo
+                    // saveUser(user); // COMENTADO: El endpoint ya limpió y preservó referral_code
+                    
+                    String successMessage = """
+                        ✅ *Eliminación de Tribu Completada*
+                        
+                        Tu solicitud de eliminación de tribu ha sido procesada exitosamente.
+                        
+                        Tu cuenta y la de %d usuarios referidos han sido reseteados.
+                        
+                        Escribe cualquier mensaje para continuar.
+                        """.formatted(referredUsersReset);
+                    
+                    watiApiService.sendWhatsAppMessageSync(phoneNumber, successMessage);
+                    System.out.println("ChatbotService: Tribu eliminada exitosamente desde DQBot, " + referredUsersReset + " usuarios referidos reseteados con flag de reseteo y guardado en BD");
+                } else {
+                    String errorMessage = "Lo siento, hubo un problema al procesar tu solicitud de eliminación de tribu. Por favor, intenta de nuevo más tarde.";
+                    watiApiService.sendWhatsAppMessageSync(phoneNumber, errorMessage);
+                    System.out.println("ChatbotService: Error al eliminar tribu desde DQBot");
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("ERROR: Error al procesar eliminación desde DQBot: " + e.getMessage());
+            watiApiService.sendWhatsAppMessageSync(phoneNumber, 
+                "Lo siento, hubo un problema al procesar tu solicitud de eliminación. Por favor, intenta de nuevo más tarde.");
         }
     }
 }

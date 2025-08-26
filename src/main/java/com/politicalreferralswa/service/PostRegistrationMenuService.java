@@ -3,6 +3,7 @@ package com.politicalreferralswa.service;
 import com.google.cloud.Timestamp;
 import com.politicalreferralswa.model.User;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
@@ -19,6 +20,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+
 /**
  * Servicio para manejar el menú post-registro y las sesiones de DQBot
  */
@@ -29,6 +31,7 @@ public class PostRegistrationMenuService {
     private final AnalyticsService analyticsService;
     private final WebClient webClient;
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
+    private final ChatbotService chatbotService;
     
     // Configuración del timeout de DQBot (30 minutos)
     private static final long DQBOT_TIMEOUT_MINUTES = 30;
@@ -40,10 +43,12 @@ public class PostRegistrationMenuService {
     public PostRegistrationMenuService(WatiApiService watiApiService, 
                                      AnalyticsService analyticsService,
                                      WebClient.Builder webClientBuilder,
+                                     @Lazy ChatbotService chatbotService,
                                      @org.springframework.beans.factory.annotation.Value("${CHATBOT_IA_URL:http://localhost:8000}") String chatbotIAUrl) {
         this.watiApiService = watiApiService;
         this.analyticsService = analyticsService;
         this.webClient = webClientBuilder.build();
+        this.chatbotService = chatbotService;
         this.chatbotIAUrl = chatbotIAUrl;
         
         System.out.println("PostRegistrationMenuService: ========================================");
@@ -51,6 +56,7 @@ public class PostRegistrationMenuService {
         System.out.println("PostRegistrationMenuService: WebClient configurado: " + (this.webClient != null ? "OK" : "ERROR"));
         System.out.println("PostRegistrationMenuService: WatiApiService configurado: " + (this.watiApiService != null ? "OK" : "ERROR"));
         System.out.println("PostRegistrationMenuService: AnalyticsService configurado: " + (this.analyticsService != null ? "OK" : "ERROR"));
+        System.out.println("PostRegistrationMenuService: ChatbotService configurado: " + (this.chatbotService != null ? "OK" : "ERROR"));
         System.out.println("PostRegistrationMenuService: Scheduler configurado: " + (this.scheduler != null ? "OK" : "ERROR"));
         System.out.println("PostRegistrationMenuService: Servicio inicializado correctamente");
         System.out.println("PostRegistrationMenuService: ========================================");
@@ -422,6 +428,24 @@ public class PostRegistrationMenuService {
             return;
         }
         
+        // Verificar si es una solicitud de eliminación
+        System.out.println("PostRegistrationMenuService: Verificando si '" + message + "' es solicitud de eliminación...");
+        ChatbotService.DeleteRequestResult deleteResult = isDeleteRequest(message);
+        System.out.println("PostRegistrationMenuService: Resultado de verificación: " + deleteResult.isDeleteRequest() + ", Tipo: " + deleteResult.getDeleteType());
+        
+        if (deleteResult.isDeleteRequest()) {
+            System.out.println("PostRegistrationMenuService: Solicitud de eliminación detectada en DQBot: " + deleteResult.getDeleteType());
+            
+            // Desactivar DQBot
+            deactivateDQBot(user);
+            
+            // Procesar la eliminación
+            processDeleteRequest(phoneNumber, user, deleteResult);
+            return;
+        }
+        
+        System.out.println("PostRegistrationMenuService: No es solicitud de eliminación, continuando con IA...");
+        
         // Actualizar timestamp de última interacción
         user.setLast_interaction(Timestamp.now());
         
@@ -544,4 +568,63 @@ public class PostRegistrationMenuService {
         System.out.println("PostRegistrationMenuService: ¿Es solicitud de menú? " + isMenu);
         return isMenu;
     }
+    
+    /**
+     * Verifica si el mensaje del usuario es una solicitud de eliminación.
+     * Compara el mensaje exactamente con los patrones predefinidos, sin distinguir mayúsculas o minúsculas.
+     *
+     * @param messageText El mensaje del usuario
+     * @return DeleteRequestResult con información sobre el tipo de eliminación solicitada
+     */
+    private ChatbotService.DeleteRequestResult isDeleteRequest(String messageText) {
+        System.out.println("PostRegistrationMenuService: isDeleteRequest - Mensaje recibido: '" + messageText + "'");
+        
+        if (messageText == null || messageText.trim().isEmpty()) {
+            System.out.println("PostRegistrationMenuService: isDeleteRequest - Mensaje nulo o vacío");
+            return new ChatbotService.DeleteRequestResult(false, null);
+        }
+        
+        // Normalizar el mensaje para comparación
+        String normalizedMessage = messageText.trim().toLowerCase();
+        System.out.println("PostRegistrationMenuService: isDeleteRequest - Mensaje normalizado: '" + normalizedMessage + "'");
+        
+        // Verificar "eliminarme 2026"
+        if (normalizedMessage.equals("eliminarme 2026")) {
+            System.out.println("PostRegistrationMenuService: Coincidencia exacta encontrada con patrón de eliminación personal: 'eliminarme 2026'");
+            return new ChatbotService.DeleteRequestResult(true, "PERSONAL");
+        }
+        
+        // Verificar "eliminar mi tribu 2026"
+        if (normalizedMessage.equals("eliminar mi tribu 2026")) {
+            System.out.println("PostRegistrationMenuService: Coincidencia exacta encontrada con patrón de eliminación de tribu: 'eliminar mi tribu 2026'");
+            return new ChatbotService.DeleteRequestResult(true, "TRIBU");
+        }
+        
+        System.out.println("PostRegistrationMenuService: isDeleteRequest - No se encontró coincidencia con patrones de eliminación");
+        return new ChatbotService.DeleteRequestResult(false, null);
+    }
+
+    /**
+     * Procesa una solicitud de eliminación usando la lógica de ChatbotService
+     */
+    private void processDeleteRequest(String phoneNumber, User user, ChatbotService.DeleteRequestResult deleteResult) {
+        System.out.println("PostRegistrationMenuService: Procesando solicitud de eliminación tipo: " + deleteResult.getDeleteType() + " usando ChatbotService");
+        
+        try {
+            // Usar la lógica de eliminación de ChatbotService para garantizar consistencia
+            String messageText = deleteResult.getDeleteType().equals("PERSONAL") ? "eliminarme 2026" : "eliminar mi tribu 2026";
+            
+            // Llamar al método de eliminación de ChatbotService
+            chatbotService.processDeleteRequestFromDQBot(phoneNumber, user, deleteResult);
+            
+        } catch (Exception e) {
+            System.err.println("ERROR: Error al procesar solicitud de eliminación: " + e.getMessage());
+            watiApiService.sendWhatsAppMessageSync(phoneNumber, 
+                "Lo siento, hubo un problema al procesar tu solicitud de eliminación. Por favor, intenta de nuevo más tarde.");
+        }
+    }
+    
+    // Los métodos de eliminación se han movido a ChatbotService para garantizar consistencia
+
+    // La clase DeleteRequestResult se ha movido a ChatbotService para evitar duplicación
 }
