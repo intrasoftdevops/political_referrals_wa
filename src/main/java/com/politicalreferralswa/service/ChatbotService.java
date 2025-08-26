@@ -593,12 +593,9 @@ public class ChatbotService {
                                 System.out.println("ChatbotService: Enviando mensaje de guardar contacto sin botones interactivos");
                                 sendWhatsAppMessageSync(fromId, msg);
                                 
-                                // Programar el siguiente mensaje automáticamente después de 5 segundos
-                                final String userPhone = fromId;
-                                scheduler.schedule(() -> {
-                                    System.out.println("ChatbotService: Enviando mensaje automático de confirmación de nombre después de 5 segundos");
-                                    sendWhatsAppMessageSync(userPhone, "¿Me confirmas tu nombre para guardarte en mis contactos?");
-                                }, 5, TimeUnit.SECONDS);
+                                // Enviar inmediatamente el mensaje de confirmación de nombre (sin retraso)
+                                System.out.println("ChatbotService: Enviando mensaje de confirmación de nombre inmediatamente");
+                                sendWhatsAppMessageSync(fromId, "¿Me confirmas tu nombre para guardarte en mis contactos?");
                             } else {
                                 // Enviar de forma síncrona para garantizar el orden
                                 sendWhatsAppMessageSync(fromId, msg);
@@ -1208,20 +1205,8 @@ public class ChatbotService {
                         
                         nextChatbotState = "COMPLETED";
                         
-                        // Enviar el menú post-registro después de completar el registro
-                        try {
-                            String userPhone = user.getPhone();
-                            if (userPhone != null && !userPhone.isEmpty()) {
-                                // Programar el envío del menú después de un breve retraso para asegurar que el mensaje anterior se envíe primero
-                                scheduler.schedule(() -> {
-                                    postRegistrationMenuService.showPostRegistrationMenu(userPhone);
-                                }, 3, TimeUnit.SECONDS);
-                                System.out.println("DEBUG: ✅ Menú post-registro programado para enviarse en 3 segundos a: " + userPhone);
-                            }
-                        } catch (Exception e) {
-                            System.err.println("DEBUG: ⚠️ Error al programar envío del menú post-registro: " + e.getMessage());
-                            // No lanzar la excepción, continuar con el flujo normal
-                        }
+                        // NO enviar el menú post-registro automáticamente - esperar a que el usuario escriba algo
+                        System.out.println("DEBUG: ✅ Registro completado. Menú NO enviado automáticamente - esperando interacción del usuario.");
                         
                         return new ChatResponse(responseMessage, nextChatbotState, termsSecondaryMessage);
                     } else {
@@ -1787,19 +1772,8 @@ public class ChatbotService {
                     nextChatbotState = "COMPLETED";
                     
                     // Enviar el menú post-registro después de completar el registro
-                    try {
-                        String userPhone = user.getPhone();
-                        if (userPhone != null && !userPhone.isEmpty()) {
-                            // Programar el envío del menú después de un breve retraso para asegurar que el mensaje anterior se envíe primero
-                            scheduler.schedule(() -> {
-                                postRegistrationMenuService.showPostRegistrationMenu(userPhone);
-                            }, 3, TimeUnit.SECONDS);
-                            System.out.println("DEBUG: ✅ Menú post-registro programado para enviarse en 3 segundos a: " + userPhone);
-                        }
-                    } catch (Exception e) {
-                        System.err.println("DEBUG: ⚠️ Error al programar envío del menú post-registro: " + e.getMessage());
-                        // No lanzar la excepción, continuar con el flujo normal
-                    }
+                    // NO enviar el menú post-registro automáticamente - esperar a que el usuario escriba algo
+                    System.out.println("DEBUG: ✅ Registro completado. Menú NO enviado automáticamente - esperando interacción del usuario.");
                 } else {
                     // Usuario dijo "No" - repetir desde tomar el nombre
                     System.out.println("DEBUG: Usuario necesita corregir datos. Repitiendo desde tomar el nombre.");
@@ -2465,8 +2439,8 @@ public class ChatbotService {
         return normalizedMessage.equals("✅ ¿Cómo voy?") ||
                normalizedMessage.equals("📣 Compartir link") ||
                normalizedMessage.equals("🤖 Más opciones") ||
-               normalizedMessage.equals("🤖 DQBot") ||
-               normalizedMessage.equals("🧑‍💼 Agente") ||
+               normalizedMessage.equals("Habla con DQBot") ||
+               normalizedMessage.equals("Habla con Voluntario") ||
                normalizedMessage.equals("↩️ Volver");
     }
 

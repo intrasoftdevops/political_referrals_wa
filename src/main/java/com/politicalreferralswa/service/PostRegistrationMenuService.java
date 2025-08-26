@@ -76,14 +76,14 @@ public class PostRegistrationMenuService {
             
             Selecciona una opción:""";
         
-        System.out.println("PostRegistrationMenuService: Enviando menú principal con botones: 🤖 DQBot, 🧑‍💼 Agente, 📋 Otras opciones");
+        System.out.println("PostRegistrationMenuService: Enviando menú principal con botones: Habla con DQBot, Habla con Voluntario, Otras opciones");
         
         watiApiService.sendInteractiveButtonMessageSync(
             phoneNumber, 
             menuMessage,
-            "🤖 DQBot", 
-            "🧑‍💼 Agente",
-            "📋 Otras opciones"
+            "Habla con DQBot", 
+            "Habla con Voluntario",
+            "Otras opciones"
         );
         
         System.out.println("PostRegistrationMenuService: Menú principal enviado exitosamente");
@@ -96,15 +96,15 @@ public class PostRegistrationMenuService {
         System.out.println("PostRegistrationMenuService: Botón seleccionado: '" + buttonText + "' para usuario: " + phoneNumber);
         
         switch (buttonText) {
-            case "🤖 DQBot":
+            case "Habla con DQBot":
                 System.out.println("PostRegistrationMenuService: Activando DQBot...");
                 handleDQBotRequest(phoneNumber, user);
                 break;
-            case "🧑‍💼 Agente":
+            case "Habla con Voluntario":
                 System.out.println("PostRegistrationMenuService: Conectando con agente...");
                 handleHumanAgentRequest(phoneNumber, user);
                 break;
-            case "📋 Otras opciones":
+            case "Otras opciones":
                 System.out.println("PostRegistrationMenuService: Mostrando submenú...");
                 showSubMenu(phoneNumber, user);
                 break;
@@ -121,18 +121,10 @@ public class PostRegistrationMenuService {
                 showPostRegistrationMenu(phoneNumber);
                 break;
             default:
-                System.out.println("PostRegistrationMenuService: Botón no reconocido: '" + buttonText + "'. Verificando si es solicitud de menú...");
+                System.out.println("PostRegistrationMenuService: Botón no reconocido: '" + buttonText + "'. Mostrando menú principal...");
                 
-                // Verificar si es una solicitud de menú
-                if (isMenuRequest(buttonText)) {
-                    System.out.println("PostRegistrationMenuService: Es solicitud de menú, mostrando menú principal...");
-                    showPostRegistrationMenu(phoneNumber);
-                } else {
-                    System.out.println("PostRegistrationMenuService: No es solicitud de menú, enviando mensaje de error...");
-                    // Respuesta por defecto si no se reconoce el botón
-                    watiApiService.sendWhatsAppMessageSync(phoneNumber, 
-                        "Por favor, selecciona una de las opciones del menú.");
-                }
+                // Siempre mostrar el menú principal cuando el usuario escribe algo no reconocido
+                showPostRegistrationMenu(phoneNumber);
         }
     }
 
@@ -326,11 +318,11 @@ public class PostRegistrationMenuService {
      */
     private void handleHumanAgentRequest(String phoneNumber, User user) {
         String message = """
-            🧑‍💼 *Conectando con agente humano*
+            🧑‍💼 *Conectando con voluntario*
             
-            Tu solicitud ha sido enviada a nuestro equipo de agentes humanos.
+            Tu solicitud ha sido enviada a nuestro equipo de voluntarios.
             
-            Un agente se pondrá en contacto contigo lo antes posible.
+            Un voluntario se pondrá en contacto contigo lo antes posible.
             
             💡 *Tip:* Escribe "Menú" para volver al menú principal en cualquier momento.
             
