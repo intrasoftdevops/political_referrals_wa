@@ -1812,24 +1812,33 @@ public class ChatbotService {
                     }
                 }
                 
-                // NUEVA LÓGICA: Verificar si DQBot está activo para este usuario
-                if (postRegistrationMenuService.isDQBotActive(user)) {
-                    System.out.println("ChatbotService: DQBot activo para usuario COMPLETED. Procesando mensaje con IA...");
+                // PRIMERO: Verificar si la IA está habilitada globalmente en el sistema
+                if (systemConfigService.isAIEnabled()) {
+                    System.out.println("ChatbotService: IA del sistema HABILITADA. Verificando si DQBot está activo para este usuario...");
                     
-                    // Obtener el número de teléfono del usuario
-                    String phoneNumber = user.getPhone();
-                    if (phoneNumber == null || phoneNumber.isEmpty()) {
-                        phoneNumber = user.getTelegram_chat_id();
-                    }
-                    
-                    if (phoneNumber != null && !phoneNumber.isEmpty()) {
-                        // Procesar mensaje con DQBot
-                        postRegistrationMenuService.processDQBotMessage(phoneNumber, messageText, user);
+                    // SEGUNDO: Verificar si DQBot está activo para este usuario específico
+                    if (postRegistrationMenuService.isDQBotActive(user)) {
+                        System.out.println("ChatbotService: DQBot activo para usuario COMPLETED. Procesando mensaje con IA...");
                         
-                        // Mantener estado COMPLETED y no enviar respuesta adicional
-                        nextChatbotState = "COMPLETED";
-                        return new ChatResponse("", nextChatbotState, secondaryMessage);
+                        // Obtener el número de teléfono del usuario
+                        String phoneNumber = user.getPhone();
+                        if (phoneNumber == null || phoneNumber.isEmpty()) {
+                            phoneNumber = user.getTelegram_chat_id();
+                        }
+                        
+                        if (phoneNumber != null && !phoneNumber.isEmpty()) {
+                            // Procesar mensaje con DQBot
+                            postRegistrationMenuService.processDQBotMessage(phoneNumber, messageText, user);
+                            
+                            // Mantener estado COMPLETED y no enviar respuesta adicional
+                            nextChatbotState = "COMPLETED";
+                            return new ChatResponse("", nextChatbotState, secondaryMessage);
+                        }
+                    } else {
+                        System.out.println("ChatbotService: IA habilitada pero DQBot NO activo para este usuario. Delegando al menú principal...");
                     }
+                } else {
+                    System.out.println("ChatbotService: IA del sistema DESHABILITADA. Todos los usuarios serán atendidos por agentes humanos.");
                 }
                 
                 // Obtener session ID para el análisis
