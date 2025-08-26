@@ -343,26 +343,9 @@ public class ChatbotService {
     }
 
     public String processIncomingMessage(String fromId, String messageText, String channelType, String senderName) {
-        System.out.println("ChatbotService: Procesando mensaje entrante de " + fromId + " (Canal: " + channelType
-                + "): '" + messageText + "'");
-
         User user = findUserByAnyIdentifier(fromId, channelType).orElse(null);
         boolean isNewUser = (user == null);
         ChatResponse chatResponse = null;
-
-        // LOGGING DETALLADO PARA DEBUG
-        System.out.println("=== DEBUG WHATSAPP WELCOME MESSAGE ===");
-        System.out.println("FromId: " + fromId);
-        System.out.println("ChannelType: " + channelType);
-        System.out.println("IsNewUser: " + isNewUser);
-        if (user != null) {
-            System.out.println("User ID: " + user.getId());
-            System.out.println("User Phone: " + user.getPhone());
-            System.out.println("User State: " + user.getChatbot_state());
-            System.out.println("User Name: " + user.getName());
-            System.out.println("User City: " + user.getCity());
-        }
-        System.out.println("=====================================");
 
         String normalizedPhoneForWhatsapp = "";
         if ("WHATSAPP".equalsIgnoreCase(channelType)) {
@@ -372,11 +355,9 @@ public class ChatbotService {
             } else if (cleanedId.matches("^\\d{10,15}$")) {
                 normalizedPhoneForWhatsapp = "+" + cleanedId;
             }
-            System.out.println("DEBUG: Phone normalized to: " + normalizedPhoneForWhatsapp);
         }
 
         if (isNewUser) {
-            System.out.println("ChatbotService: Nuevo usuario detectado: " + fromId);
             user = new User();
             user.setId(UUID.randomUUID().toString());
             user.setCreated_at(Timestamp.now());
@@ -386,8 +367,6 @@ public class ChatbotService {
 
             // Validar y guardar el nombre del remitente si está disponible
             if (senderName != null && !senderName.trim().isEmpty()) {
-                System.out.println("ChatbotService: Validando nombre de WhatsApp: " + senderName);
-                
                 try {
                     // Validar y extraer nombre/apellido con IA de forma síncrona
                     NameValidationService.NameValidationResult validationResult = 
@@ -401,13 +380,6 @@ public class ChatbotService {
                         if (validationResult.getExtractedLastname() != null) {
                             user.setLastname(validationResult.getExtractedLastname());
                         }
-                        
-                        System.out.println("ChatbotService: ✅ Nombre de WhatsApp validado y guardado: " + 
-                            validationResult.getExtractedName() + 
-                            (validationResult.getExtractedLastname() != null ? " " + validationResult.getExtractedLastname() : ""));
-                    } else {
-                        System.out.println("ChatbotService: ❌ Nombre de WhatsApp inválido: " + senderName + " - Razón: " + validationResult.getReason());
-                        // No guardar el nombre si es inválido
                     }
                 } catch (Exception e) {
                     System.err.println("ChatbotService: Error al validar nombre: " + e.getMessage());
@@ -419,7 +391,6 @@ public class ChatbotService {
                 user.setPhone_code("+57");
                 user.setPhone(normalizedPhoneForWhatsapp);
 
-                System.out.println("DEBUG: Llamando handleNewUserIntro para nuevo usuario WhatsApp");
                 chatResponse = handleNewUserIntro(user, messageText, senderName);
                 user.setChatbot_state(chatResponse.getNextChatbotState());
                 saveUser(user);
@@ -437,12 +408,9 @@ public class ChatbotService {
                 return "Lo siento, no puedo procesar tu solicitud desde este canal.";
             }
         } else {
-            System.out.println("ChatbotService: Usuario existente. Estado actual: " + user.getChatbot_state()
-                    + ". ID del documento: " + (user.getPhone() != null ? user.getPhone().substring(1) : user.getId()));
 
             // VALIDACIÓN ADICIONAL: Verificar si el usuario ya está completado
             if ("COMPLETED".equals(user.getChatbot_state())) {
-                System.out.println("DEBUG: Usuario ya completado, procesando con AI Bot");
                 chatResponse = handleExistingUserMessage(user, messageText);
             } else {
                 // Verificar si el usuario tiene datos básicos pero estado inconsistente
@@ -451,11 +419,8 @@ public class ChatbotService {
                                      (user.getReferral_code() != null && !user.getReferral_code().isEmpty());
                 
                 if (hasBasicData && (user.getChatbot_state() == null || "NEW_USER".equals(user.getChatbot_state()))) {
-                    System.out.println("⚠️  WARNING: Usuario existente con datos pero estado inconsistente. Recuperando estado...");
-                    
                     // IMPORTANTE: Si el usuario viene de un reseteo, limpiar TODOS los datos excepto referral_code
                     if (user.isReset_from_deletion()) {
-                        System.out.println("DEBUG: Usuario viene de reseteo, limpiando datos y manteniendo solo referral_code");
                         // Limpiar TODOS los datos del usuario para forzar nuevo registro completo
                         user.setName(null);
                         user.setLastname(null);
@@ -465,7 +430,6 @@ public class ChatbotService {
                         user.setChatbot_state("NEW");
                         user.setReset_from_deletion(false); // Resetear el flag
                         saveUser(user);
-                        System.out.println("DEBUG: Usuario reseteado - todos los datos limpiados para nuevo registro completo");
                     } else {
                         // Solo para usuarios que NO vienen de reseteo, intentar recuperar el estado
                         if (user.getName() != null && user.getCity() != null && user.isAceptaTerminos()) {
@@ -473,24 +437,19 @@ public class ChatbotService {
                             if (user.getReferral_code() == null || user.getReferral_code().isEmpty()) {
                                 String referralCode = generateUniqueReferralCode();
                                 user.setReferral_code(referralCode);
-                                System.out.println("DEBUG: Generando código de referido faltante: " + referralCode);
                             }
                             user.setChatbot_state("COMPLETED");
                             saveUser(user);
-                            System.out.println("DEBUG: Usuario recuperado como COMPLETED");
                         } else if (user.getName() != null && user.getCity() != null && !user.isAceptaTerminos()) {
                             // SIEMPRE validar política de privacidad antes de completar
                             user.setChatbot_state("WAITING_TERMS_ACCEPTANCE");
                             saveUser(user);
-                            System.out.println("DEBUG: Usuario recuperado como WAITING_TERMS_ACCEPTANCE (validando política)");
                         } else if (user.getName() != null && (user.getCity() == null || user.getCity().isEmpty())) {
                             user.setChatbot_state("WAITING_CITY");
                             saveUser(user);
-                            System.out.println("DEBUG: Usuario recuperado como WAITING_CITY");
                         } else {
                             user.setChatbot_state("WAITING_NAME");
                             saveUser(user);
-                            System.out.println("DEBUG: Usuario recuperado como WAITING_NAME");
                         }
                     }
                 }
@@ -501,14 +460,11 @@ public class ChatbotService {
                         user.setPhone(normalizedPhoneForWhatsapp);
                         user.setPhone_code("+57");
                         userUpdated = true;
-                        System.out.println("DEBUG: Actualizando número de teléfono de usuario existente: "
-                                + normalizedPhoneForWhatsapp);
                     }
                 } else if ("TELEGRAM".equalsIgnoreCase(channelType)) {
                     if (user.getTelegram_chat_id() == null || !user.getTelegram_chat_id().equals(fromId)) {
                         user.setTelegram_chat_id(fromId);
                         userUpdated = true;
-                        System.out.println("DEBUG: Actualizando Telegram Chat ID de usuario existente: " + fromId);
                     }
                 }
 
@@ -516,35 +472,22 @@ public class ChatbotService {
                     saveUser(user);
                 }
 
-                System.out.println("DEBUG: Llamando handleExistingUserMessage para usuario existente");
                 chatResponse = handleExistingUserMessage(user, messageText);
             }
         }
 
         if (chatResponse != null) {
-            // LOGGING PARA IDENTIFICAR CUÁNDO SE ENVÍA EL MENSAJE DE BIENVENIDA
             String primaryMessage = chatResponse.getPrimaryMessage();
-            if (primaryMessage != null && primaryMessage.contains("Soy el bot de Reset a la Política")) {
-                System.out.println("⚠️  WARNING: Se está enviando mensaje de bienvenida!");
-                System.out.println("   FromId: " + fromId);
-                System.out.println("   IsNewUser: " + isNewUser);
-                System.out.println("   UserState: " + (user != null ? user.getChatbot_state() : "null"));
-                System.out.println("   NextState: " + chatResponse.getNextChatbotState());
-                System.out.println("   Message: " + primaryMessage.substring(0, Math.min(100, primaryMessage.length())) + "...");
-            }
 
             // RESPUESTA RÁPIDA OPTIMIZADA: Solo para usuarios COMPLETED y solo si es necesario
             if (user != null && "COMPLETED".equals(user.getChatbot_state()) && 
                 "WHATSAPP".equalsIgnoreCase(channelType)) {
                 // Enviar respuesta inmediata solo si el procesamiento será lento
                 // Por ahora, no enviar mensaje intermedio para evitar confusión
-                System.out.println("ChatbotService: Usuario COMPLETED detectado, procesando directamente");
             }
 
             // Enviar mensaje principal de forma síncrona para garantizar el orden
             if ("WHATSAPP".equalsIgnoreCase(channelType)) {
-                System.out.println("ChatbotService: Enviando mensaje principal a " + fromId + " (Canal: " + channelType + ")");
-                
                 // Detectar si es un mensaje múltiple
                 if (primaryMessage != null && primaryMessage.startsWith("MULTI:")) {
                     // Remover el prefijo "MULTI:" y dividir por "|"
@@ -584,17 +527,13 @@ public class ChatbotService {
                 for (int i = 0; i < messagesToSend.length; i++) {
                     String msg = messagesToSend[i].trim();
                     if (!msg.isEmpty()) {
-                        System.out.println("ChatbotService: Enviando mensaje secundario " + (i + 1) + "/" + messagesToSend.length + " a " + fromId + " (Canal: "
-                                + channelType + "): '" + msg + "'");
                         if ("WHATSAPP".equalsIgnoreCase(channelType)) {
                             // Verificar si es el mensaje de guardar contacto para enviar botones interactivos
                             if (msg.contains("Te pido que lo primero que hagas sea guardar este número")) {
                                 // Enviar mensaje sin botones interactivos
-                                System.out.println("ChatbotService: Enviando mensaje de guardar contacto sin botones interactivos");
                                 sendWhatsAppMessageSync(fromId, msg);
                                 
                                 // Enviar inmediatamente el mensaje de confirmación de nombre (sin retraso)
-                                System.out.println("ChatbotService: Enviando mensaje de confirmación de nombre inmediatamente");
                                 sendWhatsAppMessageSync(fromId, "¿Me confirmas tu nombre para guardarte en mis contactos?");
                             } else {
                                 // Enviar de forma síncrona para garantizar el orden
